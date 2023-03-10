@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /*
  * This file is part of Cosmic IDE.
  * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -6,20 +5,13 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-=======
->>>>>>> b539e1e0 (Initial commit)
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
 }
 android {
-<<<<<<< HEAD
     namespace = "andihasan7.kartikaide.rewrite.util"
     compileSdk = 36
-=======
-    namespace = "org.cosmicide.rewrite.util"
-    compileSdk = 31
->>>>>>> b539e1e0 (Initial commit)
 
     defaultConfig {
         minSdk = 26
@@ -27,11 +19,7 @@ android {
 
     buildTypes {
         release {
-<<<<<<< HEAD
             isMinifyEnabled = true
-=======
-            isMinifyEnabled = false
->>>>>>> b539e1e0 (Initial commit)
         }
     }
 
@@ -44,12 +32,9 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 }
-<<<<<<< HEAD
 
 dependencies {
     implementation("de.maxr1998:modernandroidpreferences:2.3.2")
     implementation(projects.feature.aliuhook)
     implementation("androidx.core:core-ktx:1.16.0")
 }
-=======
->>>>>>> b539e1e0 (Initial commit)

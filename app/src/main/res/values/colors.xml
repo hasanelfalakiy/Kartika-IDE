@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 <!--
   ~ This file is part of Cosmic IDE.
   ~ Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -11,7 +10,3 @@
     <color name="logo_stroke">#FFFFFF</color>
     <color name="logo_accent">#1F75FE</color>
 </resources>
-=======
-<?xml version="1.0" encoding="utf-8"?>
-<resources></resources>
->>>>>>> b539e1e0 (Initial commit)

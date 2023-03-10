@@ -4,22 +4,15 @@
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
-<<<<<<< HEAD
         <option name="testRunner" value="CHOOSE_PER_TEST" />
         <option name="distributionType" value="LOCAL" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="gradleHome" value="C:\Users\Dell\gradle-8.14.4" />
         <option name="gradleJvm" value="#JAVA_HOME" />
-=======
-        <option name="testRunner" value="GRADLE" />
-        <option name="distributionType" value="DEFAULT_WRAPPED" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$" />
->>>>>>> b539e1e0 (Initial commit)
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
-<<<<<<< HEAD
             <option value="$PROJECT_DIR$/build-tools" />
             <option value="$PROJECT_DIR$/common" />
             <option value="$PROJECT_DIR$/datadir" />
@@ -38,12 +31,6 @@
             <option value="$PROJECT_DIR$/feature/java-completion" />
             <option value="$PROJECT_DIR$/feature/project" />
             <option value="$PROJECT_DIR$/jgit" />
-=======
-            <option value="$PROJECT_DIR$/java-completion" />
-            <option value="$PROJECT_DIR$/kotlin-completion" />
-            <option value="$PROJECT_DIR$/kotlinc" />
-            <option value="$PROJECT_DIR$/project" />
->>>>>>> b539e1e0 (Initial commit)
             <option value="$PROJECT_DIR$/util" />
           </set>
         </option>

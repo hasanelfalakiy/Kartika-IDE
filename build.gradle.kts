@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /*
  * This file is part of Cosmic IDE.
  * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -19,12 +18,3 @@ buildscript {
         classpath("com.google.gms:google-services:4.4.2")
     }
 }
-=======
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
-plugins {
-    id("com.android.application") version "8.1.0-alpha08" apply false
-    id("com.android.library") version "8.1.0-alpha08" apply false
-    id("org.jetbrains.kotlin.android") version "1.8.0" apply false
-    id("org.jetbrains.kotlin.jvm") version "1.8.0" apply false
-}
->>>>>>> b539e1e0 (Initial commit)
