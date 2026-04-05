@@ -8,7 +8,11 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("com.google.gms.google-services")
+    id("com.google.gms.google-services") apply false
+}
+
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 android {
@@ -17,7 +21,7 @@ android {
 
     defaultConfig {
         val commit = getGitCommit()
-        val GEMINI_API_KEY = "AIzaSyDR-8pmVxLaZHsQM0M5aw4gmyjxnU7ljNo"
+        val GEMINI_API_KEY = "AIzaSyATFKAQSf03NKdwCiKjdzFl4-RuU0EaokA"
 
         applicationId = "org.cosmicide"
         minSdk = 26

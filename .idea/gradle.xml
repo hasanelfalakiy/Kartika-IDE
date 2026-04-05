@@ -5,8 +5,10 @@
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
         <option name="testRunner" value="CHOOSE_PER_TEST" />
+        <option name="distributionType" value="LOCAL" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="gradleJvm" value="jbr-17" />
+        <option name="gradleHome" value="C:\Users\Dell\gradle-8.14.4" />
+        <option name="gradleJvm" value="#JAVA_HOME" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
@@ -29,7 +31,6 @@
             <option value="$PROJECT_DIR$/feature/java-completion" />
             <option value="$PROJECT_DIR$/feature/project" />
             <option value="$PROJECT_DIR$/jgit" />
-            <option value="$PROJECT_DIR$/kotlinc" />
             <option value="$PROJECT_DIR$/util" />
           </set>
         </option>
