@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!--
   ~ This file is part of Cosmic IDE.
   ~ Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -19,3 +20,14 @@
 
     <style name="Theme.CosmicIde" parent="Theme.CosmicIde.Base" />
 </resources>
+=======
+<resources>
+    <!-- Base application theme. -->
+    <style name="Base.Theme.CosmicIDERewrite" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Customize your light theme here. -->
+        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+    </style>
+
+    <style name="Theme.CosmicIDERewrite" parent="Base.Theme.CosmicIDERewrite" />
+</resources>
+>>>>>>> b539e1e0 (Initial commit)

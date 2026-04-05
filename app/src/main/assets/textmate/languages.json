@@ -1,6 +1,15 @@
 {
   "languages": [
     {
+<<<<<<< HEAD
+=======
+      "grammar": "textmate/java/syntaxes/java.tmLanguage.json",
+      "name": "java",
+      "scopeName": "source.java",
+      "languageConfiguration": "textmate/java/language-configuration.json"
+    },
+    {
+>>>>>>> b539e1e0 (Initial commit)
       "grammar": "textmate/kotlin/syntaxes/kotlin.tmLanguage",
       "name": "kotlin",
       "scopeName": "source.kotlin",
@@ -11,12 +20,15 @@
       "name": "smali",
       "scopeName": "source.smali",
       "languageConfiguration": "textmate/smali/language-configuration.json"
+<<<<<<< HEAD
     },
     {
       "grammar": "textmate/buildLog/syntaxes/buildLog.tmLanguage.json",
       "name": "build",
       "scopeName": "source.build",
       "languageConfiguration": "textmate/buildLog/language-configuration.json"
+=======
+>>>>>>> b539e1e0 (Initial commit)
     }
   ]
 }

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="CompilerConfiguration">
+<<<<<<< HEAD
     <annotationProcessing>
       <profile name="Gradle Imported" enabled="true">
         <outputRelativeToContentRoot value="true" />
@@ -82,4 +83,10 @@
       <module name="KartikaIDE.feature.formatter.google-java-format.test" options="--add-exports jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED" />
     </option>
   </component>
+=======
+    <bytecodeTargetLevel target="17">
+      <module name="Cosmic_IDE_Rewrite.app" target="17" />
+    </bytecodeTargetLevel>
+  </component>
+>>>>>>> b539e1e0 (Initial commit)
 </project>

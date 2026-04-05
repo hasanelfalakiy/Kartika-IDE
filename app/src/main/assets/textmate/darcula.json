@@ -9,7 +9,13 @@
         "blockLineColor": "#575757",
         "currentBlockLineColor": "#7a7a7a",
         "selection": "#214283",
+<<<<<<< HEAD
         "highlightedDelimetersForeground": "#57f6c0"
+=======
+        "highlightedDelimetersForeground": "#57f6c0",
+        "completionWindowBackground": "#1F1A1B",
+        "completionWindowStroke": "#555555"
+>>>>>>> b539e1e0 (Initial commit)
       }
     },
     {
@@ -537,4 +543,8 @@
       }
     }
   ]
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> b539e1e0 (Initial commit)
