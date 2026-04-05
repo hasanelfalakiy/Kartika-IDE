@@ -1,1 +1,3 @@
 /build
+kotlinc/libs/
+app/src/main/assets/rt.jar
