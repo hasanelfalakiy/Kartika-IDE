@@ -6,7 +6,7 @@
   -->
 
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="app_name">Cosmic IDE Rewrite</string>
+    <string name="app_name">Kartika IDE</string>
     <string name="action_settings">Settings</string>
 
     <!-- Strings used for fragments for navigation -->
@@ -23,8 +23,8 @@
     <string name="action_compile">Compile</string>
     <string name="reload">Reload</string>
     <string name="cancel">Cancel</string>
-    <string name="analytics_permission_title">Cosmic IDE Analytics</string>
-    <string name="analytics_permission_message">Help us improve Cosmic IDE by providing anonymous statistics. We only collect basic non-personally identifiable information about your device for analyzing the user base. The data is transferred securely and no data is shared with third-parties. You can turn it off anytime from settings.</string>
+    <string name="analytics_permission_title">Kartika IDE Analytics</string>
+    <string name="analytics_permission_message">Help us improve Kartika IDE by providing anonymous statistics. We only collect basic non-personally identifiable information about your device for analyzing the user base. The data is transferred securely and no data is shared with third-parties. You can turn it off anytime from settings.</string>
     <string name="pref_theme_auto">System theme</string>
     <string name="pref_theme_light">Light theme</string>
     <string name="pref_theme_dark">Dark theme</string>
@@ -86,7 +86,7 @@
     <string name="clone_from_git">Clone from Git</string>
     <string name="class_name">Class name</string>
     <string name="no_projects_found_create_one_now">No projects found. Create one now!</string>
-    <string name="install_resource_description">Cosmic IDE requires certain resources to build and run your projects. Press the button below to initiate the download process and configure them.</string>
+    <string name="install_resource_description">Kartika IDE requires certain resources to build and run your projects. Press the button below to initiate the download process and configure them.</string>
     <string name="resource_description">This will download and configure the following resources: \n• index.json (Required for Java code completion)</string>
     <string name="install">Install</string>
     <string name="navigation_item_kind">Navigation Item Kind</string>

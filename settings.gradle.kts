@@ -24,7 +24,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CosmicIDE"
+rootProject.name = "KartikaIDE"
 
 include(":app")
 include(":build-tools")

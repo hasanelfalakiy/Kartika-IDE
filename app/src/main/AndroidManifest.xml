@@ -27,7 +27,7 @@
         tools:ignore="ProtectedPermissions" />
 
     <application
-        android:name="org.cosmicide.App"
+        android:name="com.andihasan7.kartikaide.App"
         android:allowBackup="true"
         android:allowClearUserData="false"
         android:appCategory="productivity"
@@ -56,7 +56,7 @@
             android:exported="false"
             tools:node="merge">
             <meta-data
-                android:name="org.cosmicide.startup.MainInitializer"
+                android:name="com.andihasan7.kartikaide.startup.MainInitializer"
                 android:value="androidx.startup" />
         </provider>
 

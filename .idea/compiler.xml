@@ -7,8 +7,8 @@
         <processorPath useClasspath="false">
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.google.auto.value/auto-value/1.11.0/d1fd0e74d20e922145c3fede3f05e246bb6be281/auto-value-1.11.0.jar" />
         </processorPath>
-        <module name="CosmicIDE.feature.genai.main" />
-        <module name="CosmicIDE.feature.formatter.google-java-format.main" />
+        <module name="KartikaIDE.feature.genai.main" />
+        <module name="KartikaIDE.feature.formatter.google-java-format.main" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel target="11">
@@ -47,6 +47,28 @@
       <module name="CosmicIDE-Rewrite.TreeView" target="17" />
       <module name="CosmicIDE-Rewrite.util" target="20" />
       <module name="CosmicIDE-Rewrite.util.test" target="17" />
+      <module name="CosmicIDE.app" target="17" />
+      <module name="CosmicIDE.build-tools" target="17" />
+      <module name="CosmicIDE.common" target="17" />
+      <module name="CosmicIDE.datadir" target="17" />
+      <module name="CosmicIDE.feature.aliuhook" target="17" />
+      <module name="CosmicIDE.feature.appwrite" target="17" />
+      <module name="CosmicIDE.feature.code-navigation" target="17" />
+      <module name="CosmicIDE.feature.completion.java" target="17" />
+      <module name="CosmicIDE.feature.completion.kotlin" target="17" />
+      <module name="CosmicIDE.feature.formatter.google-java-format" target="17" />
+      <module name="CosmicIDE.feature.formatter.google-java-format.main" target="17" />
+      <module name="CosmicIDE.feature.formatter.google-java-format.test" target="17" />
+      <module name="CosmicIDE.feature.formatter.ktfmt" target="17" />
+      <module name="CosmicIDE.feature.java-completion" target="17" />
+      <module name="CosmicIDE.feature.project" target="17" />
+      <module name="CosmicIDE.feature.project.main" target="17" />
+      <module name="CosmicIDE.feature.project.test" target="17" />
+      <module name="CosmicIDE.feature.TreeView" target="17" />
+      <module name="CosmicIDE.jgit" target="17" />
+      <module name="CosmicIDE.jgit.main" target="17" />
+      <module name="CosmicIDE.jgit.test" target="17" />
+      <module name="CosmicIDE.util" target="17" />
     </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
@@ -55,6 +77,9 @@
       <module name="CosmicIDE.feature.formatter.google-java-format" options="--add-exports jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED" />
       <module name="CosmicIDE.feature.formatter.google-java-format.main" options="--add-exports jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED" />
       <module name="CosmicIDE.feature.formatter.google-java-format.test" options="--add-exports jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED" />
+      <module name="KartikaIDE.feature.formatter.google-java-format" options="--add-exports jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED" />
+      <module name="KartikaIDE.feature.formatter.google-java-format.main" options="--add-exports jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED" />
+      <module name="KartikaIDE.feature.formatter.google-java-format.test" options="--add-exports jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED --add-exports jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED" />
     </option>
   </component>
 </project>

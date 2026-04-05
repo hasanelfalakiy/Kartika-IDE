@@ -10,7 +10,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 android {
-    namespace = "org.cosmicide.rewrite.util"
+    namespace = "andihasan7.kartikaide.rewrite.util"
     compileSdk = 36
 
     defaultConfig {

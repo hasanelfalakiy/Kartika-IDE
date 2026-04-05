@@ -34,10 +34,10 @@ import io.github.rosemoe.sora.lang.completion.CompletionItemKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.cosmicide.common.Prefs
-import org.cosmicide.editor.EditorCompletionItem
-import org.cosmicide.project.Project
-import org.cosmicide.rewrite.util.FileUtil
+import andihasan7.kartikaide.common.Prefs
+import andihasan7.kartikaide.editor.EditorCompletionItem
+import andihasan7.kartikaide.project.Project
+import andihasan7.kartikaide.rewrite.util.FileUtil
 import org.jetbrains.kotlin.analyzer.AnalysisResult
 import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
 import org.jetbrains.kotlin.cli.common.CommonCompilerPerformanceManager

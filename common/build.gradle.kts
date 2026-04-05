@@ -11,7 +11,7 @@ plugins {
 }
 
 android {
-    namespace = "org.cosmicide.common"
+    namespace = "andihasan7.kartikaide.common"
     compileSdk = 36
 
     defaultConfig {

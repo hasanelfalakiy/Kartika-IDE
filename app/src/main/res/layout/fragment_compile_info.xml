@@ -11,7 +11,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?colorSurfaceContainerLow"
-    tools:context="org.cosmicide.fragment.CompileInfoFragment">
+    tools:context="com.andihasan7.kartikaide.fragment.CompileInfoFragment">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appbar"
@@ -27,7 +27,7 @@
             app:navigationIcon="@drawable/baseline_arrow_back_24" />
     </com.google.android.material.appbar.AppBarLayout>
 
-    <org.cosmicide.editor.IdeEditor
+    <com.andihasan7.kartikaide.editor.IdeEditor
         android:id="@+id/info_editor"
         android:layout_width="match_parent"
         android:layout_height="0dp"

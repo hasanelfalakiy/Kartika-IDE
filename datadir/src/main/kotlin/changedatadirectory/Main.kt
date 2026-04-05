@@ -13,8 +13,8 @@ import android.widget.Toast
 import de.Maxr1998.modernpreferences.PreferenceScreen
 import de.Maxr1998.modernpreferences.helpers.editText
 import de.Maxr1998.modernpreferences.preferences.EditTextPreference
-import org.cosmicide.rewrite.plugin.api.HookManager
-import org.cosmicide.rewrite.util.FileUtil
+import andihasan7.kartikaide.rewrite.plugin.api.HookManager
+import andihasan7.kartikaide.rewrite.util.FileUtil
 import java.io.File
 
 object Main {

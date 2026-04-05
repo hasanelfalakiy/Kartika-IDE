@@ -16,14 +16,14 @@ if (file("google-services.json").exists()) {
 }
 
 android {
-    namespace = "org.cosmicide"
+    namespace = "com.andihasan7.kartikaide"
     compileSdk = 36
 
     defaultConfig {
         val commit = getGitCommit()
         val GEMINI_API_KEY = "AIzaSyATFKAQSf03NKdwCiKjdzFl4-RuU0EaokA"
 
-        applicationId = "org.cosmicide"
+        applicationId = "com.andihasan7.kartikaide"
         minSdk = 26
         targetSdk = 36
         versionCode = 25
