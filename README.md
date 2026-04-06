@@ -5,7 +5,7 @@
 
 [![License](https://img.shields.io/github/license/hasanelfalakiy/Kartika-IDE)](https://github.com/hasanelfalakiy/Kartika-IDE/blob/main/LICENSE)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/94a4082a551c496cae031bcdb6f2040d)](https://codacy.com/gh/hasanelfalakiy/Kartika-IDE/dashboard)
-[![Total downloads](https://img.shields.io/github/downloads/Cosmic-Ide/Cosmic-Ide/total)](https://github.com/hasanelfalakiy/Kartika-IDE/releases)
+[![Total downloads](https://img.shields.io/github/downloads/hasanelfalakiy/Kartika-IDE/total)](https://github.com/hasanelfalakiy/Kartika-IDE/releases)
 [![Telegram](https://img.shields.io/badge/Telegram-join-blue)](https://t.me/moonlight_studio01/9)
 ![GitHub Repo stars](https://img.shields.io/github/stars/hasanelfalakiy/Kartika-IDE)
 
