@@ -201,7 +201,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                         editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
                 }
 
-                "kt" -> {
+                "kt", "kts" -> {
                     if (editor.editorLanguage is KotlinLanguage) return
                     editor.setEditorLanguage(
                         KotlinLanguage(
