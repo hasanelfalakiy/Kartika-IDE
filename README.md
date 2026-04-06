@@ -1,26 +1,20 @@
 > [!NOTE]
-> ~~A new version is currently being developed that will fix most of the errors contained in the latest versions of the application.
-> Release time: unknown.~~
+> This repository is a fork of [Cosmic IDE](https://github.com/Cosmic-Ide/Cosmic-IDE.git) which has been discontinued, then I continue its development with the help of AI Agent, contribute to making the IDE even better and feature rich
 
-# Cosmic IDE
+# Kartika IDE
 
-[![License](https://img.shields.io/github/license/Cosmic-Ide/Cosmic-Ide)](https://github.com/Cosmic-Ide/Cosmic-Ide/blob/main/LICENSE)
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/94a4082a551c496cae031bcdb6f2040d)](https://codacy.com/gh/Cosmic-Ide/Cosmic-Ide/dashboard)
-[![Total downloads](https://img.shields.io/github/downloads/Cosmic-Ide/Cosmic-Ide/total)](https://github.com/Cosmic-Ide/Cosmic-Ide/releases)
-[![Discord](https://img.shields.io/discord/867985135931383809)](https://discord.gg/8Gu6YCq2eS)
-[![Telegram](https://img.shields.io/badge/Telegram-join-blue)](https://t.me/cosmicide)
-[![F-Droid (including pre-releases)](https://img.shields.io/f-droid/v/org.cosmicide)](https://f-droid.org/packages/org.cosmicide)
-![GitHub Repo stars](https://img.shields.io/github/stars/Cosmic-IDE/Cosmic-IDE)
+[![License](https://img.shields.io/github/license/hasanelfalakiy/Kartika-IDE)](https://github.com/hasanelfalakiy/Kartika-IDE/blob/main/LICENSE)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/94a4082a551c496cae031bcdb6f2040d)](https://codacy.com/gh/hasanelfalakiy/Kartika-IDE/dashboard)
+[![Total downloads](https://img.shields.io/github/downloads/Cosmic-Ide/Cosmic-Ide/total)](https://github.com/hasanelfalakiy/Kartika-IDE/releases)
+[![Telegram](https://img.shields.io/badge/Telegram-join-blue)](https://t.me/moonlight_studio01/9)
+![GitHub Repo stars](https://img.shields.io/github/stars/hasanelfalakiy/Kartika-IDE)
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-alt="Get it on F-Droid"
-height="80">](https://f-droid.org/packages/org.cosmicide)
 
 A next-gen IDE for JVM development on Android.
 
 ## Description
 
-Cosmic IDE is a powerful and feature-rich IDE for JVM development on Android. It is built on top of the latest tools, and offers a wide range of features that make it the perfect tool for developers who want to build high-quality, bug-free applications without needing a computer.
+Kartika IDE is a powerful and feature-rich IDE for JVM development on Android. It is built on top of the latest tools, and offers a wide range of features that make it the perfect tool for developers who want to build high-quality, bug-free applications without needing a computer.
 
 ## Screenshots
 
@@ -39,17 +33,12 @@ Cosmic IDE is a powerful and feature-rich IDE for JVM development on Android. It
 
 </p>
 
-
-## Installation
-
-Currently, Cosmic IDE is in active development. You can download the latest debug app build
-from [here](https://nightly.link/Cosmic-Ide/Cosmic-IDE/workflows/android/main/app-universal.zip).
-
-If you find any bugs, please report them on our [Discord server](https://discord.gg/8Gu6YCq2eS) or open an issue on GitHub.
+If you find any bugs, please report them on our [Telegram Group](https://t.me/moonlight_studio01/9) or open an issue on GitHub.
 
 ## Features
 
 - Supports Java 17 and Kotlin 2.1 (K2 compiler)
+- Support running main functions other than the Main.kt/.java class/file
 - Plugin support (plugins can be written in Java or Kotlin)
 - Git integration
 - Fast incremental compilation
@@ -85,14 +74,15 @@ We welcome contributions from everyone. If you have any ideas for features or im
 
 ## Donate
 
-If you appreciate the work that has been put into Cosmic IDE, you can donate to support the developers:
+If you appreciate the work that has been put into Kartika IDE, you can donate to support the developers:
 
-[![Become a Patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://patreon.com/cosmicide)
+[Become a Saweria](https://saweria.co/andiHasan)
 
 ## Acknowledgment
 
 We would like to thank the following projects and their maintainers for their work, which has been used in Cosmic IDE:
 
+- [Cosmic-IDE](https://github.com/Cosmic-Ide/Cosmic-IDE.git) for base app, licensed under the GNU GPL-v3 License
 - [Iyxan23](https://github.com/Iyxan23) for the app icon!
 - [Sora Editor](https://github.com/Rosemoe/sora-editor) licensed under the GNU Lesser General Public License v2.1
 - [CodeAssist Kotlin code completion](https://github.com/tyron12233/CodeAssist/tree/main/kotlin-completion) licensed under GNU GPL-v3
@@ -105,16 +95,14 @@ We would like to thank the following projects and their maintainers for their wo
 
 ## Contributions
 
-[![Contributors](https://contrib.rocks/image?repo=Cosmic-Ide/Cosmic-IDE)](https://github.com/Cosmic-Ide/Cosmic-IDE/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=hasanelfalakiy/Kartika-IDE)](https://github.com/hasanelfalakiy/Kartika-IDE/graphs/contributors)
 
 ## License
 
-Cosmic IDE is licensed under the GNU GPL-v3 License.
+Kartika IDE is licensed under the GNU GPL-v3 License.
 
 ## Contact
 
 If you have any questions or feedback, please contact us at:
 
-- [Discord](https://discord.gg/8Gu6YCq2eS)
-- [Telegram](https://t.me/cosmicide)
-- [Email Address](mailto:purwarpranav80@gmail.com)
+- [Telegram](https://t.me/moonlight_studio01/9)
