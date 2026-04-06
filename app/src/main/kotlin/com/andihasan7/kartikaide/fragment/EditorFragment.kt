@@ -291,7 +291,17 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     R.id.action_compile -> {
                         editorAdapter.fragments.forEach { fragment -> fragment.save() }
                         getCurrentFragment()?.hideWindows()
-                        navigateToCompileInfoFragment()
+                        
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val mains = findMainClasses()
+                            withContext(Dispatchers.Main) {
+                                when {
+                                    mains.size > 1 -> showMainSelectionDialog(mains)
+                                    mains.size == 1 -> navigateToCompileInfoFragment(mains[0])
+                                    else -> navigateToCompileInfoFragment(null)
+                                }
+                            }
+                        }
                         true
                     }
 
@@ -609,6 +619,44 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 return@launch
             }
         }
+    }
+
+    private fun findMainClasses(): List<String> {
+        val mains = mutableListOf<String>()
+        val srcDir = project.srcDir
+        if (!srcDir.exists()) return emptyList()
+        val srcPath = srcDir.absolutePath + File.separator
+
+        srcDir.walkTopDown().forEach { file ->
+            if (file.isFile && (file.extension == "java" || file.extension == "kt")) {
+                try {
+                    val content = file.readText()
+                    val hasMain = if (file.extension == "java") {
+                        content.contains("public static void main")
+                    } else {
+                        content.contains(Regex("""\bfun\s+main\b"""))
+                    }
+
+                    if (hasMain) {
+                        mains.add(file.absolutePath.removePrefix(srcPath))
+                    }
+                } catch (e: Exception) {
+                    // Ignore files we can't read
+                }
+            }
+        }
+        return mains
+    }
+
+    private fun showMainSelectionDialog(mains: List<String>) {
+        val items = mains.toTypedArray()
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Select main class")
+            .setItems(items) { _, which ->
+                navigateToCompileInfoFragment(mains[which])
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun navigateToCompileInfoFragment(clazz: String? = null) {

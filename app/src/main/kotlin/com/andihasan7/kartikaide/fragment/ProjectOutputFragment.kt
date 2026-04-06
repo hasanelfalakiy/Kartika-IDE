@@ -115,16 +115,26 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         classes.forEach {
             println("  $it")
         }
-        var index = classes.firstOrNull { it.endsWith("Main") }
-            ?: classes.firstOrNull { it.endsWith("MainKt") } ?: classes.first()
+        
+        var index: String? = null
 
         if (ProjectHandler.clazz != null) {
-            println("Running ${ProjectHandler.clazz}")
-            index = ProjectHandler.clazz!!.substringBeforeLast('.')
+            val target = ProjectHandler.clazz!!.substringBeforeLast('.').replace('\\', '/')
             ProjectHandler.clazz = null
+            index = classes.find { it == target } ?: classes.find { it == "${target}Kt" }
         }
 
-        runClass(index)
+        if (index == null) {
+            index = classes.firstOrNull { it.endsWith("/Main") || it == "Main" }
+                ?: classes.firstOrNull { it.endsWith("/MainKt") || it == "MainKt" }
+                ?: classes.firstOrNull()
+        }
+
+        if (index != null) {
+            runClass(index)
+        } else {
+            binding.infoEditor.setText("No classes found to run")
+        }
     }
 
     fun runClass(className: String) = lifecycleScope.launch(Dispatchers.IO) {
@@ -153,7 +163,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         }
 
         runCatching {
-            loader.loader.loadClass(className)
+            loader.loader.loadClass(className.replace('/', '.'))
         }.onSuccess { clazz ->
             isRunning = true
             System.setProperty("project.dir", project.root.absolutePath)
@@ -176,10 +186,10 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                     e.printStackTrace()
                 }
             } else {
-                System.err.println("No main method found")
+                System.err.println("No main method found in $className")
             }
         }.onFailure { e ->
-            System.err.println("Error loading class: ${e.message}")
+            System.err.println("Error loading class $className: ${e.message}")
         }.also {
             systemOut.close()
             System.`in`.close()
@@ -187,4 +197,3 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         }
     }
 }
-
