@@ -22,6 +22,7 @@
 package com.andihasan7.kartikaide.fragment
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
@@ -30,6 +31,7 @@ import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
 import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.andihasan7.kartikaide.R
 import andihasan7.kartikaide.common.BaseBindingFragment
 import com.andihasan7.kartikaide.databinding.FragmentCompileInfoBinding
@@ -40,6 +42,7 @@ import com.andihasan7.kartikaide.util.ProjectHandler
 import com.andihasan7.kartikaide.util.makeDexReadOnlyIfNeeded
 import java.io.OutputStream
 import java.io.PrintStream
+import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import kotlin.collections.get
 
@@ -98,42 +101,65 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
             binding.infoEditor.setText("classes.dex not found")
             return
         }
-        val bufferedInputStream = dex.inputStream().buffered()
-        val dexFile = DexBackedDexFile.fromInputStream(
-            Opcodes.forApi(33),
-            bufferedInputStream
-        )
-        bufferedInputStream.close()
-        val classes = dexFile.classes.map { it.type.substring(1, it.type.length - 1) }
-        if (classes.isEmpty()) {
-            binding.infoEditor.setText("No classes found")
-            return
-        }
 
-        println("Found ${classes.size} classes")
-        println("Available classes:")
-        classes.forEach {
-            println("  $it")
-        }
-        
-        var index: String? = null
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dexFile = try {
+                val bufferedInputStream = dex.inputStream().buffered()
+                val df = DexBackedDexFile.fromInputStream(Opcodes.forApi(33), bufferedInputStream)
+                bufferedInputStream.close()
+                df
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    binding.infoEditor.setText("Error reading dex: ${e.message}")
+                }
+                return@launch
+            }
 
-        if (ProjectHandler.clazz != null) {
-            val target = ProjectHandler.clazz!!.substringBeforeLast('.').replace('\\', '/')
-            ProjectHandler.clazz = null
-            index = classes.find { it == target } ?: classes.find { it == "${target}Kt" }
-        }
+            // Find classes that have a main method (either parameterless or with String[] args)
+            val mainClasses = dexFile.classes.filter { classDef ->
+                classDef.methods.any { method ->
+                    method.name == "main" && (
+                        method.parameterTypes.isEmpty() || 
+                        (method.parameterTypes.size == 1 && method.parameterTypes[0] == "[Ljava/lang/String;")
+                    )
+                }
+            }.map { it.type.substring(1, it.type.length - 1) }
 
-        if (index == null) {
-            index = classes.firstOrNull { it.endsWith("/Main") || it == "Main" }
-                ?: classes.firstOrNull { it.endsWith("/MainKt") || it == "MainKt" }
-                ?: classes.firstOrNull()
-        }
+            withContext(Dispatchers.Main) {
+                if (mainClasses.isEmpty()) {
+                    binding.infoEditor.setText("No classes with main method found")
+                    return@withContext
+                }
 
-        if (index != null) {
-            runClass(index)
-        } else {
-            binding.infoEditor.setText("No classes found to run")
+                Log.d("ProjectOutput", "Classes with main: $mainClasses")
+
+                var index: String? = null
+                val targetFile = ProjectHandler.clazz
+                ProjectHandler.clazz = null
+
+                if (targetFile != null) {
+                    // targetFile is something like "com/test/Say.kt" or "Main.java"
+                    val targetName = targetFile.substringBeforeLast('.').replace('\\', '/')
+                    Log.d("ProjectOutput", "Searching for target: $targetName")
+                    
+                    // Match by full path or just the class name suffix
+                    index = mainClasses.find { it == targetName || it == "${targetName}Kt" }
+                        ?: mainClasses.find { it.endsWith("/$targetName") || it.endsWith("/${targetName}Kt") }
+                }
+
+                if (index == null) {
+                    // Fallback to Main or MainKt
+                    index = mainClasses.find { it.endsWith("/Main") || it == "Main" || it.endsWith("/MainKt") || it == "MainKt" }
+                        ?: mainClasses.firstOrNull()
+                }
+
+                if (index != null) {
+                    Log.d("ProjectOutput", "Selected class to run: $index")
+                    runClass(index)
+                } else {
+                    binding.infoEditor.setText("Could not determine which class to run")
+                }
+            }
         }
     }
 
@@ -167,26 +193,30 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         }.onSuccess { clazz ->
             isRunning = true
             System.setProperty("project.dir", project.root.absolutePath)
-            if (clazz.declaredMethods.any {
-                    it.name == "main" && it.parameterCount == 1 && it.parameterTypes[0] == Array<String>::class.java
-                }) {
-                val method = clazz.getDeclaredMethod("main", Array<String>::class.java)
+            
+            val mainMethod = findMainMethod(clazz)
+            
+            if (mainMethod != null) {
                 try {
-                    if (Modifier.isStatic(method.modifiers)) {
-                        method.invoke(null, project.args.toTypedArray())
-                    } else if (Modifier.isPublic(method.modifiers)) {
-                        method.invoke(
-                            clazz.getDeclaredConstructor().newInstance(),
-                            project.args.toTypedArray()
-                        )
+                    if (Modifier.isStatic(mainMethod.modifiers)) {
+                        if (mainMethod.parameterCount == 1) {
+                            mainMethod.invoke(null, project.args.toTypedArray())
+                        } else {
+                            mainMethod.invoke(null)
+                        }
                     } else {
-                        System.err.println("Main method is not public or static")
+                        val instance = clazz.getDeclaredConstructor().newInstance()
+                        if (mainMethod.parameterCount == 1) {
+                            mainMethod.invoke(instance, project.args.toTypedArray())
+                        } else {
+                            mainMethod.invoke(instance)
+                        }
                     }
                 } catch (e: Throwable) {
                     e.printStackTrace()
                 }
             } else {
-                System.err.println("No main method found in $className")
+                System.err.println("No valid main method found in $className")
             }
         }.onFailure { e ->
             System.err.println("Error loading class $className: ${e.message}")
@@ -194,6 +224,26 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
             systemOut.close()
             System.`in`.close()
             isRunning = false
+        }
+    }
+
+    private fun findMainMethod(clazz: Class<*>): Method? {
+        // 1. Coba cari public static void main(String[] args) - Java Standard
+        try {
+            val m = clazz.getDeclaredMethod("main", Array<String>::class.java)
+            if (Modifier.isPublic(m.modifiers)) return m
+        } catch (e: NoSuchMethodException) {}
+
+        // 2. Coba cari public static void main() - Kotlin parameterless main
+        try {
+            val m = clazz.getDeclaredMethod("main")
+            if (Modifier.isPublic(m.modifiers)) return m
+        } catch (e: NoSuchMethodException) {}
+
+        // 3. Cari method bernama "main" secara manual (untuk kasus non-static atau visibility lain yang mungkin)
+        return clazz.declaredMethods.firstOrNull { 
+            it.name == "main" && 
+            (it.parameterCount == 0 || (it.parameterCount == 1 && it.parameterTypes[0] == Array<String>::class.java))
         }
     }
 }
