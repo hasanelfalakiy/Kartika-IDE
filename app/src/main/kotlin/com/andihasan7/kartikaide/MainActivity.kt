@@ -63,7 +63,7 @@ class MainActivity : AppCompatActivity() {
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
             val imeInset =
-                ViewCompat.getRootWindowInsets(view)!!.getInsets(WindowInsetsCompat.Type.ime())
+                windowInsets.getInsets(WindowInsetsCompat.Type.ime())
 
             val systemBarInsets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
 
@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
                 if (imeInset.bottom > 0) 0 else systemBarInsets.bottom
             )
 
-            WindowInsetsCompat.CONSUMED
+            windowInsets
         }
 
         setContentView(binding.root)
