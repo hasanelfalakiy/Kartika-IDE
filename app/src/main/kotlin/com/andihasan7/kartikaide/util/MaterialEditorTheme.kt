@@ -26,15 +26,15 @@ object MaterialEditorTheme {
     private val gson = Gson()
 
     fun resolveTheme(context: Context, fileName: String): InputStream {
-        val theme = context.assets.open("textmate/$fileName")
-        return applyAttributes(theme, context)
+        return context.assets.open("textmate/$fileName")
     }
 
     fun applyAttributes(stream: InputStream, context: Context): InputStream {
         val contents = stream.bufferedReader().readText()
 
         val json = gson.fromJson(contents, Map::class.java)
-        // Should probably clean this up
+        // Atribut ini dinonaktifkan karena menyebabkan warna editor tidak konsisten dengan tema asli (seperti merah/pink)
+        /*
         ((json["settings"]!! as List<Map<String, Any>>)[0]["settings"]!! as MutableMap<String, String>).let { settings ->
             settings["background"] =
                 context.getDynamicColor(R.attr.colorSurfaceContainerLow)
@@ -43,6 +43,7 @@ object MaterialEditorTheme {
             settings["caret"] =
                 context.getDynamicColor(R.attr.colorOnSurfaceVariant)
         }
+        */
         Log.d("MaterialEditorTheme", "Applying attributes to theme")
         Log.d("MaterialEditorTheme", json.toString())
 
