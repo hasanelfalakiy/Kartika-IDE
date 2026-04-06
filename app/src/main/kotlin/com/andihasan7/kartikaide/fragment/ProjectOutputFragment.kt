@@ -21,35 +21,35 @@
 
 package com.andihasan7.kartikaide.fragment
 
+import andihasan7.kartikaide.common.BaseBindingFragment
+import andihasan7.kartikaide.project.Project
+import andihasan7.kartikaide.rewrite.util.MultipleDexClassLoader
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
+import com.andihasan7.kartikaide.R
+import com.andihasan7.kartikaide.databinding.FragmentCompileInfoBinding
+import com.andihasan7.kartikaide.editor.EditorInputStream
+import com.andihasan7.kartikaide.util.ProjectHandler
+import com.andihasan7.kartikaide.util.makeDexReadOnlyIfNeeded
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
 import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.andihasan7.kartikaide.R
-import andihasan7.kartikaide.common.BaseBindingFragment
-import com.andihasan7.kartikaide.databinding.FragmentCompileInfoBinding
-import com.andihasan7.kartikaide.editor.EditorInputStream
-import andihasan7.kartikaide.project.Project
-import andihasan7.kartikaide.rewrite.util.MultipleDexClassLoader
-import com.andihasan7.kartikaide.util.ProjectHandler
-import com.andihasan7.kartikaide.util.makeDexReadOnlyIfNeeded
 import java.io.OutputStream
 import java.io.PrintStream
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
-import kotlin.collections.get
 
 class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() {
     val project: Project = ProjectHandler.getProject()
         ?: throw IllegalStateException("No project set")
     var isRunning: Boolean = false
+    private var currentRunningClass: String? = null
 
     override fun getViewBinding() = FragmentCompileInfoBinding.inflate(layoutInflater)
 
@@ -59,14 +59,19 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         binding.toolbar.setOnMenuItemClickListener {
             when (it.itemId) {
                 R.id.reload -> {
-                    val text = binding.infoEditor.text
                     if (isRunning) {
-                        parentFragmentManager.commit {
-                            replace(R.id.fragment_container, ProjectOutputFragment())
+                        // Just re-run the same class
+                        currentRunningClass?.let { className ->
+                            binding.infoEditor.text.insert(
+                                binding.infoEditor.text.lineCount - 1,
+                                0,
+                                "\n--- Restarting ---\n"
+                            )
+                            runClass(className)
                         }
+                    } else {
+                        checkClasses()
                     }
-                    text.insert(text.cursor.rightLine, text.cursor.rightColumn, "--- Stopped ---\n")
-                    checkClasses()
                     true
                 }
 
@@ -135,22 +140,27 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
 
                 var index: String? = null
                 val targetFile = ProjectHandler.clazz
-                ProjectHandler.clazz = null
-
+                
                 if (targetFile != null) {
                     // targetFile is something like "com/test/Say.kt" or "Main.java"
                     val targetName = targetFile.substringBeforeLast('.').replace('\\', '/')
                     Log.d("ProjectOutput", "Searching for target: $targetName")
-                    
+
                     // Match by full path or just the class name suffix
                     index = mainClasses.find { it == targetName || it == "${targetName}Kt" }
                         ?: mainClasses.find { it.endsWith("/$targetName") || it.endsWith("/${targetName}Kt") }
+                    
+                    // Keep the target class for reloads, but only if found
+                    if (index != null) {
+                        currentRunningClass = index
+                    }
                 }
 
                 if (index == null) {
                     // Fallback to Main or MainKt
                     index = mainClasses.find { it.endsWith("/Main") || it == "Main" || it.endsWith("/MainKt") || it == "MainKt" }
                         ?: mainClasses.firstOrNull()
+                    currentRunningClass = index
                 }
 
                 if (index != null) {
@@ -164,6 +174,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
     }
 
     fun runClass(className: String) = lifecycleScope.launch(Dispatchers.IO) {
+        val inputStream = EditorInputStream(binding.infoEditor)
         val systemOut = PrintStream(object : OutputStream() {
             override fun write(p0: Int) {
                 val text = binding.infoEditor.text
@@ -173,12 +184,14 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                         text.getColumnCount(text.lineCount - 1),
                         p0.toChar().toString()
                     )
+                    // Update input stream offset so it doesn't read the output as input
+                    inputStream.updateOffset(text.length)
                 }
             }
         })
         System.setOut(systemOut)
         System.setErr(systemOut)
-        System.setIn(EditorInputStream(binding.infoEditor))
+        System.setIn(inputStream)
 
         val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
 
@@ -241,7 +254,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         } catch (e: NoSuchMethodException) {}
 
         // 3. Cari method bernama "main" secara manual (untuk kasus non-static atau visibility lain yang mungkin)
-        return clazz.declaredMethods.firstOrNull { 
+        return clazz.declaredMethods.firstOrNull {
             it.name == "main" && 
             (it.parameterCount == 0 || (it.parameterCount == 1 && it.parameterTypes[0] == Array<String>::class.java))
         }
