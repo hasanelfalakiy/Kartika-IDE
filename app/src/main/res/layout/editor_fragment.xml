@@ -15,15 +15,23 @@
         android:id="@+id/editor"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        app:layout_constraintBottom_toTopOf="@id/symbol_view"
+        app:layout_constraintBottom_toTopOf="@id/symbol_view_container"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <io.github.rosemoe.sora.widget.SymbolInputView
-        android:id="@+id/symbol_view"
+    <HorizontalScrollView
+        android:id="@+id/symbol_view_container"
         android:layout_width="match_parent"
         android:layout_height="?minTouchTargetSize"
-        android:backgroundTint="?colorSurfaceContainerLow"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/editor" />
+        android:background="?colorSurfaceContainerLow"
+        android:scrollbars="none"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <io.github.rosemoe.sora.widget.SymbolInputView
+            android:id="@+id/symbol_view"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:backgroundTint="?colorSurfaceContainerLow" />
+
+    </HorizontalScrollView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

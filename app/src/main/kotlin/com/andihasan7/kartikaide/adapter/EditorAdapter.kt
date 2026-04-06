@@ -149,7 +149,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         private fun setupSymbols() {
             binding.apply {
                 if (Prefs.disableSymbolsView) {
-                    symbolView.visibility = View.GONE
+                    symbolViewContainer.visibility = View.GONE
                     return
                 }
                 symbolView.bindEditor(editor)
