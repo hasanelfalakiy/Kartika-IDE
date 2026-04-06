@@ -41,6 +41,7 @@ import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.io.PrintStream
 import java.lang.reflect.Method
@@ -178,19 +179,33 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
     fun runClass(className: String) = lifecycleScope.launch(Dispatchers.IO) {
         val inputStream = EditorInputStream(binding.infoEditor)
         val systemOut = PrintStream(object : OutputStream() {
+            private val bos = ByteArrayOutputStream()
+
             override fun write(p0: Int) {
-                val text = binding.infoEditor.text
-                lifecycleScope.launch {
+                bos.write(p0)
+            }
+
+            override fun write(b: ByteArray, off: Int, len: Int) {
+                bos.write(b, off, len)
+            }
+
+            override fun flush() {
+                val bytes = bos.toByteArray()
+                if (bytes.isEmpty()) return
+                val s = String(bytes, Charsets.UTF_8)
+                bos.reset()
+                lifecycleScope.launch(Dispatchers.Main) {
+                    val text = binding.infoEditor.text
                     text.insert(
                         text.lineCount - 1,
                         text.getColumnCount(text.lineCount - 1),
-                        p0.toChar().toString()
+                        s
                     )
                     // Update input stream offset so it doesn't read the output as input
                     inputStream.updateOffset(text.length)
                 }
             }
-        })
+        }, true)
         System.setOut(systemOut)
         System.setErr(systemOut)
         System.setIn(inputStream)
