@@ -46,7 +46,7 @@ import kotlin.properties.Delegates
 class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
     FragmentStateAdapter(fragment) {
 
-    val fragments = mutableListOf<CodeEditorFragment>()
+    val fragments = mutableMapOf<Long, CodeEditorFragment>()
     private var ids: List<Long> by Delegates.observable(emptyList()) { _, old, new ->
         DiffUtil.calculateDiff(object : DiffUtil.Callback() {
             override fun getOldListSize(): Int {
@@ -58,7 +58,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             }
 
             override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-                return old[oldItemPosition].hashCode() == new[newItemPosition].hashCode()
+                return old[oldItemPosition] == new[newItemPosition]
             }
 
             override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
@@ -80,28 +80,25 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
     override fun createFragment(position: Int): Fragment {
         Log.d("EditorAdapter", "createFragment: $position")
+        val id = getItemId(position)
         val fragment = CodeEditorFragment().apply {
             arguments = Bundle().apply {
                 putSerializable("file", fileViewModel.files.value!![position])
             }
         }
-        fragments.add(fragment)
+        fragments[id] = fragment
         return fragment
     }
 
     fun getItem(position: Int): CodeEditorFragment? {
-        if (position >= fragments.size) return null
-        if (position < 0) return null
-        return fragments[position]
+        val id = ids.getOrNull(position) ?: return null
+        return fragments[id]
     }
 
     fun removeItem(position: Int) {
-        if (fragments.size <= position) {
-            Log.e("EditorAdapter", "removeItem: $position out of bounds")
-            return
-        }
-        fragments.removeAt(position).apply {
-            editor.release()
+        val id = ids.getOrNull(position) ?: return
+        fragments.remove(id)?.apply {
+            release()
             parentFragmentManager.beginTransaction().remove(this).commit()
         }
     }
@@ -111,15 +108,15 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
     }
 
     override fun containsItem(itemId: Long): Boolean {
-        return fragments.any { it.getHashCode() == itemId }
+        return ids.contains(itemId)
     }
 
     fun saveAll() {
-        fragments.forEach { it.save() }
+        fragments.values.forEach { it.save() }
     }
 
     fun releaseAll() {
-        fragments.forEach { it.editor.release() }
+        fragments.values.forEach { it.release() }
     }
 
     class CodeEditorFragment : Fragment() {
@@ -147,19 +144,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             setColorScheme()
             editor.isDisableSoftKbdIfHardKbdAvailable = true
             setEditorLanguage()
-            /*
-                        editor.subscribeEvent(SelectionChangeEvent::class.java) { event, unsubscribe ->
-                            val lang = editor.editorLanguage
-                            if (event.cause == SelectionChangeEvent.CAUSE_LONG_PRESS) {
-                                if (lang is KotlinLanguage) {
-                                    val file = lang.kotlinEnvironment.kotlinFiles[file.absolutePath]!!
-
-                                    val element = file.elementAt(event.left.index)!!
-
-                                }
-                            }
-                        }
-             */
         }
 
         private fun setupSymbols() {
@@ -261,13 +245,16 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         }
 
         fun save() {
+            if (!::editor.isInitialized) return
             if (file.extension == "class") return
             file.writeText(editor.text.toString())
         }
 
         override fun onConfigurationChanged(newConfig: Configuration) {
             super.onConfigurationChanged(newConfig)
-            setColorScheme()
+            if (::editor.isInitialized) {
+                setColorScheme()
+            }
         }
 
         override fun onDestroy() {
@@ -276,14 +263,18 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         }
 
         fun release() {
-            hideWindows()
-            if (::eventReceiver.isInitialized) eventReceiver.unsubscribe()
-            if (::editor.isInitialized) editor.release()
+            if (::editor.isInitialized) {
+                hideWindows()
+                if (::eventReceiver.isInitialized) eventReceiver.unsubscribe()
+                editor.release()
+            }
         }
 
         fun hideWindows() {
-            editor.hideEditorWindows()
-            editor.hideAutoCompleteWindow()
+            if (::editor.isInitialized) {
+                editor.hideEditorWindows()
+                editor.hideAutoCompleteWindow()
+            }
         }
     }
 }

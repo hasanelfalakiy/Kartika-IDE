@@ -124,7 +124,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
 
             override fun onTabUnselected(tab: TabLayout.Tab) {
-                editorAdapter.fragments[tab.position].let {
+                editorAdapter.getItem(tab.position)?.let {
                     it.save()
                     it.hideWindows()
                 }
@@ -244,12 +244,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 tabLayout.visibility = View.VISIBLE
                 viewContainer.displayedChild = 0
             }
-            tabLayout.removeAllTabs()
-            files.forEach { file ->
-                val newTab = tabLayout.newTab()
-                newTab.text = file.name
-                tabLayout.addTab(newTab, false)
-            }
         }
     }
 
@@ -267,10 +261,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
 
     fun getCurrentFragment(): EditorAdapter.CodeEditorFragment? {
-        val currentItemId = binding.pager.currentItem
-        val fragments = editorAdapter.fragments
-        if (currentItemId >= fragments.size) return null
-        return fragments[currentItemId]
+        return editorAdapter.getItem(binding.pager.currentItem)
     }
 
     private fun configureToolbar() {
@@ -289,7 +280,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 getCurrentFragment()?.save()
                 when (item.itemId) {
                     R.id.action_compile -> {
-                        editorAdapter.fragments.forEach { fragment -> fragment.save() }
+                        editorAdapter.saveAll()
                         getCurrentFragment()?.hideWindows()
                         
                         lifecycleScope.launch(Dispatchers.IO) {
@@ -731,7 +722,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         popup.setOnMenuItemClickListener {
             when (it.itemId) {
                 R.id.execute -> {
-                    editorAdapter.fragments.forEach { fragment -> fragment.save() }
+                    editorAdapter.saveAll()
                     getCurrentFragment()?.hideWindows()
                     navigateToCompileInfoFragment(
                         file.absolutePath.replace(
