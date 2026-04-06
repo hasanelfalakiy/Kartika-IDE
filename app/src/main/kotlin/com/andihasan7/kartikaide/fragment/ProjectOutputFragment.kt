@@ -32,6 +32,7 @@ import androidx.lifecycle.lifecycleScope
 import com.andihasan7.kartikaide.R
 import com.andihasan7.kartikaide.databinding.FragmentCompileInfoBinding
 import com.andihasan7.kartikaide.editor.EditorInputStream
+import com.andihasan7.kartikaide.extension.setFont
 import com.andihasan7.kartikaide.util.ProjectHandler
 import com.andihasan7.kartikaide.util.makeDexReadOnlyIfNeeded
 import com.android.tools.smali.dexlib2.Opcodes
@@ -88,6 +89,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
 
         binding.infoEditor.apply {
             setEditorLanguage(TextMateLanguage.create("source.build", false))
+            setFont()
         }
 
         binding.toolbar.title = "Running ${project.name}"
