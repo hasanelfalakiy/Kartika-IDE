@@ -68,11 +68,11 @@ class AboutSettings(private val activity: FragmentActivity) : SettingsProvider {
                 title = "About"
                 summary = "A free and open-source IDE for Android."
                 text =
-                    "Cosmic IDE is a free and open-source IDE for Android. It is licensed under the GNU General Public License v3.0."
+                    "Kartika IDE is a free and open-source IDE for Android. It is licensed under the GNU General Public License v3.0."
             }
             singleChoice(
                 "donate",
-                listOf(SelectionItem("paypal", "PayPal"), SelectionItem("patreon", "Patreon"))
+                listOf(SelectionItem("paypal", "Treat me to Coffee (Trakteer)"), SelectionItem("patreon", "Treat me to Bakso (Saweria)"))
             ) {
                 title = "Donate"
                 summary =
@@ -85,7 +85,7 @@ class AboutSettings(private val activity: FragmentActivity) : SettingsProvider {
                                 activity.startActivity(
                                     Intent(
                                         Intent.ACTION_VIEW,
-                                        "https://www.paypal.com/paypalme/PranavPurwar".toUri()
+                                        "https://trakteer.id/andi_hasan2/tip".toUri()
                                     )
                                 )
                             }
@@ -94,7 +94,7 @@ class AboutSettings(private val activity: FragmentActivity) : SettingsProvider {
                                 activity.startActivity(
                                     Intent(
                                         Intent.ACTION_VIEW,
-                                        "https://www.patreon.com/cosmicide".toUri()
+                                        "https://saweria.co/andiHasan".toUri()
                                     )
                                 )
                             }
@@ -148,7 +148,7 @@ class AboutSettings(private val activity: FragmentActivity) : SettingsProvider {
                     activity.startActivity(
                         Intent(
                             Intent.ACTION_VIEW,
-                            "https://github.com/Cosmic-IDE/Cosmic-IDE".toUri()
+                            "https://github.com/hasanelfalakiy/Kartika-IDE.git".toUri()
                         )
                     )
                     true
@@ -181,7 +181,7 @@ class AboutSettings(private val activity: FragmentActivity) : SettingsProvider {
                     }
                     Toast.makeText(
                         activity,
-                        "Please enable the manage storage permission for Cosmic IDE",
+                        "Please enable the manage storage permission for Kartika IDE",
                         Toast.LENGTH_LONG
                     ).show()
                     true
