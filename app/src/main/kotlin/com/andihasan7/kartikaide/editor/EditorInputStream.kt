@@ -17,42 +17,46 @@ package com.andihasan7.kartikaide.editor
 import android.util.Log
 import io.github.rosemoe.sora.widget.CodeEditor
 import java.io.InputStream
+import java.util.concurrent.LinkedBlockingQueue
 
 
 class EditorInputStream(private val editor: CodeEditor) : InputStream() {
-    private val lineBuffer = StringBuilder()
+    private val queue = LinkedBlockingQueue<Int>()
+    private var lastTextLength = editor.text.length
+
+    fun updateOffset(newOffset: Int) {
+        lastTextLength = newOffset
+    }
 
     override fun read(): Int {
-        if (lineBuffer.isEmpty()) {
-            Log.d("EditorInputStream", "lineBuffer is empty")
+        if (queue.isEmpty()) {
             readLineToBuffer()
         }
-        if (lineBuffer.isEmpty()) {
-            return -1
-        }
-        if (lineBuffer.isBlank()) {
-            return -1
-        }
-        Log.d("lineBuffer", "${lineBuffer.length}")
-        val code = lineBuffer[0].code
-        lineBuffer.deleteCharAt(0)
-        return code
+        return queue.take()
     }
 
     private fun readLineToBuffer() {
         while (true) {
-            val lines = editor.text.lines()
-            if (lines.isEmpty()) {
-                continue
+            val content = editor.text
+            val currentLength = content.length
+            
+            if (currentLength > lastTextLength) {
+                // Check if user pressed Enter (last line is now empty or cursor moved to next line)
+                // In a console, user input usually ends with a newline.
+                val textSinceLast = content.subSequence(lastTextLength, currentLength).toString()
+                if (textSinceLast.endsWith('\n')) {
+                    textSinceLast.forEach { queue.put(it.code) }
+                    lastTextLength = currentLength
+                    break
+                }
+            } else if (currentLength < lastTextLength) {
+                // If text was cleared or deleted, reset offset to current end
+                lastTextLength = currentLength
             }
-            if (lines.size == 1) {
-                continue
-            }
-            val line = lines[lines.size - 1]
-            Log.d("EditorInputStream", line)
-            if (line.isBlank()) {
-                lineBuffer.append(lines[lines.size - 2]).append('\n')
-                Log.d("buffer", lineBuffer.toString())
+            
+            try {
+                Thread.sleep(50)
+            } catch (e: InterruptedException) {
                 break
             }
         }

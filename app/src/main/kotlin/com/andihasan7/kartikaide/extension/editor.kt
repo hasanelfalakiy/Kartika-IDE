@@ -30,7 +30,7 @@ fun CodeEditor.setFont() {
     typefaceText = if (Prefs.editorFont.isNotEmpty()) {
         Typeface.createFromFile(Prefs.editorFont)
     } else {
-        ResourcesCompat.getFont(context, R.font.noto_sans_mono)
+        ResourcesCompat.getFont(context, R.font.jetbrains_mono)
     }
     isHighlightCurrentLine = true
 }

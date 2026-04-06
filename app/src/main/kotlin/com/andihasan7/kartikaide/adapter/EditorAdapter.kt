@@ -14,6 +14,9 @@
 
 package com.andihasan7.kartikaide.adapter
 
+import andihasan7.kartikaide.build.Javap
+import andihasan7.kartikaide.common.Prefs
+import andihasan7.kartikaide.editor.analyzers.EditorDiagnosticsMarker
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
@@ -23,24 +26,20 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.DiffUtil
 import androidx.viewpager2.adapter.FragmentStateAdapter
+import com.andihasan7.kartikaide.databinding.EditorFragmentBinding
+import com.andihasan7.kartikaide.editor.IdeEditor
+import com.andihasan7.kartikaide.editor.language.KotlinLanguage
+import com.andihasan7.kartikaide.editor.language.TsLanguageJava
+import com.andihasan7.kartikaide.extension.setFont
+import com.andihasan7.kartikaide.model.FileViewModel
+import com.andihasan7.kartikaide.util.ProjectHandler
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.SubscriptionReceipt
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.widget.subscribeEvent
-import andihasan7.kartikaide.build.Javap
-import andihasan7.kartikaide.common.Prefs
-import com.andihasan7.kartikaide.databinding.EditorFragmentBinding
-import com.andihasan7.kartikaide.editor.IdeEditor
-import andihasan7.kartikaide.editor.analyzers.EditorDiagnosticsMarker
-import com.andihasan7.kartikaide.editor.language.KotlinLanguage
-import com.andihasan7.kartikaide.editor.language.TsLanguageJava
-import com.andihasan7.kartikaide.extension.setFont
-import com.andihasan7.kartikaide.model.FileViewModel
-import com.andihasan7.kartikaide.util.ProjectHandler
 import java.io.File
-import kotlin.collections.get
 import kotlin.properties.Delegates
 
 class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
@@ -149,7 +148,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         private fun setupSymbols() {
             binding.apply {
                 if (Prefs.disableSymbolsView) {
-                    symbolView.visibility = View.GONE
+                    symbolViewContainer.visibility = View.GONE
                     return
                 }
                 symbolView.bindEditor(editor)

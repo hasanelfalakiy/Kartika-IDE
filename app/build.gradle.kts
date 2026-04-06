@@ -57,7 +57,6 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
         apiVersion = "1.9"
@@ -180,12 +179,12 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("androidx.startup:startup-runtime:1.2.0")
 
-    val editorVersion = "0.23.5"
+    val editorVersion = "0.24.5"
     //noinspection GradleDependency
-    implementation("io.github.Rosemoe.sora-editor:editor:$editorVersion")
+    implementation("io.github.rosemoe:editor:$editorVersion")
     //noinspection GradleDependency
-    implementation("io.github.Rosemoe.sora-editor:language-treesitter:$editorVersion")
-    implementation("io.github.Rosemoe.sora-editor:language-textmate:$editorVersion")
+    implementation("io.github.rosemoe:language-treesitter:$editorVersion")
+    implementation("io.github.rosemoe:language-textmate:$editorVersion")
     implementation("com.itsaky.androidide.treesitter:android-tree-sitter:4.3.1")
     implementation("com.itsaky.androidide.treesitter:tree-sitter-java:4.3.1")
     implementation("com.itsaky.androidide.treesitter:tree-sitter-kotlin:4.3.1")

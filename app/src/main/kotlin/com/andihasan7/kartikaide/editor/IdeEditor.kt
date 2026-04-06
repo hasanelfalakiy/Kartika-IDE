@@ -60,8 +60,8 @@ class IdeEditor @JvmOverloads constructor(
         props.stickyScroll = Prefs.stickyScroll
     }
 
-    override fun commitText(text: CharSequence?, applyAutoIndent: Boolean) {
-        if (text?.length == 1) {
+    override fun commitText(text: CharSequence, applyAutoIndent: Boolean) {
+        if (text.length == 1) {
             val currentChar = text.toString().getOrNull(cursor.left)
             val c = text[0]
             if (ignoredPairEnds.contains(c) && c == currentChar) {

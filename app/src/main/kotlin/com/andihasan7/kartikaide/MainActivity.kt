@@ -62,19 +62,17 @@ class MainActivity : AppCompatActivity() {
         loadEditorThemes()
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
-            val imeInset =
-                ViewCompat.getRootWindowInsets(view)!!.getInsets(WindowInsetsCompat.Type.ime())
-
+            val imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
             val systemBarInsets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
 
             view.setPadding(
                 systemBarInsets.left,
                 systemBarInsets.top,
                 systemBarInsets.right,
-                if (imeInset.bottom > 0) 0 else systemBarInsets.bottom
+                imeInsets.bottom.coerceAtLeast(systemBarInsets.bottom)
             )
 
-            WindowInsetsCompat.CONSUMED
+            windowInsets
         }
 
         setContentView(binding.root)

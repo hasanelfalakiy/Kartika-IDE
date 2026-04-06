@@ -35,31 +35,31 @@ object Prefs {
     }
 
     val isInitialized: Boolean
-        get() = Prefs::prefs.isInitialized
+        get() = this::prefs.isInitialized
 
     val appTheme: String
         get() = prefs.getString("app_theme", "auto") ?: "auto"
 
     val useFastJarFs: Boolean
-        get() = prefs.getBoolean("use_fastjarfs", true)
+        get() = prefs.getBoolean("use_fast_jar_file_system", true)
 
     val stickyScroll: Boolean
-        get() = prefs.getBoolean("sticky_scroll", false)
+        get() = prefs.getBoolean("sticky_scroll", true)
 
     val useLigatures: Boolean
-        get() = prefs.getBoolean("font_ligatures", true)
+        get() = prefs.getBoolean("ligatures_enable", true)
 
     val wordWrap: Boolean
-        get() = prefs.getBoolean("word_wrap", false)
+        get() = prefs.getBoolean("wordwrap_enable", false)
 
     val scrollbarEnabled: Boolean
-        get() = prefs.getBoolean("scrollbar", true)
+        get() = prefs.getBoolean("scrollbar_show", true)
 
     val hardwareAcceleration: Boolean
-        get() = prefs.getBoolean("hardware_acceleration", true)
+        get() = prefs.getBoolean("hardware_acceleration_enable", true)
 
     val nonPrintableCharacters: Boolean
-        get() = prefs.getBoolean("non_printable_characters", false)
+        get() = prefs.getBoolean("non_printable_symbols_show", false)
 
     val ktfmtStyle: String
         get() = prefs.getString("ktfmt_style", "google") ?: "google"
@@ -70,7 +70,7 @@ object Prefs {
     val googleJavaFormatStyle: String
         get() = prefs.getString("google_java_formatter_style", "aosp") ?: "aosp"
     val lineNumbers: Boolean
-        get() = prefs.getBoolean("line_numbers", true)
+        get() = prefs.getBoolean("line_numbers_show", true)
 
     val useSpaces: Boolean
         get() = prefs.getBoolean("use_spaces", false)
@@ -88,7 +88,7 @@ object Prefs {
         get() = prefs.getString("javac_flags", "") ?: ""
 
     val compilerJavaVersion: Int
-        get() = Integer.parseInt(prefs.getString("java_version", "17") ?: "17")
+        get() = Integer.parseInt(prefs.getString("java_versions", "17") ?: "17")
 
     val kotlinVersion: String
         get() = prefs.getString("kotlin_version", "2.1") ?: "2.1"
