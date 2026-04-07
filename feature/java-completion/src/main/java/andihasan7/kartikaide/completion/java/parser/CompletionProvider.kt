@@ -198,6 +198,8 @@ class CompletionProvider {
         setIdeaIoUseFallback()
         setupIdeaStandaloneExecution()
         registerExtensions(environment.project.extensionArea)
+        // Load android.jar once
+        environment.addJarToClassPath(FileUtil.classpathDir.resolve("android.jar"))
     }
 
 
@@ -220,7 +222,7 @@ class CompletionProvider {
     }
 
     fun complete(source: String?, fileName: String?, index: Int): List<EditorCompletionItem> {
-        environment.addJarToClassPath(FileUtil.classpathDir.resolve("android.jar"))
+        // environment.addJarToClassPath(FileUtil.classpathDir.resolve("android.jar"))
         val psiFile = fileFactory.createFileFromText(fileName!!, JavaLanguage.INSTANCE, source!!)
 
         // Find the element at the specified position
