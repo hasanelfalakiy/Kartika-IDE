@@ -96,6 +96,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         configureToolbar()
         initViewModelListeners()
         initTreeView()
+        
+        // Update project name in drawer header
+        binding.included.projectName.text = project.name
 
         binding.pager.apply {
             editorAdapter = EditorAdapter(this@EditorFragment, fileViewModel)
