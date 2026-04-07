@@ -10,7 +10,7 @@
     <string name="action_settings">Settings</string>
 
     <!-- Strings used for fragments for navigation -->
-    <string name="import_project">Import Project</string>
+    <string name="restore_project_zip">Restore Project .zip</string>
     <string name="app_theme">App theme</string>
 
     <string name="projects">Projects</string>

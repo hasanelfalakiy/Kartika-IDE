@@ -51,7 +51,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="10dp"
-            android:text="@string/import_project"
+            android:text="@string/restore_project_zip"
             android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
             android:textSize="16sp" />
 
@@ -59,7 +59,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:clickable="false"
-            android:contentDescription="@string/import_project"
+            android:contentDescription="@string/restore_project_zip"
             android:elevation="0dp"
             app:elevation="0dp"
             app:rippleColor="?colorPrimaryDark"
