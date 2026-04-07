@@ -22,25 +22,40 @@ import java.io.Writer
 class Repository(val git: KGit) {
 
     fun getBranches(): List<String> {
-        return git.branchList().map {
-            it.toString()
+        return try {
+            git.branchList().map { it.toString() }
+        } catch (e: Exception) {
+            System.err.println("Error listing branches: ${e.message}")
+            emptyList()
         }
     }
 
     fun isClean(): Boolean {
-        return git.status().isClean
+        return try {
+            git.status().isClean
+        } catch (e: Exception) {
+            System.err.println("Error checking status: ${e.message}")
+            false
+        }
     }
 
     fun getCommitList(): List<RevCommit> {
-        val localBranch = git.repository.branch
-        val revWalk = RevWalk(git.repository)
-        val latestCommit = revWalk.parseCommit(git.repository.resolve(localBranch))
-        revWalk.close()
-        return if (latestCommit != null) {
+        val repository = git.repository
+        val revWalk = RevWalk(repository)
+        return try {
+            val head = repository.resolve("HEAD")
+            if (head == null) {
+                System.err.println("HEAD could not be resolved. Repository might be empty or corrupted.")
+                return emptyList()
+            }
+            revWalk.parseCommit(head)
             git.log().toList()
-        } else {
-            println("No commits found")
+        } catch (e: Exception) {
+            System.err.println("Error getting commit list: ${e.message}")
+            e.printStackTrace()
             emptyList()
+        } finally {
+            revWalk.close()
         }
     }
 
@@ -63,6 +78,12 @@ class Repository(val git: KGit) {
     }
 
     fun pull(writer: Writer, isRebase: Boolean = false, creds: Credentials) {
+        val config = git.repository.config
+        val remoteUrl = config.getString("remote", "origin", "url")
+        if (remoteUrl == null) {
+            throw Exception("Remote 'origin' is not configured or has no URL.")
+        }
+
         git.fetch {
             setProgressMonitor(TextProgressMonitor(writer))
             setCredentialsProvider(
@@ -96,10 +117,9 @@ class Repository(val git: KGit) {
 }
 
 fun File.toRepository(): Repository {
-    val git = KGit.open(this)
-    git.checkout {
-        setName("main")
-    }
+    // Better to open from the working directory (root) rather than .git folder
+    val projectDir = if (name == ".git") parentFile else this
+    val git = KGit.open(projectDir)
     return Repository(git)
 }
 
@@ -144,13 +164,18 @@ fun File.createRepository(author: Author): Repository {
         message = "Initial commit"
     }
     println("Created initial commit")
-    println("Creating main branch")
-    git.branchCreate {
-        setName("main")
+    
+    try {
+        git.branchCreate {
+            setName("main")
+        }
+        git.checkout {
+            setName("main")
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
-    git.checkout {
-        setName("main")
-    }
+
     println("Setting fetch refs")
     git.repository.config.apply {
         setString("remote", "origin", "fetch", "+refs/heads/*:refs/remotes/origin/*")
@@ -158,7 +183,6 @@ fun File.createRepository(author: Author): Repository {
         setString("remote", "origin", "email", author.email)
         save()
     }
-    println("Created main branch")
     return Repository(git)
 }
 
@@ -169,4 +193,3 @@ fun File.execGit(args: MutableList<String>, writer: PrintStream) {
     args.add(1, this.absolutePath)
     Main.main(args.toTypedArray())
 }
-

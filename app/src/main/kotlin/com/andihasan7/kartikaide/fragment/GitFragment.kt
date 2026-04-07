@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.fragment
 
 import android.os.Bundle
@@ -57,7 +50,7 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
     }
 
     private fun setupUI() {
-        val root = ProjectHandler.getProject()!!.root
+        val root = ProjectHandler.getProject()?.root ?: return
 
         binding.toolbar.setNavigationOnClickListener {
             parentFragmentManager.popBackStack()
@@ -68,25 +61,52 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             layoutManager = LinearLayoutManager(context)
         }
 
-        val git = root.resolve(".git")
-        if (git.exists()) {
-            repository = git.toRepository()
-            setup()
+        val gitFolder = root.resolve(".git")
+        Log.d("GitFragment", "Checking git folder at: ${gitFolder.absolutePath}")
+        
+        if (gitFolder.exists()) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    // Try to open using the root directory
+                    repository = root.toRepository()
+                    Log.d("GitFragment", "Repository opened successfully. Work tree: ${repository.git.repository.workTree}")
+                    
+                    withContext(Dispatchers.Main) {
+                        setup()
+                    }
+                } catch (e: Exception) {
+                    Log.e("GitFragment", "Failed to open repository", e)
+                    withContext(Dispatchers.Main) {
+                        MaterialAlertDialogBuilder(requireContext())
+                            .setTitle("Error Opening Repository")
+                            .setMessage("JGit failed to open the existing repository.\nReason: ${e.message}\n\nThis sometimes happens due to format differences between Git and JGit.")
+                            .setPositiveButton("OK", null)
+                            .show()
+                    }
+                }
+            }
         } else {
             MaterialAlertDialogBuilder(requireContext()).setTitle("Git repository not found")
                 .setMessage("Do you want to initialize a new repository?").setCancelable(false)
                 .setPositiveButton("Yes") { _, _ ->
                     lifecycleScope.launch(Dispatchers.IO) {
-                        repository =
-                            root.createRepository(Author(Prefs.gitUsername, Prefs.gitEmail))
-                        repository.git.repository.config.apply {
-                            setString("remote", "origin", "password", Prefs.gitApiKey)
-                            save()
-                        }
-                        lifecycleScope.launch(Dispatchers.Main) {
-                            (binding.recyclerview.adapter as GitAdapter).updateCommits(repository.getCommitList())
-                            Snackbar.make(binding.root, "Committed", Snackbar.LENGTH_SHORT).show()
-                            setup()
+                        try {
+                            repository =
+                                root.createRepository(Author(Prefs.gitUsername, Prefs.gitEmail))
+                            repository.git.repository.config.apply {
+                                setString("remote", "origin", "password", Prefs.gitApiKey)
+                                save()
+                            }
+                            lifecycleScope.launch(Dispatchers.Main) {
+                                (binding.recyclerview.adapter as GitAdapter).updateCommits(repository.getCommitList())
+                                Snackbar.make(binding.root, "Initialized and committed", Snackbar.LENGTH_SHORT).show()
+                                setup()
+                            }
+                        } catch (e: Exception) {
+                            Log.e("GitFragment", "Failed to initialize repository", e)
+                            withContext(Dispatchers.Main) {
+                                Snackbar.make(binding.root, "Failed to initialize: ${e.message}", Snackbar.LENGTH_LONG).show()
+                            }
                         }
                     }
                 }.setNegativeButton("No") { _, _ ->
@@ -96,6 +116,8 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
     }
 
     fun setup() {
+        if (!this::repository.isInitialized) return
+
         if (Prefs.gitUsername.isEmpty() || Prefs.gitEmail.isEmpty()) {
             MaterialAlertDialogBuilder(requireContext()).setTitle("Git username or email not set")
                 .setMessage("Do you want to set it now?").setCancelable(false)
@@ -122,10 +144,16 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             }
         }
 
-        if (repository.isClean()) {
-            binding.commit.isEnabled = false
-        } else {
-            (binding.staging.adapter as StagingAdapter).updateStatus(repository.git.status())
+        lifecycleScope.launch(Dispatchers.IO) {
+            val isClean = try { repository.isClean() } catch (e: Exception) { false }
+            val status = try { repository.git.status() } catch (e: Exception) { null }
+            
+            withContext(Dispatchers.Main) {
+                binding.commit.isEnabled = !isClean
+                if (!isClean && status != null) {
+                    (binding.staging.adapter as StagingAdapter).updateStatus(status)
+                }
+            }
         }
 
         catchException {
@@ -181,17 +209,26 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
         }
 
         binding.commit.setOnClickListener {
-            if (repository.git.status().hasUncommittedChanges().not()) {
-                Snackbar.make(binding.root, "Nothing to commit", Snackbar.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            catchException {
-                repository.commit(
-                    getAuthor(), binding.commitMessage.text.toString()
-                )
-                withContext(Dispatchers.Main) {
-                    (binding.recyclerview.adapter as GitAdapter).updateCommits(repository.getCommitList())
-                    Snackbar.make(binding.root, "Committed", Snackbar.LENGTH_SHORT).show()
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    if (repository.git.status().hasUncommittedChanges().not()) {
+                        withContext(Dispatchers.Main) {
+                            Snackbar.make(binding.root, "Nothing to commit", Snackbar.LENGTH_SHORT).show()
+                        }
+                        return@launch
+                    }
+                    repository.commit(
+                        getAuthor(), binding.commitMessage.text.toString()
+                    )
+                    withContext(Dispatchers.Main) {
+                        (binding.recyclerview.adapter as GitAdapter).updateCommits(repository.getCommitList())
+                        Snackbar.make(binding.root, "Committed", Snackbar.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Log.e("GitFragment", "Commit failed", e)
+                    withContext(Dispatchers.Main) {
+                        Snackbar.make(binding.root, "Commit failed: ${e.message}", Snackbar.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
@@ -217,19 +254,19 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
 
         binding.toolbar.setOnMenuItemClickListener {
             if (it.itemId == R.id.custom_command) {
-                val binding = GitCommandBinding.inflate(layoutInflater)
+                val commandBinding = GitCommandBinding.inflate(layoutInflater)
                 BottomSheetDialog(requireContext()).apply {
-                    setContentView(binding.root)
-                    binding.execute.setOnClickListener {
-                        binding.gitOutput.visibility = View.VISIBLE
-                        binding.gitOutput.text = ""
+                    setContentView(commandBinding.root)
+                    commandBinding.execute.setOnClickListener {
+                        commandBinding.gitOutput.visibility = View.VISIBLE
+                        commandBinding.gitOutput.text = ""
                         lifecycleScope.launch(Dispatchers.IO) {
                             ProjectHandler.getProject()!!.root.execGit(
-                                binding.gitCommand.editText?.text.toString().split(" ").toMutableList(),
+                                commandBinding.gitCommand.editText?.text.toString().split(" ").toMutableList(),
                                 PrintStream(object : OutputStream() {
                                     override fun write(b: Int) {
                                         lifecycleScope.launch(Dispatchers.Main) {
-                                            binding.gitOutput.append(b.toChar().toString())
+                                            commandBinding.gitOutput.append(b.toChar().toString())
                                         }
                                     }
                                 })
@@ -253,9 +290,9 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             try {
                 code()
             } catch (e: Exception) {
-                Log.e("GitFragment", e.message, e)
+                Log.e("GitFragment", e.message ?: "Unknown error", e)
                 withContext(Dispatchers.Main) {
-                    Snackbar.make(binding.root, e.message.toString(), Snackbar.LENGTH_SHORT).show()
+                    Snackbar.make(binding.root, e.message ?: "An error occurred", Snackbar.LENGTH_SHORT).show()
                 }
             }
         }
