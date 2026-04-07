@@ -16,18 +16,19 @@ java {
 }
 
 kotlin {
-    compilerOptions {
-        kotlin.jvmToolchain(17)
-    }
+    jvmToolchain(17)
 }
 
 dependencies {
-    val jgitVersion = "5.13.2.202306221912-r"
+    // Downgraded JGit to a version more compatible with Android to avoid NoSuchMethodError: readNBytes
+    val jgitVersion = "5.7.0.202003110725-r"
     implementation("org.eclipse.jgit:org.eclipse.jgit:$jgitVersion")
     implementation("org.eclipse.jgit:org.eclipse.jgit.pgm:$jgitVersion") {
         exclude("net.java.dev.jna", "jna-platform")
         exclude("net.java.dev.jna", "jna")
         exclude("commons-logging", "commons-logging")
     }
-    implementation("com.github.sya-ri:kgit:1.1.0")
+    implementation("com.github.sya-ri:kgit:1.1.0") {
+        exclude(group = "org.eclipse.jgit")
+    }
 }

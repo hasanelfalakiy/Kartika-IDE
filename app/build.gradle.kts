@@ -156,6 +156,7 @@ configurations.all {
     resolutionStrategy.force("com.google.guava:guava:33.4.8-android")
     exclude(group = "commons-logging", module = "commons-logging")
     exclude(group = "org.apache.sshd", module = "sshd-osgi")
+    exclude(group = "log4j", module = "log4j")
 }
 
 dependencies {
@@ -194,9 +195,14 @@ dependencies {
 
     implementation("io.github.itsaky:nb-javac-android:17.0.0.3")
 
-    val jgitVersion = "5.13.2.202306221912-r"
-    implementation("org.eclipse.jgit:org.eclipse.jgit:$jgitVersion")
-    implementation("com.github.sya-ri:kgit:1.1.0")
+    // Downgraded JGit to a version more compatible with Android to avoid NoSuchMethodError: readNBytes
+    val jgitVersion = "5.7.0.202003110725-r"
+    implementation("org.eclipse.jgit:org.eclipse.jgit:$jgitVersion") {
+        exclude(group = "org.apache.httpcomponents")
+    }
+    implementation("com.github.sya-ri:kgit:1.1.0") {
+        exclude(group = "org.eclipse.jgit")
+    }
 
     // markwon
     val markwonVersion = "4.6.2"
