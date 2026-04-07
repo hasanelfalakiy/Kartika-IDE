@@ -111,7 +111,7 @@ class SettingsFragment : BaseBindingFragment<FragmentSettingsBinding>() {
             subScreen {
                 collapseIcon = true
                 title = "About"
-                summary = "Learn more about Cosmic IDE"
+                summary = "Learn more about Kartika IDE"
                 aboutSettings.provideSettings(this)
             }
         }
