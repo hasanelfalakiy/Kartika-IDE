@@ -25,6 +25,7 @@ import io.github.rosemoe.sora.editor.ts.TsAnalyzeManager
 import io.github.rosemoe.sora.editor.ts.TsLanguage
 import io.github.rosemoe.sora.editor.ts.TsLanguageSpec
 import io.github.rosemoe.sora.editor.ts.TsThemeBuilder
+import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
 import io.github.rosemoe.sora.lang.completion.CompletionItem
 import io.github.rosemoe.sora.lang.completion.CompletionItemKind
 import io.github.rosemoe.sora.lang.completion.CompletionPublisher
@@ -148,7 +149,7 @@ class TsLanguageJava(
                 }
             }
         } catch (e: Throwable) {
-            if (e !is InterruptedException) {
+            if (e !is InterruptedException && e !is CompletionCancelledException) {
                 Log.e("TsLanguageJava", "Failed to fetch code completions", e)
             }
         }
