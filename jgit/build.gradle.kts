@@ -22,8 +22,9 @@ kotlin {
 }
 
 dependencies {
-    implementation("org.eclipse.jgit:org.eclipse.jgit:5.13.2.202306221912-r")
-    implementation("org.eclipse.jgit:org.eclipse.jgit.pgm:6.9.0.202403050737-r") {
+    val jgitVersion = "5.13.2.202306221912-r"
+    implementation("org.eclipse.jgit:org.eclipse.jgit:$jgitVersion")
+    implementation("org.eclipse.jgit:org.eclipse.jgit.pgm:$jgitVersion") {
         exclude("net.java.dev.jna", "jna-platform")
         exclude("net.java.dev.jna", "jna")
         exclude("commons-logging", "commons-logging")

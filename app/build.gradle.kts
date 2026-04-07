@@ -107,7 +107,9 @@ android {
 
             pickFirsts.addAll(
                 listOf(
-                    "OSGI-INF/l10n/plugin.properties"
+                    "OSGI-INF/l10n/plugin.properties",
+                    "org/apache/sshd/common/kex/group15.prime",
+                    "org/apache/sshd/common/kex/group2.prime"
                 )
             )
         }
@@ -153,6 +155,7 @@ configurations.all {
     resolutionStrategy.force("com.squareup.okhttp3:okhttp:4.12.0")
     resolutionStrategy.force("com.google.guava:guava:33.4.8-android")
     exclude(group = "commons-logging", module = "commons-logging")
+    exclude(group = "org.apache.sshd", module = "sshd-osgi")
 }
 
 dependencies {
@@ -191,7 +194,8 @@ dependencies {
 
     implementation("io.github.itsaky:nb-javac-android:17.0.0.3")
 
-    implementation("org.eclipse.jgit:org.eclipse.jgit:5.13.2.202306221912-r")
+    val jgitVersion = "5.13.2.202306221912-r"
+    implementation("org.eclipse.jgit:org.eclipse.jgit:$jgitVersion")
     implementation("com.github.sya-ri:kgit:1.1.0")
 
     // markwon
