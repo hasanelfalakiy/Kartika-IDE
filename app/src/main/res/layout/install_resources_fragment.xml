@@ -76,18 +76,23 @@
             android:visibility="gone"
             app:trackCornerRadius="4dp"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/install_resources_progress_text"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="@id/install_resources_progress_text"
-            app:layout_constraintBottom_toBottomOf="@id/install_resources_progress_text" />
+            />
 
         <TextView
             android:id="@+id/install_resources_progress_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="20dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp"
+            android:layout_marginTop="16dp"
             android:layout_marginBottom="16dp"
             android:visibility="gone"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/install_resources_progress"
+            app:layout_constraintStart_toStartOf="@id/install_resources_progress"
+            app:layout_constraintEnd_toEndOf="@id/install_resources_progress"
             app:layout_constraintBottom_toTopOf="@id/install_resources_button"
             tools:text="50%" />
 
