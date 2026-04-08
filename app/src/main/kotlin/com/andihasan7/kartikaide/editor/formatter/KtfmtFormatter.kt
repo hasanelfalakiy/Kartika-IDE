@@ -14,8 +14,11 @@
 
 package com.andihasan7.kartikaide.editor.formatter
 
+import android.util.Log
 import com.facebook.ktfmt.cli.Main
 import andihasan7.kartikaide.common.Prefs
+import java.io.ByteArrayOutputStream
+import java.io.PrintStream
 import kotlin.io.path.createTempFile
 import kotlin.io.path.deleteIfExists
 import kotlin.io.path.readText
@@ -24,9 +27,28 @@ import kotlin.io.path.writeText
 object ktfmtFormatter {
     fun formatCode(code: String): String {
         val file = createTempFile("file", ".kt").apply { writeText(code) }
-        val args = listOf("--style", Prefs.ktfmtStyle, file.toAbsolutePath().toString())
+        val style = Prefs.ktfmtStyle
+        val args = mutableListOf<String>()
+        
+        when (style) {
+            "google" -> args.add("--google-style")
+            "kotlinlang" -> args.add("--kotlinlang-style")
+            "dropbox" -> args.add("--dropbox-style")
+            else -> args.add("--google-style")
+        }
+        
+        args.add(file.toAbsolutePath().toString())
 
-        Main(System.`in`, System.out, System.err, args.toTypedArray()).run()
+        val out = ByteArrayOutputStream()
+        val err = ByteArrayOutputStream()
+        val main = Main(System.`in`, PrintStream(out), PrintStream(err), args.toTypedArray())
+        main.run()
+        
+        val errorOutput = err.toString()
+        if (errorOutput.isNotEmpty()) {
+            Log.e("ktfmtFormatter", "Formatting error: $errorOutput")
+        }
+
         val formattedCode = file.readText()
         file.deleteIfExists()
 

@@ -44,7 +44,7 @@ object ChatProvider {
         .build()
 
     private var chat =
-        client.async.chats.create(Prefs.geminiModel.ifEmpty { "gemini-2.0-flash" }, config)
+        client.async.chats.create(Prefs.geminiModel.ifEmpty { "gemini-3-flash-preview" }, config)
 
     fun regenerateModel(
         temp: Float = Prefs.temperature,
@@ -64,7 +64,7 @@ object ChatProvider {
             .topK(top_k)
             .build()
 
-        chat = client.async.chats.create(Prefs.geminiModel.ifEmpty { "gemini-2.0-flash" }, config)
+        chat = client.async.chats.create(Prefs.geminiModel.ifEmpty { "gemini-3-flash-preview" }, config)
     }
 
     fun generate(conversation: List<Pair<String, String>>): CompletableFuture<ResponseStream<GenerateContentResponse>> {

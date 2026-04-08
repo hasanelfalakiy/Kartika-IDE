@@ -45,12 +45,16 @@ class IdeEditor @JvmOverloads constructor(
         colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
         setCompletionLayout()
         setTooltipImprovements()
+        updateSettings()
+        setInterceptParentHorizontalScrollIfNeeded(true)
+    }
+
+    fun updateSettings() {
         setFont()
         inputType = createInputFlags()
         updateNonPrintablePaintingFlags()
         updateTextSize()
         updateTabSize()
-        setInterceptParentHorizontalScrollIfNeeded(true)
         isLigatureEnabled = Prefs.useLigatures
         isWordwrap = Prefs.wordWrap
         setScrollBarEnabled(Prefs.scrollbarEnabled)

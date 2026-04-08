@@ -148,7 +148,7 @@ object Prefs {
         get() = prefs.getString("gemini_api_key", "") ?: ""
 
     val geminiModel: String
-        get() = prefs.getString("gemini_model", "gemini-2.0-flash") ?: "gemini-2.0-flash"
+        get() = prefs.getString("gemini_model", "gemini-3-flash-preview") ?: "gemini-3-flash-preview"
 
     val temperature: Float
         get() = runCatching {

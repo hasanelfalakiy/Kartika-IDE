@@ -170,6 +170,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 true
             }
         }.attach()
+
+        parentFragmentManager.setFragmentResultListener("settings_changed", viewLifecycleOwner) { _, _ ->
+            refreshAllEditors()
+        }
+    }
+
+    private fun refreshAllEditors() {
+        editorAdapter.refreshSettings()
     }
 
     private fun initViewModelListeners() {

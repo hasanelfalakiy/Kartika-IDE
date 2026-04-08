@@ -118,6 +118,10 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         fragments.values.forEach { it.release() }
     }
 
+    fun refreshSettings() {
+        fragments.values.forEach { it.refreshSettings() }
+    }
+
     class CodeEditorFragment : Fragment() {
 
         private lateinit var eventReceiver: SubscriptionReceipt<ContentChangeEvent>
@@ -151,6 +155,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                     symbolViewContainer.visibility = View.GONE
                     return
                 }
+                symbolViewContainer.visibility = View.VISIBLE
                 symbolView.bindEditor(editor)
                 symbolView.addSymbols(
                     arrayOf(
@@ -247,6 +252,13 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             if (!::editor.isInitialized) return
             if (file.extension == "class") return
             file.writeText(editor.text.toString())
+        }
+
+        fun refreshSettings() {
+            if (::editor.isInitialized) {
+                editor.updateSettings()
+                setupSymbols()
+            }
         }
 
         override fun onConfigurationChanged(newConfig: Configuration) {

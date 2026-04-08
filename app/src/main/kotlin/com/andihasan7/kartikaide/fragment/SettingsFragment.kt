@@ -133,6 +133,7 @@ class SettingsFragment : BaseBindingFragment<FragmentSettingsBinding>() {
                 ChatProvider.regenerateModel()
             }
             if (!preferencesAdapter.goBack()) {
+                parentFragmentManager.setFragmentResult("settings_changed", Bundle())
                 parentFragmentManager.popBackStack()
             }
         }
@@ -147,6 +148,7 @@ class SettingsFragment : BaseBindingFragment<FragmentSettingsBinding>() {
                         ChatProvider.regenerateModel()
                     }
                     if (!preferencesAdapter.goBack()) {
+                        parentFragmentManager.setFragmentResult("settings_changed", Bundle())
                         isEnabled = false
                         parentFragmentManager.popBackStack()
                     }
