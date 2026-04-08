@@ -448,11 +448,12 @@ data class KotlinEnvironment(
                         .getReferenceVariants(
                             element,
                             DescriptorKindFilter.ALL,
-                            nameFilter = {
+                            nameFilter = { name ->
                                 if (prefix.isNotEmpty()) {
-                                    it.identifier.startsWith(prefix)
+                                    name.asString().startsWith(prefix)
+                                } else {
+                                    true
                                 }
-                                true
                             },
                             filterOutJavaGettersAndSetters = true,
                             filterOutShadowed = true,
