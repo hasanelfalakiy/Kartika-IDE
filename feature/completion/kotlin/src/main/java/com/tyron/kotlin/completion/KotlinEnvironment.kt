@@ -38,6 +38,7 @@ import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.editor.EditorCompletionItem
 import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.FileUtil
+import com.intellij.openapi.util.Disposer
 import org.jetbrains.kotlin.analyzer.AnalysisResult
 import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
 import org.jetbrains.kotlin.cli.common.CommonCompilerPerformanceManager
@@ -96,13 +97,16 @@ import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.resolve.scopes.MemberScope
 import org.jetbrains.kotlin.types.asFlexibleType
 import org.jetbrains.kotlin.types.isFlexible
+import org.jetbrains.kotlin.util.KotlinFrontEndException
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.collections.set
 
 data class KotlinEnvironment(
     val kotlinEnvironment: KotlinCoreEnvironment
 ) {
-    val kotlinFiles = mutableMapOf<String, KotlinFile>()
+    val kotlinFiles = ConcurrentHashMap<String, KotlinFile>()
+    private val analysisLock = Any()
 
     fun updateKotlinFile(name: String, contents: String): KotlinFile {
         val kotlinFile = KotlinFile.from(kotlinEnvironment.project, name, contents)
@@ -201,9 +205,7 @@ data class KotlinEnvironment(
         currentItemCount = 0
         var list: List<CompletionItem>
         val originalFile = file.kotlinFile
-        CoroutineScope(Dispatchers.IO).launch {
-            analysisOf(kotlinFiles.values.map { it.kotlinFile }, file.kotlinFile)
-        }
+        analysisOf(kotlinFiles.values.map { it.kotlinFile }, file.kotlinFile)
 
         with(file.insert(COMPLETION_SUFFIX, line, character)) {
             kotlinFiles[originalFile.name] = this
@@ -213,21 +215,25 @@ data class KotlinEnvironment(
             val reference = (position?.parent as? KtSimpleNameExpression)?.mainReference
             println("reference: $reference")
 
-            list = position?.let { element ->
-                val descriptorInfo = descriptorsFrom(element, file.kotlinFile)
-                val items = descriptorInfo.descriptors
-                    .sortedWith { a, b ->
-                        val x = a.name.toString()
-                        val y = b.name.toString()
-                        x.compareTo(y)
-                    }
-                    .mapNotNull { descriptor ->
-                        completionVariantFor(prefix, descriptor)
-                    }
-                if (items.size > 50) items.subList(0, 50) else items +
-                        keywordsCompletionVariants(KtTokens.KEYWORDS, prefix)
+            list = try {
+                position?.let { element ->
+                    val descriptorInfo = descriptorsFrom(element, file.kotlinFile)
+                    val items = descriptorInfo.descriptors
+                        .sortedWith { a, b ->
+                            val x = a.name.toString()
+                            val y = b.name.toString()
+                            x.compareTo(y)
+                        }
+                        .mapNotNull { descriptor ->
+                            completionVariantFor(prefix, descriptor)
+                        }
+                    if (items.size > 50) items.subList(0, 50) else items +
+                            keywordsCompletionVariants(KtTokens.KEYWORDS, prefix)
+                } ?: emptyList()
+            } catch (e: Exception) {
+                Log.e("KotlinEnvironment", "Failed to get descriptors", e)
+                emptyList()
             }
-                ?: emptyList()
         }
         return list
     }
@@ -302,7 +308,12 @@ data class KotlinEnvironment(
 
     private fun descriptorsFrom(element: PsiElement, current: KtFile): DescriptorInfo {
         val files = kotlinFiles.values.map { it.kotlinFile }.toList()
-        val analysis = analysisOf(files, current)
+        val analysis = try {
+            analysisOf(files, current)
+        } catch (e: KotlinFrontEndException) {
+            Log.e("KotlinEnvironment", "KotlinFrontEndException during analysisOf", e)
+            return DescriptorInfo(false, emptyList())
+        }
         return with(analysis) {
             logTime("referenceVariants") {
                 (referenceVariantsFrom(element)
@@ -311,33 +322,38 @@ data class KotlinEnvironment(
                 } ?: element.parent.let { parent ->
                     DescriptorInfo(
                         isTipsManagerCompletion = false,
-                        descriptors = when (parent) {
-                            is KtQualifiedExpression -> {
-                                analysisResult.bindingContext.get(
-                                    BindingContext.EXPRESSION_TYPE_INFO,
-                                    parent.receiverExpression
-                                )?.type?.let { expressionType ->
+                        descriptors = try {
+                            when (parent) {
+                                is KtQualifiedExpression -> {
                                     analysisResult.bindingContext.get(
-                                        BindingContext.LEXICAL_SCOPE,
+                                        BindingContext.EXPRESSION_TYPE_INFO,
                                         parent.receiverExpression
-                                    )?.let {
-                                        expressionType.memberScope.getContributedDescriptors(
-                                            DescriptorKindFilter.ALL,
-                                            MemberScope.ALL_NAME_FILTER
-                                        )
-                                    }
-                                }?.toList() ?: emptyList()
-                            }
+                                    )?.type?.let { expressionType ->
+                                        analysisResult.bindingContext.get(
+                                            BindingContext.LEXICAL_SCOPE,
+                                            parent.receiverExpression
+                                        )?.let {
+                                            expressionType.memberScope.getContributedDescriptors(
+                                                DescriptorKindFilter.ALL,
+                                                MemberScope.ALL_NAME_FILTER
+                                            )
+                                        }
+                                    }?.toList() ?: emptyList()
+                                }
 
-                            else -> analysisResult.bindingContext.get(
-                                BindingContext.LEXICAL_SCOPE,
-                                element as KtExpression
-                            )
-                                ?.getContributedDescriptors(
-                                    DescriptorKindFilter.ALL,
-                                    MemberScope.ALL_NAME_FILTER
+                                else -> analysisResult.bindingContext.get(
+                                    BindingContext.LEXICAL_SCOPE,
+                                    element as KtExpression
                                 )
-                                ?.toList() ?: emptyList()
+                                    ?.getContributedDescriptors(
+                                        DescriptorKindFilter.ALL,
+                                        MemberScope.ALL_NAME_FILTER
+                                    )
+                                    ?.toList() ?: emptyList()
+                            }
+                        } catch (e: Exception) {
+                            Log.e("KotlinEnvironment", "Failed to get descriptors from lexical scope", e)
+                            emptyList()
                         }
                     )
                 }
@@ -350,7 +366,7 @@ data class KotlinEnvironment(
         AnalyzerWithCompilerReport(kotlinEnvironment.configuration)
 
 
-    fun analysisOf(files: List<KtFile>, current: KtFile): Analysis {
+    fun analysisOf(files: List<KtFile>, current: KtFile): Analysis = synchronized(analysisLock) {
         val project = files.first().project
         val bindingTrace = CliBindingTrace(project)
         var componentProvider: ComponentProvider? = null
@@ -408,37 +424,46 @@ data class KotlinEnvironment(
                 componentProvider = componentProvider,
                 moduleDescriptor = analysisResult.moduleDescriptor
             )
-        val inDescriptor =
+        val inDescriptor = try {
             elementKt.getResolutionScope(bindingContext, resolutionFacade).ownerDescriptor
+        } catch (e: Exception) {
+            Log.e("KotlinEnvironment", "Failed to get resolution scope", e)
+            return null
+        }
         return when (element) {
             is KtSimpleNameExpression ->
-                ReferenceVariantsHelper(
-                    analysisResult.bindingContext,
-                    resolutionFacade = resolutionFacade,
-                    moduleDescriptor = analysisResult.moduleDescriptor,
-                    visibilityFilter =
-                    VisibilityFilter(
-                        inDescriptor,
-                        bindingContext,
-                        element,
-                        resolutionFacade
+                try {
+                    ReferenceVariantsHelper(
+                        analysisResult.bindingContext,
+                        resolutionFacade = resolutionFacade,
+                        moduleDescriptor = analysisResult.moduleDescriptor,
+                        visibilityFilter =
+                        VisibilityFilter(
+                            inDescriptor,
+                            bindingContext,
+                            element,
+                            resolutionFacade
+                        )
                     )
-                )
-                    .getReferenceVariants(
-                        element,
-                        DescriptorKindFilter.ALL,
-                        nameFilter = {
-                            if (prefix.isNotEmpty()) {
-                                it.identifier.startsWith(prefix)
-                            }
-                            true
-                        },
-                        filterOutJavaGettersAndSetters = true,
-                        filterOutShadowed = true,
-                        excludeNonInitializedVariable = true,
-                        useReceiverType = null
-                    )
-                    .toList()
+                        .getReferenceVariants(
+                            element,
+                            DescriptorKindFilter.ALL,
+                            nameFilter = {
+                                if (prefix.isNotEmpty()) {
+                                    it.identifier.startsWith(prefix)
+                                }
+                                true
+                            },
+                            filterOutJavaGettersAndSetters = true,
+                            filterOutShadowed = true,
+                            excludeNonInitializedVariable = true,
+                            useReceiverType = null
+                        )
+                        .toList()
+                } catch (e: Exception) {
+                    Log.e("KotlinEnvironment", "Failed to get reference variants", e)
+                    null
+                }
 
             else -> null
         }
@@ -521,9 +546,12 @@ data class KotlinEnvironment(
         fun with(classpath: List<File>): KotlinEnvironment {
             setIdeaIoUseFallback()
             setupIdeaStandaloneExecution()
+            
+            val disposable = Disposer.newDisposable()
+
             return KotlinEnvironment(
                 KotlinCoreEnvironment.createForProduction(
-                    {},
+                    disposable,
                     configFiles = EnvironmentConfigFiles.JVM_CONFIG_FILES,
                     configuration =
                     CompilerConfiguration().apply {

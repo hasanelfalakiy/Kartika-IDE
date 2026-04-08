@@ -59,6 +59,8 @@ class KotlinLanguage(
 
     init {
         CoroutineScope(Dispatchers.IO).launch {
+
+
             if (Prefs.kotlinRealtimeErrors) {
                 kotlinEnvironment.addIssueListener {
                     val severity = when (it.severity) {
