@@ -44,7 +44,7 @@ class ChatFragment : BaseBindingFragment<FragmentChatBinding>() {
 
     private fun setupUI(context: Context) {
         initToolbar()
-        binding.toolbar.title = "Gemini Pro"
+        binding.toolbar.title = getString(R.string.gemini_3_flash_preview)
     }
 
     private fun initToolbar() {

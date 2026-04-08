@@ -19,9 +19,12 @@ import androidx.fragment.app.FragmentActivity
 import de.Maxr1998.modernpreferences.PreferenceScreen
 import de.Maxr1998.modernpreferences.helpers.multiChoice
 import de.Maxr1998.modernpreferences.helpers.singleChoice
+import de.Maxr1998.modernpreferences.helpers.switch
+import de.Maxr1998.modernpreferences.helpers.seekBar
 import de.Maxr1998.modernpreferences.preferences.choice.SelectionItem
 import com.andihasan7.kartikaide.R
 import com.andihasan7.kartikaide.util.PreferenceKeys
+import andihasan7.kartikaide.common.Prefs
 
 class FormatterSettings(private val activity: FragmentActivity) : SettingsProvider {
 
@@ -50,6 +53,42 @@ class FormatterSettings(private val activity: FragmentActivity) : SettingsProvid
                 title = "Kotlin code formatter styles"
                 summary = "Choose a style for formatting Kotlin code"
                 initialSelection = "google"
+            }
+
+            seekBar(PreferenceKeys.KTFMT_MAX_WIDTH) {
+                title = "Max width"
+                summary = "Maximum line length for Kotlin code"
+                max = 200
+                min = 40
+                default = 100
+            }
+
+            seekBar(PreferenceKeys.KTFMT_BLOCK_INDENT) {
+                title = "Block indent"
+                summary = "Indent size for blocks in spaces"
+                max = 8
+                min = 2
+                default = 4
+            }
+
+            seekBar(PreferenceKeys.KTFMT_CONTINUATION_INDENT) {
+                title = "Continuation indent"
+                summary = "Indent size for continuation lines in spaces"
+                max = 8
+                min = 2
+                default = 4
+            }
+
+            switch(PreferenceKeys.KTFMT_REMOVE_UNUSED_IMPORTS) {
+                title = "Remove unused imports"
+                summary = "Automatically remove unused imports when formatting"
+                defaultValue = true
+            }
+
+            switch(PreferenceKeys.KTFMT_MANAGE_TRAILING_COMMAS) {
+                title = "Manage trailing commas"
+                summary = "Automatically add or remove trailing commas"
+                defaultValue = false
             }
 
             multiChoice(PreferenceKeys.FORMATTER_GJF_OPTIONS, gjfOptionItems) {

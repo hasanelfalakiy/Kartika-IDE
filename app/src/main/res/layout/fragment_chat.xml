@@ -26,7 +26,7 @@
             android:minHeight="?attr/actionBarSize"
             app:navigationIcon="@drawable/baseline_arrow_back_24"
             app:titleCentered="true"
-            tools:title="Gemini 2.0"
+            tools:title="Gemini 3 Flash Preview"
             app:menu="@menu/chat_menu" />
     </com.google.android.material.appbar.AppBarLayout>
 
