@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package andihasan7.kartikaide.project
 
 import java.io.File
@@ -35,11 +28,21 @@ data class Project(
 
     /**
      * The source directory of the project, based on the language used.
+     * Improved to detect standard structures even in subfolders (like Gradle projects).
      */
     val srcDir: File
-        get() = when (language) {
-            is Language.Java -> File(root, "src/main/java")
-            is Language.Kotlin -> File(root, "src/main/kotlin")
+        get() {
+            val javaSrc = File(root, "src/main/java")
+            if (javaSrc.exists()) return javaSrc
+            val kotlinSrc = File(root, "src/main/kotlin")
+            if (kotlinSrc.exists()) return kotlinSrc
+
+            // Try to find src/main/java or src/main/kotlin in subdirectories (e.g., app/src/main/java)
+            val detected = root.walkTopDown().maxDepth(3)
+                .filter { it.isDirectory && (it.path.endsWith("src${File.separator}main${File.separator}java") || it.path.endsWith("src${File.separator}main${File.separator}kotlin")) }
+                .firstOrNull()
+
+            return detected ?: root
         }
 
     /**

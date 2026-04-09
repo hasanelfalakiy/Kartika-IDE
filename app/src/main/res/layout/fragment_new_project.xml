@@ -12,7 +12,7 @@
     android:layout_height="match_parent"
     android:fillViewport="true"
     android:background="?colorSurfaceContainerLow"
-    tools:context="org.cosmicide.fragment.NewProjectFragment"
+    tools:context="com.andihasan7.kartikaide.fragment.NewProjectFragment"
     android:id="@+id/scrollable">
 
     <LinearLayout
@@ -64,6 +64,65 @@
                 <com.google.android.material.textfield.TextInputEditText
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:singleLine="true" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="Storage Location"
+                android:textAppearance="@style/TextAppearance.Material3.LabelLarge" />
+
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/location_toggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:singleSelection="true"
+                app:checkedButton="@+id/btn_internal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_internal"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="App Data" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_external"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Storage" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_custom"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Custom" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/project_path"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Selected Path"
+                app:endIconMode="custom"
+                app:endIconDrawable="@drawable/ic_outline_folder_open_24">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/et_project_path"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:focusable="false"
+                    android:clickable="true"
                     android:singleLine="true" />
             </com.google.android.material.textfield.TextInputLayout>
 

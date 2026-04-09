@@ -5,17 +5,13 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.fragment
 
 import android.os.Bundle
+import android.os.Environment
 import android.view.View
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.commit
 import com.google.android.material.snackbar.Snackbar
@@ -26,11 +22,27 @@ import com.andihasan7.kartikaide.model.ProjectViewModel
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.FileUtil
+import com.andihasan7.kartikaide.util.CommonUtils
 import java.io.File
 import java.io.IOException
 
 class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
     private val viewModel: ProjectViewModel by activityViewModels()
+    private var selectedPath: String? = null
+
+    private val directoryPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null) {
+                val path = CommonUtils.getPathFromTreeUri(uri)
+                if (path != null) {
+                    selectedPath = path
+                    binding.etProjectPath.setText(path)
+                    binding.locationToggle.check(R.id.btn_custom)
+                } else {
+                    Toast.makeText(requireContext(), "Could not resolve path from URI", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
 
     override fun getViewBinding() = FragmentNewProjectBinding.inflate(layoutInflater)
 
@@ -39,6 +51,36 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
 
         binding.toolbar.setNavigationOnClickListener {
             parentFragmentManager.popBackStack()
+        }
+
+        // Default to App Data
+        selectedPath = FileUtil.projectDir.absolutePath
+        binding.etProjectPath.setText(selectedPath)
+
+        binding.locationToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                when (checkedId) {
+                    R.id.btn_internal -> {
+                        selectedPath = FileUtil.projectDir.absolutePath
+                        binding.etProjectPath.setText(selectedPath)
+                    }
+                    R.id.btn_external -> {
+                        selectedPath = Environment.getExternalStorageDirectory().absolutePath
+                        binding.etProjectPath.setText(selectedPath)
+                    }
+                    R.id.btn_custom -> {
+                        // Keep current or prompt picker if it was just clicked
+                    }
+                }
+            }
+        }
+
+        binding.etProjectPath.setOnClickListener {
+            directoryPickerLauncher.launch(null)
+        }
+
+        binding.projectPath.setEndIconOnClickListener {
+            directoryPickerLauncher.launch(null)
         }
 
         binding.btnCreate.setOnClickListener {
@@ -65,6 +107,11 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
                 return@setOnClickListener
             }
 
+            if (selectedPath == null) {
+                Toast.makeText(requireContext(), "Please select a project location", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
             val language = when {
                 binding.useKotlin.isChecked -> Language.Kotlin
                 else -> Language.Java
@@ -87,11 +134,14 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
     ): Boolean {
         return try {
             val projectName = name.replace("\\.", "")
-            val root = FileUtil.projectDir.resolve(projectName).apply { mkdirs() }
-            val project = Project(root = root, language = language)
+            val projectRoot = File(selectedPath!!).resolve(projectName)
+            projectRoot.mkdirs()
+            
+            val project = Project(root = projectRoot, language = language)
             val srcDir = project.srcDir.apply { mkdirs() }
-            val mainFile = srcDir.resolve(packageName.replace('.', '/')).apply { mkdirs() }
-                .resolve("Main.${language.extension}")
+            val packageDir = srcDir.resolve(packageName.replace('.', File.separatorChar)).apply { mkdirs() }
+            val mainFile = packageDir.resolve("Main.${language.extension}")
+
             mainFile.createMainFile(language, packageName)
             viewModel.loadProjects()
             navigateToEditorFragment(project)

@@ -5,25 +5,13 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.fragment
 
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -56,11 +44,13 @@ import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
 import com.andihasan7.kartikaide.databinding.FragmentProjectBinding
 import com.andihasan7.kartikaide.model.ProjectViewModel
+import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.FileUtil
 import andihasan7.kartikaide.rewrite.util.compressToZip
 import andihasan7.kartikaide.rewrite.util.unzip
 import com.andihasan7.kartikaide.util.CommonUtils
+import java.io.File
 import java.io.OutputStream
 import java.io.PrintWriter
 
@@ -127,6 +117,36 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
             }
         }
 
+    private val directoryPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null) {
+                val path = getPathFromTreeUri(uri)
+                if (path != null) {
+                    val file = File(path)
+                    if (file.isDirectory) {
+                        val language = if (File(file, "src/main/java").exists()) Language.Java else Language.Kotlin
+                        val externalProject = Project(file, language)
+                        navigateToEditorFragment(externalProject)
+                    } else {
+                        Toast.makeText(requireContext(), "Selected path is not a directory", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(requireContext(), "Could not resolve path from URI", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+    private fun getPathFromTreeUri(uri: Uri): String? {
+        val treeId = DocumentsContract.getTreeDocumentId(uri)
+        val split = treeId.split(":")
+        val type = split[0]
+        return if ("primary".equals(type, ignoreCase = true)) {
+            "/storage/emulated/0/" + if (split.size > 1) split[1] else ""
+        } else {
+            "/storage/$type/" + if (split.size > 1) split[1] else ""
+        }
+    }
+
     override fun getViewBinding() = FragmentProjectBinding.inflate(layoutInflater)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -165,6 +185,7 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
         binding.fabs.fabNewProject.visibility = View.GONE
         binding.fabs.cancelText.visibility = View.GONE
         binding.fabs.gitClone.visibility = View.GONE
+        binding.fabs.openProject.visibility = View.GONE
 
         binding.fabs.cancel.setOnClickListener {
             if (!binding.fabs.importButton.isVisible) {
@@ -172,6 +193,7 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                 binding.fabs.fabNewProject.visibility = View.VISIBLE
                 binding.fabs.cancelText.visibility = View.VISIBLE
                 binding.fabs.gitClone.visibility = View.VISIBLE
+                binding.fabs.openProject.visibility = View.VISIBLE
                 binding.fabs.cancelFab.setImageDrawable(
                     ResourcesCompat.getDrawable(
                         resources,
@@ -193,11 +215,15 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                 binding.fabs.gitClone.setOnClickListener {
                     gitClone()
                 }
+                binding.fabs.openProject.setOnClickListener {
+                    openExternalProject()
+                }
             } else {
                 binding.fabs.importButton.visibility = View.GONE
                 binding.fabs.fabNewProject.visibility = View.GONE
                 binding.fabs.cancelText.visibility = View.GONE
                 binding.fabs.gitClone.visibility = View.GONE
+                binding.fabs.openProject.visibility = View.GONE
 
                 binding.fabs.cancelFab.setImageDrawable(
                     ResourcesCompat.getDrawable(resources, R.drawable.sharp_add_24, activity?.theme)
@@ -209,6 +235,10 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
             viewModel.loadProjects()
             binding.swipeRefresh.isRefreshing = false
         }
+    }
+
+    private fun openExternalProject() {
+        directoryPickerLauncher.launch(null)
     }
 
     private fun showMenu(v: View, p: Project) {
