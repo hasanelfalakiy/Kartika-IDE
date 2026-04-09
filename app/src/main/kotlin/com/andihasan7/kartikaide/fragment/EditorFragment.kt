@@ -803,18 +803,22 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                             val name = binding.textInputLayout.editText?.text.toString()
                             if (name.isEmpty() || name == file.name) return@setPositiveButton
                             
-                            val oldRootPath = project.root.absolutePath
+                            val oldPath = file.absolutePath
                             val newFile = file.parentFile!!.resolve(name)
+                            
+                            // 1. Save all files before rename to avoid saving to old path
+                            editorAdapter.saveAll()
                             
                             if (file.renameTo(newFile)) {
                                 if (file == project.root) {
                                     project.root = newFile
                                     this.binding.included.projectName.text = name
                                     this.binding.toolbar.title = name
-                                    
-                                    // Update paths in ViewModel to prevent crash and duplicates
-                                    fileViewModel.updatePaths(oldRootPath, newFile.absolutePath)
                                 }
+                                
+                                // 2. Update paths in ViewModel IMMEDIATELY for any renamed file/folder
+                                fileViewModel.updatePaths(oldPath, newFile.absolutePath)
+                                
                                 initTreeView()
                             }
                         }.setNegativeButton("Cancel") { dialog, _ ->
@@ -826,8 +830,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     MaterialAlertDialogBuilder(v.context).setTitle("Delete")
                         .setMessage("Are you sure you want to delete this file")
                         .setPositiveButton("Delete") { _, _ ->
-                            file.deleteRecursively()
-                            initTreeView()
+                            val path = file.absolutePath
+                            if (file.deleteRecursively()) {
+                                fileViewModel.removePath(path)
+                                initTreeView()
+                            }
                         }.setNegativeButton("Cancel") { dialog, _ ->
                             dialog.dismiss()
                         }.show()

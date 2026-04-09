@@ -38,7 +38,7 @@ import kotlin.properties.Delegates
 class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
     FragmentStateAdapter(fragment) {
 
-    val fragments = mutableMapOf<Long, CodeEditorFragment>()
+    private val fragments = mutableMapOf<Long, CodeEditorFragment>()
     private var ids: List<Long> by Delegates.observable(emptyList()) { _, old, new ->
         DiffUtil.calculateDiff(object : DiffUtil.Callback() {
             override fun getOldListSize(): Int = old.size
@@ -51,12 +51,22 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
     init {
         fileViewModel.files.observe(fragment.viewLifecycleOwner) { files ->
             val project = ProjectHandler.getProject()
-            ids = files.map { file ->
-                // Use relative path for stable ID during renames if possible
+            val newIds = files.map { file ->
+                // Use relative path for stable ID during renames
                 if (project != null && file.absolutePath.startsWith(project.root.absolutePath)) {
                     file.absolutePath.removePrefix(project.root.absolutePath).hashCode().toLong()
                 } else {
                     file.absolutePath.hashCode().toLong()
+                }
+            }
+            
+            ids = newIds
+            
+            // Update existing fragments with their new File objects (handles renamed root)
+            fragments.forEach { (id, fragment) ->
+                val index = ids.indexOf(id)
+                if (index != -1) {
+                    fragment.updateFile(files[index])
                 }
             }
         }
@@ -102,7 +112,16 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         private lateinit var eventReceiver: SubscriptionReceipt<ContentChangeEvent>
         private lateinit var binding: EditorFragmentBinding
         lateinit var editor: IdeEditor
-        val file by lazy { requireArguments().getSerializable("file") as File }
+        
+        private var _file: File? = null
+        val file: File get() = _file ?: (requireArguments().getSerializable("file") as File)
+
+        fun updateFile(newFile: File) {
+            if (_file?.absolutePath != newFile.absolutePath) {
+                _file = newFile
+                Log.d("CodeEditorFragment", "Updated file path to: ${newFile.absolutePath}")
+            }
+        }
 
         override fun onCreateView(
             inflater: LayoutInflater,
@@ -179,12 +198,12 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             if (file.extension == "class") return
             
             try {
-                // Only save if directory exists (prevents crash during rename/move)
-                if (file.parentFile?.exists() == true) {
-                    file.writeText(editor.text.toString())
-                } else {
-                    Log.w("CodeEditorFragment", "Cannot save file, parent directory missing: ${file.absolutePath}")
+                // Double check parent existence.ENOENT happens if parent folder was renamed but path is old.
+                val parent = file.parentFile
+                if (parent != null && !parent.exists()) {
+                    parent.mkdirs()
                 }
+                file.writeText(editor.text.toString())
             } catch (e: Exception) {
                 Log.e("CodeEditorFragment", "Failed to save file: ${file.absolutePath}", e)
             }

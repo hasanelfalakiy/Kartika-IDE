@@ -41,9 +41,10 @@ class FileViewModel : ViewModel() {
      * If the file is already in the list, the current position is set to its index.
      */
     fun addFile(file: File) {
-        val index = files.value?.indexOf(file) ?: -1
+        val currentFiles = files.value.orEmpty()
+        val index = currentFiles.indexOfFirst { it.absolutePath == file.absolutePath }
         if (index == -1) {
-            files.value = files.value?.toMutableList()?.apply { add(file) }
+            files.value = currentFiles.toMutableList().apply { add(file) }
             setCurrentPosition(files.value!!.lastIndex)
         } else {
             setCurrentPosition(index)
@@ -117,17 +118,38 @@ class FileViewModel : ViewModel() {
     }
 
     /**
-     * Replaces old file paths with new ones when a directory is renamed.
+     * Replaces old file paths with new ones when a directory or file is renamed.
+     * Uses non-regex replacement to avoid issues with dots in paths.
      */
-    fun updatePaths(oldRoot: String, newRoot: String) {
+    fun updatePaths(oldPath: String, newPath: String) {
         val currentFiles = files.value.orEmpty()
         val updatedFiles = currentFiles.map { file ->
-            if (file.absolutePath.startsWith(oldRoot)) {
-                File(file.absolutePath.replaceFirst(oldRoot, newRoot))
+            val path = file.absolutePath
+            if (path.startsWith(oldPath)) {
+                File(newPath + path.substring(oldPath.length))
             } else {
                 file
             }
         }
         files.value = updatedFiles
+    }
+
+    /**
+     * Removes files that are located within the deleted path.
+     */
+    fun removePath(deletedPath: String) {
+        val currentFiles = files.value.orEmpty()
+        val updatedFiles = currentFiles.filterNot { it.absolutePath.startsWith(deletedPath) }
+        
+        if (currentFiles.size != updatedFiles.size) {
+            files.value = updatedFiles
+            // Adjust current position if it was pointing to a removed file
+            val currentFile = currentFile
+            if (currentFile != null && currentFile.absolutePath.startsWith(deletedPath)) {
+                setCurrentPosition(if (updatedFiles.isEmpty()) -1 else 0)
+            } else if (currentFile != null) {
+                setCurrentPosition(updatedFiles.indexOfFirst { it.absolutePath == currentFile.absolutePath })
+            }
+        }
     }
 }
