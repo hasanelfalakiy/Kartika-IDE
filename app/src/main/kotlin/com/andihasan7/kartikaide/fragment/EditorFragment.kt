@@ -639,7 +639,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private fun showMainSelectionDialog(mains: List<String>) {
         val items = mains.toTypedArray()
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select main class")
+            .setTitle("Select main function in class:")
             .setItems(items) { _, which ->
                 navigateToCompileInfoFragment(mains[which])
             }
