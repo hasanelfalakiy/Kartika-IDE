@@ -7,13 +7,21 @@
 
 package com.andihasan7.kartikaide.fragment
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.Settings
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.commit
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.andihasan7.kartikaide.R
 import andihasan7.kartikaide.common.BaseBindingFragment
@@ -53,9 +61,12 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
             parentFragmentManager.popBackStack()
         }
 
-        // Default to App Data
-        selectedPath = FileUtil.projectDir.absolutePath
+        // Set default selection to External Storage (Storage)
+        val kartikaDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
+        if (!kartikaDir.exists()) kartikaDir.mkdirs()
+        selectedPath = kartikaDir.absolutePath
         binding.etProjectPath.setText(selectedPath)
+        binding.locationToggle.check(R.id.btn_external)
 
         binding.locationToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
@@ -65,21 +76,24 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
                         binding.etProjectPath.setText(selectedPath)
                     }
                     R.id.btn_external -> {
-                        val kartikaDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
-                        if (!kartikaDir.exists()) kartikaDir.mkdirs()
+                        checkStoragePermission()
                         selectedPath = kartikaDir.absolutePath
                         binding.etProjectPath.setText(selectedPath)
                     }
-                    R.id.btn_custom -> { }
+                    R.id.btn_custom -> {
+                        checkStoragePermission()
+                    }
                 }
             }
         }
 
         binding.etProjectPath.setOnClickListener {
+            checkStoragePermission()
             directoryPickerLauncher.launch(null)
         }
 
         binding.projectPath.setEndIconOnClickListener {
+            checkStoragePermission()
             directoryPickerLauncher.launch(null)
         }
 
@@ -127,6 +141,33 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
         }
     }
 
+    private fun checkStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Permission Required")
+                    .setMessage("KartikaIDE needs access to all files to manage projects in external storage.")
+                    .setPositiveButton("Grant") { _, _ ->
+                        try {
+                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                            intent.data = Uri.parse("package:${requireContext().packageName}")
+                            startActivity(intent)
+                        } catch (e: Exception) {
+                            val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                            startActivity(intent)
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        } else {
+            val permissions = arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            if (permissions.any { ContextCompat.checkSelfPermission(requireContext(), it) != PackageManager.PERMISSION_GRANTED }) {
+                requestPermissions(permissions, 100)
+            }
+        }
+    }
+
     private fun createProject(
         language: Language,
         name: String,
@@ -139,7 +180,6 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
             
             val project = Project(root = projectRoot, language = language)
             
-            // Standard IntelliJ structure: root/src/main/kotlin or root/src/main/java
             val srcMain = projectRoot.resolve("src").resolve("main")
             val srcDir = if (language is Language.Kotlin) {
                 srcMain.resolve("kotlin")
@@ -153,6 +193,9 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
             
             val mainFile = packageDir.resolve("Main.${language.extension}")
             mainFile.createMainFile(language, packageName)
+            
+            // Create resources dir too
+            srcMain.resolve("resources").mkdirs()
 
             viewModel.loadProjects()
             navigateToEditorFragment(project)

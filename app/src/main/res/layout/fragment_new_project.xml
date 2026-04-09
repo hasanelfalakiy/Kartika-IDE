@@ -80,7 +80,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 app:singleSelection="true"
-                app:checkedButton="@+id/btn_internal">
+                app:checkedButton="@+id/btn_external">
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_internal"

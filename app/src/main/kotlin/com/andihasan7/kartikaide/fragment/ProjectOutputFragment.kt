@@ -5,20 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.fragment
 
 import andihasan7.kartikaide.common.BaseBindingFragment
@@ -62,7 +48,6 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
             when (it.itemId) {
                 R.id.reload -> {
                     if (isRunning) {
-                        // Just re-run the same class
                         currentRunningClass?.let { className ->
                             binding.infoEditor.text.insert(
                                 binding.infoEditor.text.lineCount - 1,
@@ -123,7 +108,6 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                 return@launch
             }
 
-            // Find classes that have a main method (either parameterless or with String[] args)
             val mainClasses = dexFile.classes.filter { classDef ->
                 classDef.methods.any { method ->
                     method.name == "main" && (
@@ -139,35 +123,26 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                     return@withContext
                 }
 
-                Log.d("ProjectOutput", "Classes with main: $mainClasses")
-
                 var index: String? = null
                 val targetFile = ProjectHandler.clazz
                 
                 if (targetFile != null) {
-                    // targetFile is something like "com/test/Say.kt" or "Main.java"
                     val targetName = targetFile.substringBeforeLast('.').replace('\\', '/')
-                    Log.d("ProjectOutput", "Searching for target: $targetName")
-
-                    // Match by full path or just the class name suffix
                     index = mainClasses.find { it == targetName || it == "${targetName}Kt" }
                         ?: mainClasses.find { it.endsWith("/$targetName") || it.endsWith("/${targetName}Kt") }
                     
-                    // Keep the target class for reloads, but only if found
                     if (index != null) {
                         currentRunningClass = index
                     }
                 }
 
                 if (index == null) {
-                    // Fallback to Main or MainKt
                     index = mainClasses.find { it.endsWith("/Main") || it == "Main" || it.endsWith("/MainKt") || it == "MainKt" }
                         ?: mainClasses.firstOrNull()
                     currentRunningClass = index
                 }
 
                 if (index != null) {
-                    Log.d("ProjectOutput", "Selected class to run: $index")
                     runClass(index)
                 } else {
                     binding.infoEditor.setText("Could not determine which class to run")
@@ -201,21 +176,35 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                         text.getColumnCount(text.lineCount - 1),
                         s
                     )
-                    // Update input stream offset so it doesn't read the output as input
                     inputStream.updateOffset(text.length)
                 }
             }
         }, true)
+        
+        val oldOut = System.out
+        val oldErr = System.err
+        val oldIn = System.`in`
+        
         System.setOut(systemOut)
         System.setErr(systemOut)
         System.setIn(inputStream)
 
         val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
 
-        loader.loadDex(makeDexReadOnlyIfNeeded(project.binDir.resolve("classes.dex")))
+        // Load project classes
+        val mainDex = project.binDir.resolve("classes.dex")
+        if (mainDex.exists()) {
+            loader.loadDex(makeDexReadOnlyIfNeeded(mainDex))
+        }
 
+        // Load library dex files
         project.buildDir.resolve("libs").listFiles()?.filter { it.extension == "dex" }?.forEach {
             loader.loadDex(makeDexReadOnlyIfNeeded(it))
+        }
+        
+        // ADD RESOURCE SUPPORT: Add the resources directory to the class loader
+        if (project.resourcesDir.exists()) {
+            loader.addResourceDir(project.resourcesDir)
         }
 
         runCatching {
@@ -243,34 +232,36 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                         }
                     }
                 } catch (e: Throwable) {
-                    e.printStackTrace()
+                    val cause = e.cause ?: e
+                    systemOut.println("\n--- Execution Error ---\n")
+                    cause.printStackTrace(systemOut)
                 }
             } else {
-                System.err.println("No valid main method found in $className")
+                systemOut.println("No valid main method found in $className")
             }
         }.onFailure { e ->
-            System.err.println("Error loading class $className: ${e.message}")
+            systemOut.println("Error loading class $className: ${e.message}")
+            e.printStackTrace(systemOut)
         }.also {
-            systemOut.close()
-            System.`in`.close()
+            systemOut.flush()
+            System.setOut(oldOut)
+            System.setErr(oldErr)
+            System.setIn(oldIn)
             isRunning = false
         }
     }
 
     private fun findMainMethod(clazz: Class<*>): Method? {
-        // 1. Coba cari public static void main(String[] args) - Java Standard
         try {
             val m = clazz.getDeclaredMethod("main", Array<String>::class.java)
             if (Modifier.isPublic(m.modifiers)) return m
         } catch (e: NoSuchMethodException) {}
 
-        // 2. Coba cari public static void main() - Kotlin parameterless main
         try {
             val m = clazz.getDeclaredMethod("main")
             if (Modifier.isPublic(m.modifiers)) return m
         } catch (e: NoSuchMethodException) {}
 
-        // 3. Cari method bernama "main" secara manual (untuk kasus non-static atau visibility lain yang mungkin)
         return clazz.declaredMethods.firstOrNull {
             it.name == "main" && 
             (it.parameterCount == 0 || (it.parameterCount == 1 && it.parameterTypes[0] == Array<String>::class.java))

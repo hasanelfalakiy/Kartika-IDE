@@ -7,9 +7,15 @@
 
 package com.andihasan7.kartikaide.fragment
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -19,6 +25,7 @@ import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
@@ -160,9 +167,36 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
 
     override fun onResume() {
         super.onResume()
-
+        checkStoragePermission()
         viewModel.loadProjects()
         setOnClickListeners()
+    }
+
+    private fun checkStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Permission Required")
+                    .setMessage("KartikaIDE needs access to all files to manage projects in external storage. Please grant the permission in the next screen.")
+                    .setPositiveButton("Grant") { _, _ ->
+                        try {
+                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                            intent.data = Uri.parse("package:${requireContext().packageName}")
+                            startActivity(intent)
+                        } catch (e: Exception) {
+                            val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                            startActivity(intent)
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        } else {
+            val permissions = arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            if (permissions.any { ContextCompat.checkSelfPermission(requireContext(), it) != PackageManager.PERMISSION_GRANTED }) {
+                requestPermissions(permissions, 100)
+            }
+        }
     }
 
     private fun setOnClickListeners() {

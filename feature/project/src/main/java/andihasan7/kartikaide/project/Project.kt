@@ -28,7 +28,6 @@ data class Project(
 
     /**
      * The source directory of the project, based on the language used.
-     * Improved to detect standard structures even in subfolders (like Gradle projects).
      */
     val srcDir: File
         get() {
@@ -47,12 +46,29 @@ data class Project(
                 if (moduleKotlin.exists()) return moduleKotlin
             }
 
-            // Priority 3: Deep search for any src/main/java or src/main/kotlin
+            // Priority 3: Deep search
             val detected = root.walkTopDown().maxDepth(5)
                 .filter { it.isDirectory && (it.path.endsWith("src${File.separator}main${File.separator}java") || it.path.endsWith("src${File.separator}main${File.separator}kotlin")) }
                 .firstOrNull()
 
             return detected ?: root
+        }
+
+    /**
+     * The resources directory of the project.
+     */
+    val resourcesDir: File
+        get() {
+            val res = File(root, "src/main/resources")
+            if (res.exists()) return res
+            
+            // Try in common modules
+            listOf("app", "lib").forEach { module ->
+                val moduleRes = File(root, "$module/src/main/resources")
+                if (moduleRes.exists()) return moduleRes
+            }
+            
+            return res // default
         }
 
     /**
@@ -69,6 +85,11 @@ data class Project(
      * The binary directory of the project.
      */
     val binDir = File(buildDir, "bin")
+
+    /**
+     * The classes directory where compiled class files are stored.
+     */
+    val classesDir = File(buildDir, "classes")
 
     /**
      * The library directory of the project.
