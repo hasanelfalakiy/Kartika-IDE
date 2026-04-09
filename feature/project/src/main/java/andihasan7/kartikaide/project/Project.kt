@@ -32,13 +32,23 @@ data class Project(
      */
     val srcDir: File
         get() {
+            // Priority 1: Standard Gradle/Maven structure at root
             val javaSrc = File(root, "src/main/java")
             if (javaSrc.exists()) return javaSrc
             val kotlinSrc = File(root, "src/main/kotlin")
             if (kotlinSrc.exists()) return kotlinSrc
 
-            // Try to find src/main/java or src/main/kotlin in subdirectories (e.g., app/src/main/java)
-            val detected = root.walkTopDown().maxDepth(3)
+            // Priority 2: Common modules like 'app' or 'lib'
+            val modules = listOf("app", "lib", "library", "module")
+            for (module in modules) {
+                val moduleJava = File(root, "$module/src/main/java")
+                if (moduleJava.exists()) return moduleJava
+                val moduleKotlin = File(root, "$module/src/main/kotlin")
+                if (moduleKotlin.exists()) return moduleKotlin
+            }
+
+            // Priority 3: Deep search for any src/main/java or src/main/kotlin
+            val detected = root.walkTopDown().maxDepth(5)
                 .filter { it.isDirectory && (it.path.endsWith("src${File.separator}main${File.separator}java") || it.path.endsWith("src${File.separator}main${File.separator}kotlin")) }
                 .firstOrNull()
 

@@ -9,9 +9,7 @@ package com.andihasan7.kartikaide.fragment
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import android.provider.DocumentsContract
 import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -120,32 +118,19 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     private val directoryPickerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             if (uri != null) {
-                val path = getPathFromTreeUri(uri)
+                val path = CommonUtils.getPathFromTreeUri(uri)
                 if (path != null) {
                     val file = File(path)
                     if (file.isDirectory) {
-                        val language = if (File(file, "src/main/java").exists()) Language.Java else Language.Kotlin
+                        val language = if (file.walkTopDown().maxDepth(5).any { f -> f.path.contains("src${File.separator}main${File.separator}java") }) Language.Java else Language.Kotlin
                         val externalProject = Project(file, language)
                         navigateToEditorFragment(externalProject)
                     } else {
                         Toast.makeText(requireContext(), "Selected path is not a directory", Toast.LENGTH_SHORT).show()
                     }
-                } else {
-                    Toast.makeText(requireContext(), "Could not resolve path from URI", Toast.LENGTH_SHORT).show()
                 }
             }
         }
-
-    private fun getPathFromTreeUri(uri: Uri): String? {
-        val treeId = DocumentsContract.getTreeDocumentId(uri)
-        val split = treeId.split(":")
-        val type = split[0]
-        return if ("primary".equals(type, ignoreCase = true)) {
-            "/storage/emulated/0/" + if (split.size > 1) split[1] else ""
-        } else {
-            "/storage/$type/" + if (split.size > 1) split[1] else ""
-        }
-    }
 
     override fun getViewBinding() = FragmentProjectBinding.inflate(layoutInflater)
 
@@ -242,7 +227,6 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     }
 
     private fun showMenu(v: View, p: Project) {
-        // show project_menu attached to view
         val popupMenu = PopupMenu(requireContext(), v)
         popupMenu.inflate(R.menu.project_menu)
         popupMenu.setOnMenuItemClickListener {
@@ -274,14 +258,23 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     }
 
     private fun observeViewModelProjects() {
-        viewModel.projects.observe(viewLifecycleOwner) { projects ->
-            projectAdapter.submitList(projects)
+        viewModel.internalProjects.observe(viewLifecycleOwner) { internal ->
+            val external = viewModel.externalProjects.value ?: emptyList()
+            projectAdapter.submitProjects(internal, external)
+            updateUI(internal.isEmpty() && external.isEmpty())
+        }
+        viewModel.externalProjects.observe(viewLifecycleOwner) { external ->
+            val internal = viewModel.internalProjects.value ?: emptyList()
+            projectAdapter.submitProjects(internal, external)
+            updateUI(internal.isEmpty() && external.isEmpty())
+        }
+    }
 
-            if (projects.isEmpty() && binding.switcher.currentView != binding.noProjects) {
-                binding.switcher.showNext()
-            } else if (projects.isNotEmpty() && binding.switcher.currentView != binding.projectList) {
-                binding.switcher.showPrevious()
-            }
+    private fun updateUI(isEmpty: Boolean) {
+        if (isEmpty && binding.switcher.currentView != binding.noProjects) {
+            binding.switcher.showNext()
+        } else if (!isEmpty && binding.switcher.currentView != binding.projectList) {
+            binding.switcher.showPrevious()
         }
     }
 

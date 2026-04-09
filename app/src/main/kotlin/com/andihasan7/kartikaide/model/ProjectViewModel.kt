@@ -22,21 +22,28 @@ import java.io.File
 
 class ProjectViewModel : ViewModel() {
 
+    private val _internalProjects = MutableLiveData<List<Project>>()
+    val internalProjects: LiveData<List<Project>> = _internalProjects
+
+    private val _externalProjects = MutableLiveData<List<Project>>()
+    val externalProjects: LiveData<List<Project>> = _externalProjects
+
+    // For compatibility with parts that still use the combined list
     private val _projects = MutableLiveData<List<Project>>()
     val projects: LiveData<List<Project>> = _projects
 
     fun loadProjects() {
         viewModelScope.launch(Dispatchers.IO) {
-            val internalProjects = loadFromDir(FileUtil.projectDir)
+            val internal = loadFromDir(FileUtil.projectDir)
             
             val externalDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
-            val externalProjects = if (externalDir.exists()) loadFromDir(externalDir) else emptyList()
-
-            // Combine projects: internal first, then external
-            val combined = internalProjects + externalProjects
+            if (!externalDir.exists()) externalDir.mkdirs()
+            val external = loadFromDir(externalDir)
 
             withContext(Dispatchers.Main) {
-                _projects.value = combined
+                _internalProjects.value = internal
+                _externalProjects.value = external
+                _projects.value = internal + external
             }
         }
     }
@@ -45,10 +52,12 @@ class ProjectViewModel : ViewModel() {
         return dir.listFiles { file -> file.isDirectory }
             ?.sortedByDescending { it.lastModified() }
             ?.map {
-                val isJava = File(it, "src/main/java").exists() || 
-                           it.walkTopDown().maxDepth(3).any { f -> f.isDirectory && f.path.endsWith("src/main/java") }
+                // Improved language detection: check for kotlin or java source folders deep in structure
+                val hasJava = it.walkTopDown().maxDepth(5).any { f -> 
+                    f.isDirectory && f.path.contains("src${File.separator}main${File.separator}java") 
+                }
                 
-                if (isJava) {
+                if (hasJava) {
                     Project(it, Language.Java)
                 } else {
                     Project(it, Language.Kotlin)
