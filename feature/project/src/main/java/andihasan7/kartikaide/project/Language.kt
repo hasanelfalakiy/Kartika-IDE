@@ -5,17 +5,12 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package andihasan7.kartikaide.project
 
 import andihasan7.kartikaide.project.templates.javaClass
 import andihasan7.kartikaide.project.templates.kotlinClass
+import andihasan7.kartikaide.project.templates.simpleJavaClass
+import andihasan7.kartikaide.project.templates.simpleKotlinClass
 import java.io.Serializable
 
 /**
@@ -35,6 +30,15 @@ sealed class Language(val extension: String) : Serializable {
     abstract fun classFileContent(name: String, packageName: String): String
 
     /**
+     * Generates the content of a simple class file for the language.
+     *
+     * @param name the name of the class
+     * @param packageName the name of the package the class belongs to
+     * @return the generated class file content as a string
+     */
+    abstract fun simpleClassFileContent(name: String, packageName: String): String
+
+    /**
      * An object representing the Java programming language.
      */
     object Java : Language("java") {
@@ -44,6 +48,10 @@ sealed class Language(val extension: String) : Serializable {
                 System.out.println("Hello, World!");
             """.trimIndent()
             )
+        }
+
+        override fun simpleClassFileContent(name: String, packageName: String): String {
+            return simpleJavaClass(name, packageName)
         }
     }
 
@@ -57,6 +65,10 @@ sealed class Language(val extension: String) : Serializable {
                 println("Hello World!")
             """.trimIndent()
             )
+        }
+
+        override fun simpleClassFileContent(name: String, packageName: String): String {
+            return simpleKotlinClass(name, packageName)
         }
     }
 }

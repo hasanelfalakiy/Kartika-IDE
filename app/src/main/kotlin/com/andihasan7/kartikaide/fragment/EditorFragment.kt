@@ -749,7 +749,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         .setView(binding.root).setPositiveButton("Create") { _, _ ->
                             var name = binding.textInputLayout.editText?.text.toString()
                             name = name.replace("\\.", "")
-                            file.resolve("$name.kt").createNewFile()
+                            val newFile = file.resolve("$name.kt")
+                            newFile.createNewFile()
+                            val packageName = getPackageName(file)
+                            newFile.writeText(Language.Kotlin.simpleClassFileContent(name, packageName))
                             initTreeView()
                         }.setNegativeButton("Cancel") { dialog, _ ->
                             dialog.dismiss()
@@ -763,7 +766,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         .setView(binding.root).setPositiveButton("Create") { _, _ ->
                             var name = binding.textInputLayout.editText?.text.toString()
                             name = name.replace("\\.", "")
-                            file.resolve("$name.java").createNewFile()
+                            val newFile = file.resolve("$name.java")
+                            newFile.createNewFile()
+                            val packageName = getPackageName(file)
+                            newFile.writeText(Language.Java.simpleClassFileContent(name, packageName))
                             initTreeView()
                         }.setNegativeButton("Cancel") { dialog, _ ->
                             dialog.dismiss()
@@ -828,6 +834,17 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             true
         }
         popup.show()
+    }
+
+    private fun getPackageName(file: File): String {
+        val srcPath = project.srcDir.absolutePath
+        val filePath = file.absolutePath
+        if (filePath.startsWith(srcPath)) {
+            return filePath.substring(srcPath.length)
+                .removePrefix(File.separator)
+                .replace(File.separator, ".")
+        }
+        return ""
     }
 
     companion object {
