@@ -184,6 +184,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         val oldOut = System.out
         val oldErr = System.err
         val oldIn = System.`in`
+        val oldContextClassLoader = Thread.currentThread().contextClassLoader
         
         System.setOut(systemOut)
         System.setErr(systemOut)
@@ -191,21 +192,24 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
 
         val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
 
-        // Load project classes
+        // 1. Load project classes
         val mainDex = project.binDir.resolve("classes.dex")
         if (mainDex.exists()) {
             loader.loadDex(makeDexReadOnlyIfNeeded(mainDex))
         }
 
-        // Load library dex files
+        // 2. Load library dex files
         project.buildDir.resolve("libs").listFiles()?.filter { it.extension == "dex" }?.forEach {
             loader.loadDex(makeDexReadOnlyIfNeeded(it))
         }
         
-        // ADD RESOURCE SUPPORT: Add the resources directory to the class loader
+        // 3. ADD RESOURCE SUPPORT: Add the resources directory
         if (project.resourcesDir.exists()) {
             loader.addResourceDir(project.resourcesDir)
         }
+
+        // 4. Set context class loader for libraries that use it (crucial for resource loading)
+        Thread.currentThread().contextClassLoader = loader.loader
 
         runCatching {
             loader.loader.loadClass(className.replace('/', '.'))
@@ -247,6 +251,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
             System.setOut(oldOut)
             System.setErr(oldErr)
             System.setIn(oldIn)
+            Thread.currentThread().contextClassLoader = oldContextClassLoader
             isRunning = false
         }
     }
