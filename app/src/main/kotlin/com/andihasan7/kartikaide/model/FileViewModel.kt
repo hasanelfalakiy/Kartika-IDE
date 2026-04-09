@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.model
 
 import androidx.lifecycle.LiveData
@@ -121,5 +114,20 @@ class FileViewModel : ViewModel() {
     fun updateFiles(newFiles: List<File>) {
         files.value =
             (files.value.orEmpty() + newFiles).distinctBy { it.absolutePath }.toMutableList()
+    }
+
+    /**
+     * Replaces old file paths with new ones when a directory is renamed.
+     */
+    fun updatePaths(oldRoot: String, newRoot: String) {
+        val currentFiles = files.value.orEmpty()
+        val updatedFiles = currentFiles.map { file ->
+            if (file.absolutePath.startsWith(oldRoot)) {
+                File(file.absolutePath.replaceFirst(oldRoot, newRoot))
+            } else {
+                file
+            }
+        }
+        files.value = updatedFiles
     }
 }

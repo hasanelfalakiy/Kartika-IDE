@@ -740,8 +740,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     binding.textInputLayout.suffixText = ".kt"
                     MaterialAlertDialogBuilder(v.context).setTitle("Create kotlin class")
                         .setView(binding.root).setPositiveButton("Create") { _, _ ->
-                            var name = binding.textInputLayout.editText?.text.toString()
-                            name = name.replace("\\.", "")
+                            val name = binding.textInputLayout.editText?.text.toString()
+                            if (name.isEmpty()) return@setPositiveButton
                             val newFile = file.resolve("$name.kt")
                             newFile.createNewFile()
                             val packageName = getPackageName(file)
@@ -757,8 +757,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     binding.textInputLayout.suffixText = ".java"
                     MaterialAlertDialogBuilder(v.context).setTitle("Create java class")
                         .setView(binding.root).setPositiveButton("Create") { _, _ ->
-                            var name = binding.textInputLayout.editText?.text.toString()
-                            name = name.replace("\\.", "")
+                            val name = binding.textInputLayout.editText?.text.toString()
+                            if (name.isEmpty()) return@setPositiveButton
                             val newFile = file.resolve("$name.java")
                             newFile.createNewFile()
                             val packageName = getPackageName(file)
@@ -773,8 +773,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     val binding = TreeviewContextActionDialogItemBinding.inflate(layoutInflater)
                     MaterialAlertDialogBuilder(v.context).setTitle("Create folder")
                         .setView(binding.root).setPositiveButton("Create") { _, _ ->
-                            var name = binding.textInputLayout.editText?.text.toString()
-                            name = name.replace("\\.", "")
+                            val name = binding.textInputLayout.editText?.text.toString()
+                            if (name.isEmpty()) return@setPositiveButton
                             file.resolve(name).mkdirs()
                             initTreeView()
                         }.setNegativeButton("Cancel") { dialog, _ ->
@@ -786,8 +786,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     val binding = TreeviewContextActionDialogItemBinding.inflate(layoutInflater)
                     MaterialAlertDialogBuilder(v.context).setTitle("Create file")
                         .setView(binding.root).setPositiveButton("Create") { _, _ ->
-                            var name = binding.textInputLayout.editText?.text.toString()
-                            name = name.replace("\\.", "")
+                            val name = binding.textInputLayout.editText?.text.toString()
+                            if (name.isEmpty()) return@setPositiveButton
                             file.resolve(name).createNewFile()
                             initTreeView()
                         }.setNegativeButton("Cancel") { dialog, _ ->
@@ -800,14 +800,20 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     binding.textInputLayout.editText?.setText(file.name)
                     MaterialAlertDialogBuilder(v.context).setTitle("Rename").setView(binding.root)
                         .setPositiveButton("Rename") { _, _ ->
-                            var name = binding.textInputLayout.editText?.text.toString()
-                            name = name.replace("\\.", "")
+                            val name = binding.textInputLayout.editText?.text.toString()
+                            if (name.isEmpty() || name == file.name) return@setPositiveButton
+                            
+                            val oldRootPath = project.root.absolutePath
                             val newFile = file.parentFile!!.resolve(name)
+                            
                             if (file.renameTo(newFile)) {
                                 if (file == project.root) {
                                     project.root = newFile
                                     this.binding.included.projectName.text = name
                                     this.binding.toolbar.title = name
+                                    
+                                    // Update paths in ViewModel to prevent crash and duplicates
+                                    fileViewModel.updatePaths(oldRootPath, newFile.absolutePath)
                                 }
                                 initTreeView()
                             }

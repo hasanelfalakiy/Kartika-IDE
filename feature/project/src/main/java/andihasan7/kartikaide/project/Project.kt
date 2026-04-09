@@ -12,14 +12,15 @@ import java.io.Serializable
 
 /**
  * Represents a project.
- *
- * @property root The root directory of the project.
- * @property language The programming language used in the project.
  */
-data class Project(
-    var root: File,
+class Project : Serializable {
+    var root: File
     val language: Language
-) : Serializable {
+
+    constructor(root: File, language: Language) {
+        this.root = root
+        this.language = language
+    }
 
     /**
      * The name of the project, derived from the root directory.
@@ -96,7 +97,7 @@ data class Project(
      */
     val libDir get() = File(root, "libs")
 
-    var args = listOf<String>()
+    var args: List<String> = listOf()
         get() {
             val f = cacheDir.resolve("args.txt")
             if (f.exists()) {
@@ -123,5 +124,24 @@ data class Project(
         } else {
             throw IllegalStateException("Cannot delete directory: ${root.absolutePath}")
         }
+    }
+
+    // Manual implementation of equals/hashCode to mimic data class behavior if needed
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is Project) return false
+        if (root != other.root) return false
+        if (language != other.language) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = root.hashCode()
+        result = 31 * result + language.hashCode()
+        return result
+    }
+
+    override fun toString(): String {
+        return "Project(root=$root, language=$language)"
     }
 }
