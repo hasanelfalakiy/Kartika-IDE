@@ -17,14 +17,14 @@ import java.io.Serializable
  * @property language The programming language used in the project.
  */
 data class Project(
-    val root: File,
+    var root: File,
     val language: Language
 ) : Serializable {
 
     /**
      * The name of the project, derived from the root directory.
      */
-    val name: String = root.name
+    val name: String get() = root.name
 
     /**
      * The source directory of the project, based on the language used.
@@ -74,27 +74,27 @@ data class Project(
     /**
      * The build directory of the project.
      */
-    val buildDir = File(root, "build")
+    val buildDir get() = File(root, "build")
 
     /**
      * The cache directory of the project.
      */
-    val cacheDir = File(buildDir, "cache")
+    val cacheDir get() = File(buildDir, "cache")
 
     /**
      * The binary directory of the project.
      */
-    val binDir = File(buildDir, "bin")
+    val binDir get() = File(buildDir, "bin")
 
     /**
      * The classes directory where compiled class files are stored.
      */
-    val classesDir = File(buildDir, "classes")
+    val classesDir get() = File(buildDir, "classes")
 
     /**
      * The library directory of the project.
      */
-    val libDir = File(root, "libs")
+    val libDir get() = File(root, "libs")
 
     var args = listOf<String>()
         get() {
@@ -107,6 +107,7 @@ data class Project(
         }
         set(value) {
             val f = cacheDir.resolve("args.txt")
+            if (!cacheDir.exists()) cacheDir.mkdirs()
             f.writeText(value.joinToString("\n"))
             field = value
         }

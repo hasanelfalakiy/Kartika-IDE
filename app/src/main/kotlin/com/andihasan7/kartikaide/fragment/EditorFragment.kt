@@ -7,6 +7,11 @@
 
 package com.andihasan7.kartikaide.fragment
 
+import andihasan7.kartikaide.build.dex.D8Task
+import andihasan7.kartikaide.common.BaseBindingFragment
+import andihasan7.kartikaide.common.Prefs
+import andihasan7.kartikaide.project.Language
+import andihasan7.kartikaide.project.Project
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -18,6 +23,24 @@ import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.andihasan7.kartikaide.FileProvider.openFileWithExternalApp
+import com.andihasan7.kartikaide.R
+import com.andihasan7.kartikaide.adapter.EditorAdapter
+import com.andihasan7.kartikaide.adapter.NavAdapter
+import com.andihasan7.kartikaide.databinding.FragmentEditorBinding
+import com.andihasan7.kartikaide.databinding.NavigationElementsBinding
+import com.andihasan7.kartikaide.databinding.NewDependencyBinding
+import com.andihasan7.kartikaide.databinding.TextDialogBinding
+import com.andihasan7.kartikaide.databinding.TreeviewContextActionDialogItemBinding
+import com.andihasan7.kartikaide.editor.IdeEditor
+import com.andihasan7.kartikaide.editor.formatter.GoogleJavaFormat
+import com.andihasan7.kartikaide.editor.formatter.ktfmtFormatter
+import com.andihasan7.kartikaide.editor.language.KotlinLanguage
+import com.andihasan7.kartikaide.model.FileViewModel
+import com.andihasan7.kartikaide.util.CommonUtils
+import com.andihasan7.kartikaide.util.FileFactoryProvider
+import com.andihasan7.kartikaide.util.FileIndex
+import com.andihasan7.kartikaide.util.ProjectHandler
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
@@ -34,34 +57,9 @@ import kotlinx.coroutines.withContext
 import org.cosmic.ide.dependency.resolver.api.Repository
 import org.cosmic.ide.dependency.resolver.getArtifact
 import org.cosmic.ide.dependency.resolver.repositories
-import com.andihasan7.kartikaide.FileProvider.openFileWithExternalApp
-import com.andihasan7.kartikaide.R
-import com.andihasan7.kartikaide.adapter.EditorAdapter
-import com.andihasan7.kartikaide.adapter.NavAdapter
-import andihasan7.kartikaide.build.dex.D8Task
-import andihasan7.kartikaide.common.BaseBindingFragment
-import andihasan7.kartikaide.common.Prefs
-import com.andihasan7.kartikaide.databinding.FragmentEditorBinding
-import com.andihasan7.kartikaide.databinding.NavigationElementsBinding
-import com.andihasan7.kartikaide.databinding.NewDependencyBinding
-import com.andihasan7.kartikaide.databinding.TextDialogBinding
-import com.andihasan7.kartikaide.databinding.TreeviewContextActionDialogItemBinding
-import com.andihasan7.kartikaide.editor.IdeEditor
-import com.andihasan7.kartikaide.editor.formatter.GoogleJavaFormat
-import com.andihasan7.kartikaide.editor.formatter.ktfmtFormatter
-import com.andihasan7.kartikaide.editor.language.KotlinLanguage
-import com.andihasan7.kartikaide.model.FileViewModel
-import andihasan7.kartikaide.project.Language
-import andihasan7.kartikaide.project.Project
-import com.andihasan7.kartikaide.util.CommonUtils
-import com.andihasan7.kartikaide.util.FileFactoryProvider
-import com.andihasan7.kartikaide.util.FileIndex
-import com.andihasan7.kartikaide.util.ProjectHandler
 import java.io.File
 import java.io.OutputStream
 import java.io.PrintStream
-import kotlin.collections.get
-import kotlin.text.get
 
 class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private lateinit var fileIndex: FileIndex
@@ -85,6 +83,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         
         // Update project name in drawer header
         binding.included.projectName.text = project.name
+        binding.included.drawerHeader.setOnLongClickListener {
+            showTreeViewMenu(it, project.root)
+            true
+        }
 
         binding.pager.apply {
             editorAdapter = EditorAdapter(this@EditorFragment, fileViewModel)
@@ -706,6 +708,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 popup.menu.findItem(R.id.execute).isVisible = true
             }
         }
+        
+        // Don't allow deleting the root project folder from here
+        if (file == project.root) {
+            popup.menu.removeItem(R.id.delete)
+        }
 
         if (file.extension == "jar") {
             popup.menu.add("DEX").setOnMenuItemClickListener {
@@ -792,11 +799,18 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     val binding = TreeviewContextActionDialogItemBinding.inflate(layoutInflater)
                     binding.textInputLayout.editText?.setText(file.name)
                     MaterialAlertDialogBuilder(v.context).setTitle("Rename").setView(binding.root)
-                        .setPositiveButton("Create") { _, _ ->
+                        .setPositiveButton("Rename") { _, _ ->
                             var name = binding.textInputLayout.editText?.text.toString()
                             name = name.replace("\\.", "")
-                            file.renameTo(file.parentFile!!.resolve(name))
-                            initTreeView()
+                            val newFile = file.parentFile!!.resolve(name)
+                            if (file.renameTo(newFile)) {
+                                if (file == project.root) {
+                                    project.root = newFile
+                                    this.binding.included.projectName.text = name
+                                    this.binding.toolbar.title = name
+                                }
+                                initTreeView()
+                            }
                         }.setNegativeButton("Cancel") { dialog, _ ->
                             dialog.dismiss()
                         }.show()
