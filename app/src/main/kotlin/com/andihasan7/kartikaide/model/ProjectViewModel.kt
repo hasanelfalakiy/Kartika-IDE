@@ -7,20 +7,22 @@
 
 package com.andihasan7.kartikaide.model
 
+import android.app.Application
 import android.os.Environment
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.FileUtil
+import andihasan7.kartikaide.rewrite.util.PermissionUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
-class ProjectViewModel : ViewModel() {
+class ProjectViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _internalProjects = MutableLiveData<List<Project>>()
     val internalProjects: LiveData<List<Project>> = _internalProjects
@@ -36,9 +38,20 @@ class ProjectViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val internal = loadFromDir(FileUtil.projectDir)
             
-            val externalDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
-            if (!externalDir.exists()) externalDir.mkdirs()
-            val external = loadFromDir(externalDir)
+            var external = emptyList<Project>()
+            if (PermissionUtils.hasStoragePermission(getApplication())) {
+                val externalDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
+                if (!externalDir.exists()) {
+                    try {
+                        externalDir.mkdirs()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                if (externalDir.exists()) {
+                    external = loadFromDir(externalDir)
+                }
+            }
 
             withContext(Dispatchers.Main) {
                 _internalProjects.value = internal
@@ -49,21 +62,25 @@ class ProjectViewModel : ViewModel() {
     }
 
     private fun loadFromDir(dir: File): List<Project> {
-        return dir.listFiles { file -> file.isDirectory }
-            ?.sortedByDescending { it.lastModified() }
-            ?.map {
-                // Improved language detection: check for kotlin or java source folders deep in structure
-                val hasJava = it.walkTopDown().maxDepth(5).any { f -> 
-                    f.isDirectory && f.path.contains("src${File.separator}main${File.separator}java") 
+        return try {
+            dir.listFiles { file -> file.isDirectory }
+                ?.sortedByDescending { it.lastModified() }
+                ?.map {
+                    // Improved language detection: check for kotlin or java source folders deep in structure
+                    val hasJava = it.walkTopDown().maxDepth(5).any { f -> 
+                        f.isDirectory && f.path.contains("src${File.separator}main${File.separator}java") 
+                    }
+                    
+                    if (hasJava) {
+                        Project(it, Language.Java)
+                    } else {
+                        Project(it, Language.Kotlin)
+                    }
                 }
-                
-                if (hasJava) {
-                    Project(it, Language.Java)
-                } else {
-                    Project(it, Language.Kotlin)
-                }
-            }
-            ?: emptyList()
+                ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     companion object {

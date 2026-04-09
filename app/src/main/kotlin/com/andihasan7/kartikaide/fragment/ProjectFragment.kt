@@ -52,6 +52,7 @@ import com.andihasan7.kartikaide.model.ProjectViewModel
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.FileUtil
+import andihasan7.kartikaide.rewrite.util.PermissionUtils
 import andihasan7.kartikaide.rewrite.util.compressToZip
 import andihasan7.kartikaide.rewrite.util.unzip
 import com.andihasan7.kartikaide.util.CommonUtils
@@ -129,6 +130,10 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                 if (path != null) {
                     val file = File(path)
                     if (file.isDirectory) {
+                        if (isExternalPath(file) && !PermissionUtils.hasStoragePermission(requireContext())) {
+                            checkStoragePermission()
+                            return@registerForActivityResult
+                        }
                         val language = if (file.walkTopDown().maxDepth(5).any { f -> f.path.contains("src${File.separator}main${File.separator}java") }) Language.Java else Language.Kotlin
                         val externalProject = Project(file, language)
                         navigateToEditorFragment(externalProject)
@@ -173,29 +178,27 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     }
 
     private fun checkStoragePermission() {
+        if (PermissionUtils.hasStoragePermission(requireContext())) return
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!Environment.isExternalStorageManager()) {
-                MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("Permission Required")
-                    .setMessage("KartikaIDE needs access to all files to manage projects in external storage. Please grant the permission in the next screen.")
-                    .setPositiveButton("Grant") { _, _ ->
-                        try {
-                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                            intent.data = Uri.parse("package:${requireContext().packageName}")
-                            startActivity(intent)
-                        } catch (e: Exception) {
-                            val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                            startActivity(intent)
-                        }
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Permission Required")
+                .setMessage("KartikaIDE needs access to all files to manage projects in external storage. Please grant the permission in the next screen.")
+                .setPositiveButton("Grant") { _, _ ->
+                    try {
+                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                        intent.data = Uri.parse("package:${requireContext().packageName}")
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                        startActivity(intent)
                     }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         } else {
             val permissions = arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            if (permissions.any { ContextCompat.checkSelfPermission(requireContext(), it) != PackageManager.PERMISSION_GRANTED }) {
-                requestPermissions(permissions, 100)
-            }
+            requestPermissions(permissions, 100)
         }
     }
 
@@ -257,6 +260,10 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     }
 
     private fun openExternalProject() {
+        if (!PermissionUtils.hasStoragePermission(requireContext())) {
+            checkStoragePermission()
+            return
+        }
         directoryPickerLauncher.launch(null)
     }
 
@@ -266,12 +273,20 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
         popupMenu.setOnMenuItemClickListener {
             when (it.itemId) {
                 R.id.backup -> {
+                    if (isExternalPath(p.root) && !PermissionUtils.hasStoragePermission(requireContext())) {
+                        checkStoragePermission()
+                        return@setOnMenuItemClickListener true
+                    }
                     project = p
                     zipContract.launch("${p.name}.zip")
                     true
                 }
 
                 R.id.delete -> {
+                    if (isExternalPath(p.root) && !PermissionUtils.hasStoragePermission(requireContext())) {
+                        checkStoragePermission()
+                        return@setOnMenuItemClickListener true
+                    }
                     MaterialAlertDialogBuilder(requireContext())
                         .setTitle("Delete Project")
                         .setMessage("Are you sure, you want to delete ${p.name}")
@@ -313,6 +328,10 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     }
 
     override fun onProjectClicked(project: Project) {
+        if (isExternalPath(project.root) && !PermissionUtils.hasStoragePermission(requireContext())) {
+            checkStoragePermission()
+            return
+        }
         navigateToEditorFragment(project)
     }
 
@@ -484,5 +503,9 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
             })
             addToBackStack(null)
         }
+    }
+
+    private fun isExternalPath(file: File): Boolean {
+        return file.absolutePath.startsWith(Environment.getExternalStorageDirectory().absolutePath)
     }
 }

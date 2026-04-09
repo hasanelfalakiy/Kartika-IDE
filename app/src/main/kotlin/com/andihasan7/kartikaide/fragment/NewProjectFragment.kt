@@ -30,6 +30,7 @@ import com.andihasan7.kartikaide.model.ProjectViewModel
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.FileUtil
+import andihasan7.kartikaide.rewrite.util.PermissionUtils
 import com.andihasan7.kartikaide.util.CommonUtils
 import java.io.File
 import java.io.IOException
@@ -61,12 +62,18 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
             parentFragmentManager.popBackStack()
         }
 
-        // Set default selection to External Storage (Storage)
-        val kartikaDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
-        if (!kartikaDir.exists()) kartikaDir.mkdirs()
-        selectedPath = kartikaDir.absolutePath
-        binding.etProjectPath.setText(selectedPath)
-        binding.locationToggle.check(R.id.btn_external)
+        // Set default selection based on permission
+        if (PermissionUtils.hasStoragePermission(requireContext())) {
+            val kartikaDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
+            if (!kartikaDir.exists()) kartikaDir.mkdirs()
+            selectedPath = kartikaDir.absolutePath
+            binding.etProjectPath.setText(selectedPath)
+            binding.locationToggle.check(R.id.btn_external)
+        } else {
+            selectedPath = FileUtil.projectDir.absolutePath
+            binding.etProjectPath.setText(selectedPath)
+            binding.locationToggle.check(R.id.btn_internal)
+        }
 
         binding.locationToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
@@ -76,25 +83,38 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
                         binding.etProjectPath.setText(selectedPath)
                     }
                     R.id.btn_external -> {
-                        checkStoragePermission()
+                        if (!PermissionUtils.hasStoragePermission(requireContext())) {
+                            checkStoragePermission()
+                            // Temporarily switch back if permission denied/canceled? 
+                            // Or just wait for them to grant it.
+                        }
+                        val kartikaDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
                         selectedPath = kartikaDir.absolutePath
                         binding.etProjectPath.setText(selectedPath)
                     }
                     R.id.btn_custom -> {
-                        checkStoragePermission()
+                        if (!PermissionUtils.hasStoragePermission(requireContext())) {
+                            checkStoragePermission()
+                        }
                     }
                 }
             }
         }
 
         binding.etProjectPath.setOnClickListener {
-            checkStoragePermission()
-            directoryPickerLauncher.launch(null)
+            if (!PermissionUtils.hasStoragePermission(requireContext())) {
+                checkStoragePermission()
+            } else {
+                directoryPickerLauncher.launch(null)
+            }
         }
 
         binding.projectPath.setEndIconOnClickListener {
-            checkStoragePermission()
-            directoryPickerLauncher.launch(null)
+            if (!PermissionUtils.hasStoragePermission(requireContext())) {
+                checkStoragePermission()
+            } else {
+                directoryPickerLauncher.launch(null)
+            }
         }
 
         binding.btnCreate.setOnClickListener {
@@ -126,6 +146,12 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
                 return@setOnClickListener
             }
 
+            // Final check for external storage permission
+            if (isExternalPath(File(selectedPath!!)) && !PermissionUtils.hasStoragePermission(requireContext())) {
+                checkStoragePermission()
+                return@setOnClickListener
+            }
+
             val language = when {
                 binding.useKotlin.isChecked -> Language.Kotlin
                 else -> Language.Java
@@ -142,29 +168,27 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
     }
 
     private fun checkStoragePermission() {
+        if (PermissionUtils.hasStoragePermission(requireContext())) return
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!Environment.isExternalStorageManager()) {
-                MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("Permission Required")
-                    .setMessage("KartikaIDE needs access to all files to manage projects in external storage.")
-                    .setPositiveButton("Grant") { _, _ ->
-                        try {
-                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                            intent.data = Uri.parse("package:${requireContext().packageName}")
-                            startActivity(intent)
-                        } catch (e: Exception) {
-                            val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                            startActivity(intent)
-                        }
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Permission Required")
+                .setMessage("KartikaIDE needs access to all files to manage projects in external storage.")
+                .setPositiveButton("Grant") { _, _ ->
+                    try {
+                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                        intent.data = Uri.parse("package:${requireContext().packageName}")
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                        startActivity(intent)
                     }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         } else {
             val permissions = arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            if (permissions.any { ContextCompat.checkSelfPermission(requireContext(), it) != PackageManager.PERMISSION_GRANTED }) {
-                requestPermissions(permissions, 100)
-            }
+            requestPermissions(permissions, 100)
         }
     }
 
@@ -176,7 +200,10 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
         return try {
             val projectName = name.replace("\\.", "")
             val projectRoot = File(selectedPath!!).resolve(projectName)
-            projectRoot.mkdirs()
+            
+            if (!projectRoot.exists() && !projectRoot.mkdirs()) {
+                throw IOException("Could not create project directory. Check permissions.")
+            }
             
             val project = Project(root = projectRoot, language = language)
             
@@ -200,7 +227,8 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
             viewModel.loadProjects()
             navigateToEditorFragment(project)
             true
-        } catch (e: IOException) {
+        } catch (e: Exception) {
+            e.printStackTrace()
             Snackbar.make(
                 requireView(),
                 "Failed to create project: ${e.message}",
@@ -220,5 +248,9 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
     private fun File.createMainFile(language: Language, packageName: String) {
         val content = language.classFileContent(name = "Main", packageName = packageName)
         writeText(content)
+    }
+
+    private fun isExternalPath(file: File): Boolean {
+        return file.absolutePath.startsWith(Environment.getExternalStorageDirectory().absolutePath)
     }
 }
