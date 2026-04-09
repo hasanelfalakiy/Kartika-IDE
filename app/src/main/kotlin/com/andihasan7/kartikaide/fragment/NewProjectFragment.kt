@@ -65,12 +65,12 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
                         binding.etProjectPath.setText(selectedPath)
                     }
                     R.id.btn_external -> {
-                        selectedPath = Environment.getExternalStorageDirectory().absolutePath
+                        val kartikaDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
+                        if (!kartikaDir.exists()) kartikaDir.mkdirs()
+                        selectedPath = kartikaDir.absolutePath
                         binding.etProjectPath.setText(selectedPath)
                     }
-                    R.id.btn_custom -> {
-                        // Keep current or prompt picker if it was just clicked
-                    }
+                    R.id.btn_custom -> { }
                 }
             }
         }
@@ -138,11 +138,22 @@ class NewProjectFragment : BaseBindingFragment<FragmentNewProjectBinding>() {
             projectRoot.mkdirs()
             
             val project = Project(root = projectRoot, language = language)
-            val srcDir = project.srcDir.apply { mkdirs() }
-            val packageDir = srcDir.resolve(packageName.replace('.', File.separatorChar)).apply { mkdirs() }
-            val mainFile = packageDir.resolve("Main.${language.extension}")
+            
+            // Standard IntelliJ structure: root/src/main/kotlin or root/src/main/java
+            val srcMain = projectRoot.resolve("src").resolve("main")
+            val srcDir = if (language is Language.Kotlin) {
+                srcMain.resolve("kotlin")
+            } else {
+                srcMain.resolve("java")
+            }
+            srcDir.mkdirs()
 
+            val packageDir = srcDir.resolve(packageName.replace('.', File.separatorChar))
+            packageDir.mkdirs()
+            
+            val mainFile = packageDir.resolve("Main.${language.extension}")
             mainFile.createMainFile(language, packageName)
+
             viewModel.loadProjects()
             navigateToEditorFragment(project)
             true

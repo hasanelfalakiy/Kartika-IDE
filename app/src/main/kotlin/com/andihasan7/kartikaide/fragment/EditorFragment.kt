@@ -826,10 +826,17 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         val srcPath = project.srcDir.absolutePath
         val filePath = file.absolutePath
         if (filePath.startsWith(srcPath)) {
-            return filePath.substring(srcPath.length)
+            val relativePath = filePath.substring(srcPath.length)
                 .removePrefix(File.separator)
-                .replace(File.separator, ".")
+            
+            // If it's the srcDir itself or a direct file in it, return empty
+            if (relativePath.isEmpty()) return ""
+            
+            val parentPath = if (file.isDirectory) relativePath else File(relativePath).parent ?: ""
+            
+            return parentPath.replace(File.separatorChar, '.')
                 .removePrefix(".")
+                .removeSuffix(".")
         }
         return ""
     }
