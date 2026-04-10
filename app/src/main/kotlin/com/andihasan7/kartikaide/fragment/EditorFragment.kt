@@ -37,6 +37,7 @@ import com.andihasan7.kartikaide.editor.formatter.GoogleJavaFormat
 import com.andihasan7.kartikaide.editor.formatter.ktfmtFormatter
 import com.andihasan7.kartikaide.editor.language.KotlinLanguage
 import com.andihasan7.kartikaide.model.FileViewModel
+import com.andihasan7.kartikaide.model.ProjectViewModel
 import com.andihasan7.kartikaide.util.CommonUtils
 import com.andihasan7.kartikaide.util.FileFactoryProvider
 import com.andihasan7.kartikaide.util.FileIndex
@@ -64,6 +65,7 @@ import java.io.PrintStream
 class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private lateinit var fileIndex: FileIndex
     private val fileViewModel by activityViewModels<FileViewModel>()
+    private val projectViewModel by activityViewModels<ProjectViewModel>()
     private lateinit var editorAdapter: EditorAdapter
     private val project by lazy { requireArguments().getSerializable("project") as Project }
 
@@ -814,12 +816,27 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                     project.root = newFile
                                     this.binding.included.projectName.text = name
                                     this.binding.toolbar.title = name
+                                    projectViewModel.loadProjects()
                                 }
                                 
                                 // 2. Update paths in ViewModel IMMEDIATELY for any renamed file/folder
                                 fileViewModel.updatePaths(oldPath, newFile.absolutePath)
                                 
-                                initTreeView()
+                                // Update packages recursively
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    if (newFile.isDirectory) {
+                                        newFile.walkTopDown().forEach { child ->
+                                            updatePackageDeclaration(child)
+                                        }
+                                    } else {
+                                        updatePackageDeclaration(newFile)
+                                    }
+                                    
+                                    withContext(Dispatchers.Main) {
+                                        editorAdapter.reloadAll()
+                                        initTreeView()
+                                    }
+                                }
                             }
                         }.setNegativeButton("Cancel") { dialog, _ ->
                             dialog.dismiss()
@@ -847,6 +864,58 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             true
         }
         popup.show()
+    }
+
+    private fun updatePackageDeclaration(file: File) {
+        if (!file.isFile || (file.extension != "java" && file.extension != "kt")) return
+        
+        val newPackage = getPackageName(file)
+        val content = try { file.readText() } catch (e: Exception) { return }
+        val lines = content.lines().toMutableList()
+        
+        var packageLineIndex = -1
+        for (i in lines.indices) {
+            val line = lines[i].trim()
+            if (line.startsWith("package ")) {
+                packageLineIndex = i
+                break
+            }
+            // Stop if we see code (not comment or empty)
+            if (line.isNotEmpty() && !line.startsWith("/") && !line.startsWith("*")) {
+                break
+            }
+        }
+        
+        val newPackageLine = if (file.extension == "java") {
+            if (newPackage.isEmpty()) "" else "package $newPackage;"
+        } else {
+            if (newPackage.isEmpty()) "" else "package $newPackage"
+        }
+        
+        if (packageLineIndex != -1) {
+            if (newPackageLine.isEmpty()) {
+                lines.removeAt(packageLineIndex)
+            } else {
+                lines[packageLineIndex] = newPackageLine
+            }
+            file.writeText(lines.joinToString("\n"))
+        } else if (newPackage.isNotEmpty()) {
+            // Insert at top, but after potential license comments
+            var insertIndex = 0
+            for (i in lines.indices) {
+                val line = lines[i].trim()
+                if (line.startsWith("/") || line.startsWith("*") || line.isEmpty()) {
+                    insertIndex = i + 1
+                } else {
+                    break
+                }
+            }
+            lines.add(insertIndex, newPackageLine)
+            if (insertIndex + 1 < lines.size && lines[insertIndex + 1].trim().isNotEmpty()) {
+                lines.add(insertIndex + 1, "")
+            }
+            file.writeText(lines.joinToString("\n"))
+        }
     }
 
     private fun getPackageName(file: File): String {

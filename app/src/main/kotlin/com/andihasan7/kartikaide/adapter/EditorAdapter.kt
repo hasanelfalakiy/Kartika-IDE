@@ -53,7 +53,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             val project = ProjectHandler.getProject()
             
             // Update existing fragments paths BEFORE changing IDs
-            // This prevents old paths from being used during fragment destruction (save on destroy)
             if (files.size == ids.size) {
                 ids.forEachIndexed { index, oldId ->
                     fragments[oldId]?.updateFile(files[index])
@@ -61,7 +60,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             }
 
             val newIds = files.map { file ->
-                // Use relative path for stable ID during renames
                 if (project != null && file.absolutePath.startsWith(project.root.absolutePath)) {
                     file.absolutePath.removePrefix(project.root.absolutePath).hashCode().toLong()
                 } else {
@@ -71,11 +69,17 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             
             ids = newIds
             
-            // Ensure fragments that stayed (same ID) also have the latest file object
+            // Sinkronisasi ulang fragmen yang masih ada
             fragments.forEach { (id, fragment) ->
                 val index = ids.indexOf(id)
                 if (index != -1) {
-                    fragment.updateFile(files[index])
+                    val file = files[index]
+                    val oldPath = fragment.file.absolutePath
+                    fragment.updateFile(file)
+                    // Jika path berubah (karena rename), muat ulang teks untuk menampilkan package baru
+                    if (oldPath != file.absolutePath) {
+                        fragment.reloadText()
+                    }
                 }
             }
         }
@@ -116,6 +120,10 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         fragments.values.forEach { it.refreshSettings() }
     }
 
+    fun reloadAll() {
+        fragments.values.forEach { it.reloadText() }
+    }
+
     class CodeEditorFragment : Fragment() {
 
         private lateinit var eventReceiver: SubscriptionReceipt<ContentChangeEvent>
@@ -128,7 +136,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         fun updateFile(newFile: File) {
             if (_file?.absolutePath != newFile.absolutePath) {
                 _file = newFile
-                Log.d("CodeEditorFragment", "Updated file path to: ${newFile.absolutePath}")
             }
         }
 
@@ -202,19 +209,24 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             }
         }
 
+        fun reloadText() {
+            if (::editor.isInitialized && file.exists()) {
+                val isBinary = file.extension == "class"
+                if (isBinary) {
+                    editor.setText(Javap.disassemble(file.absolutePath))
+                } else {
+                    editor.setText(file.readText())
+                }
+            }
+        }
+
         fun save() {
             if (!::editor.isInitialized) return
             if (file.extension == "class") return
             
             try {
-                // If folder doesn't exist, it means it was renamed and we might be using an old File object.
-                // But we update paths in updateFile now to avoid this.
                 val parent = file.parentFile
                 if (parent != null && !parent.exists()) {
-                    // Safety check: if the parent doesn't exist, we SHOULD NOT recreate it blindly
-                    // as it might be an old path from a rename.
-                    // But if we are sure it's the correct path, we mkdirs.
-                    // For now, let's keep mkdirs but rely on updateFile to have correct path.
                     parent.mkdirs()
                 }
                 file.writeText(editor.text.toString())
