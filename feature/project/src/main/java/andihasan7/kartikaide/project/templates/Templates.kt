@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package andihasan7.kartikaide.project.templates
 
 import com.squareup.javapoet.JavaFile
@@ -54,6 +47,24 @@ fun javaClass(className: String, packageName: String, body: String = ""): String
 }
 
 /**
+ * Returns the template for a simple Java class.
+ *
+ * @param className The name of the class.
+ * @param packageName The name of the package that the class should be placed in.
+ * @return The template for a Java class.
+ */
+fun simpleJavaClass(className: String, packageName: String): String {
+    val clazz: TypeSpec = TypeSpec.classBuilder(className)
+        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+        .build()
+
+    val javaFile =
+        JavaFile.builder(packageName, clazz).indent("\t").skipJavaLangImports(true).build()
+
+    return javaFile.toString()
+}
+
+/**
  * Returns the template for a Kotlin class.
  *
  * @param className The name of the class.
@@ -82,3 +93,18 @@ fun kotlinClass(className: String, packageName: String, body: String = ""): Stri
     return file.toString()
 }
 
+/**
+ * Returns the template for a simple Kotlin class.
+ *
+ * @param className The name of the class.
+ * @param packageName The name of the package that the class should be placed in.
+ * @return The template for a Kotlin class.
+ */
+fun simpleKotlinClass(className: String, packageName: String): String {
+    val sb = StringBuilder()
+    if (packageName.isNotEmpty()) {
+        sb.append("package ").append(packageName).append("\n\n")
+    }
+    sb.append("class ").append(className).append(" {\n\t\n}")
+    return sb.toString()
+}

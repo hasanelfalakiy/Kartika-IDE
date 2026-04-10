@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.adapter
 
 import andihasan7.kartikaide.build.Javap
@@ -45,40 +38,57 @@ import kotlin.properties.Delegates
 class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
     FragmentStateAdapter(fragment) {
 
-    val fragments = mutableMapOf<Long, CodeEditorFragment>()
+    private val fragments = mutableMapOf<Long, CodeEditorFragment>()
     private var ids: List<Long> by Delegates.observable(emptyList()) { _, old, new ->
         DiffUtil.calculateDiff(object : DiffUtil.Callback() {
-            override fun getOldListSize(): Int {
-                return old.size
-            }
-
-            override fun getNewListSize(): Int {
-                return new.size
-            }
-
-            override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-                return old[oldItemPosition] == new[newItemPosition]
-            }
-
-            override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-                return old[oldItemPosition] == new[newItemPosition]
-            }
+            override fun getOldListSize(): Int = old.size
+            override fun getNewListSize(): Int = new.size
+            override fun areItemsTheSame(oldPos: Int, newPos: Int): Boolean = old[oldPos] == new[newPos]
+            override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean = old[oldPos] == new[newPos]
         }).dispatchUpdatesTo(this)
     }
 
     init {
         fileViewModel.files.observe(fragment.viewLifecycleOwner) { files ->
-            ids = files.map { it.hashCode().toLong() }
+            val project = ProjectHandler.getProject()
+            
+            // Update existing fragments paths BEFORE changing IDs
+            if (files.size == ids.size) {
+                ids.forEachIndexed { index, oldId ->
+                    fragments[oldId]?.updateFile(files[index])
+                }
+            }
+
+            val newIds = files.map { file ->
+                if (project != null && file.absolutePath.startsWith(project.root.absolutePath)) {
+                    file.absolutePath.removePrefix(project.root.absolutePath).hashCode().toLong()
+                } else {
+                    file.absolutePath.hashCode().toLong()
+                }
+            }
+            
+            ids = newIds
+            
+            // Sinkronisasi ulang fragmen yang masih ada
+            fragments.forEach { (id, fragment) ->
+                val index = ids.indexOf(id)
+                if (index != -1) {
+                    val file = files[index]
+                    val oldPath = fragment.file.absolutePath
+                    fragment.updateFile(file)
+                    // Jika path berubah (karena rename), muat ulang teks untuk menampilkan package baru
+                    if (oldPath != file.absolutePath) {
+                        fragment.reloadText()
+                    }
+                }
+            }
         }
         System.loadLibrary("android-tree-sitter")
     }
 
-    override fun getItemCount(): Int {
-        return ids.size
-    }
+    override fun getItemCount(): Int = ids.size
 
     override fun createFragment(position: Int): Fragment {
-        Log.d("EditorAdapter", "createFragment: $position")
         val id = getItemId(position)
         val fragment = CodeEditorFragment().apply {
             arguments = Bundle().apply {
@@ -94,21 +104,9 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         return fragments[id]
     }
 
-    fun removeItem(position: Int) {
-        val id = ids.getOrNull(position) ?: return
-        fragments.remove(id)?.apply {
-            release()
-            parentFragmentManager.beginTransaction().remove(this).commit()
-        }
-    }
+    override fun getItemId(position: Int): Long = ids[position]
 
-    override fun getItemId(position: Int): Long {
-        return ids[position]
-    }
-
-    override fun containsItem(itemId: Long): Boolean {
-        return ids.contains(itemId)
-    }
+    override fun containsItem(itemId: Long): Boolean = ids.contains(itemId)
 
     fun saveAll() {
         fragments.values.forEach { it.save() }
@@ -122,12 +120,24 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         fragments.values.forEach { it.refreshSettings() }
     }
 
+    fun reloadAll() {
+        fragments.values.forEach { it.reloadText() }
+    }
+
     class CodeEditorFragment : Fragment() {
 
         private lateinit var eventReceiver: SubscriptionReceipt<ContentChangeEvent>
         private lateinit var binding: EditorFragmentBinding
         lateinit var editor: IdeEditor
-        val file by lazy { requireArguments().getSerializable("file") as File }
+        
+        private var _file: File? = null
+        val file: File get() = _file ?: (requireArguments().getSerializable("file") as File)
+
+        fun updateFile(newFile: File) {
+            if (_file?.absolutePath != newFile.absolutePath) {
+                _file = newFile
+            }
+        }
 
         override fun onCreateView(
             inflater: LayoutInflater,
@@ -158,74 +168,26 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                 symbolViewContainer.visibility = View.VISIBLE
                 symbolView.bindEditor(editor)
                 symbolView.addSymbols(
-                    arrayOf(
-                        "→",
-                        "(",
-                        ")",
-                        "{",
-                        "}",
-                        "[",
-                        "]",
-                        ";",
-                        ",",
-                        ".",
-                    ),
-                    arrayOf(
-                        "\t",
-                        "(",
-                        ")",
-                        "{",
-                        "}",
-                        "[",
-                        "]",
-                        ";",
-                        ",",
-                        ".",
-                    )
+                    arrayOf("→", "(", ")", "{", "}", "[", "]", ";", ",", "."),
+                    arrayOf("\t", "(", ")", "{", "}", "[", "]", ";", ",", ".")
                 )
             }
-        }
-
-        fun getHashCode(): Long {
-            return file.hashCode().toLong()
         }
 
         private fun setEditorLanguage() {
             val project = ProjectHandler.getProject() ?: return
             when (file.extension) {
                 "java" -> {
-                    editor.setEditorLanguage(
-                        TsLanguageJava.getInstance(
-                            editor,
-                            project,
-                            file
-                        )
-                    )
-                    eventReceiver =
-                        editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
+                    editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
+                    eventReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
                 }
-
                 "kt", "kts" -> {
                     if (editor.editorLanguage is KotlinLanguage) return
-                    editor.setEditorLanguage(
-                        KotlinLanguage(
-                            editor,
-                            project,
-                            file
-                        )
-                    )
+                    editor.setEditorLanguage(KotlinLanguage(editor, project, file))
                 }
-
                 "class" -> {
-                    editor.setEditorLanguage(
-                        TsLanguageJava.getInstance(
-                            editor,
-                            project,
-                            file
-                        )
-                    )
+                    editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
                 }
-
                 else -> {
                     editor.setEditorLanguage(EmptyLanguage())
                 }
@@ -238,20 +200,39 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
         private fun setText() {
             val isBinary = file.extension == "class"
-
             if (isBinary) {
                 editor.setText(Javap.disassemble(file.absolutePath))
                 return
             }
+            if (file.exists()) {
+                editor.setText(file.readText())
+            }
+        }
 
-            println("Reading file: ${file.absolutePath}")
-            editor.setText(file.readText())
+        fun reloadText() {
+            if (::editor.isInitialized && file.exists()) {
+                val isBinary = file.extension == "class"
+                if (isBinary) {
+                    editor.setText(Javap.disassemble(file.absolutePath))
+                } else {
+                    editor.setText(file.readText())
+                }
+            }
         }
 
         fun save() {
             if (!::editor.isInitialized) return
             if (file.extension == "class") return
-            file.writeText(editor.text.toString())
+            
+            try {
+                val parent = file.parentFile
+                if (parent != null && !parent.exists()) {
+                    parent.mkdirs()
+                }
+                file.writeText(editor.text.toString())
+            } catch (e: Exception) {
+                Log.e("CodeEditorFragment", "Failed to save file: ${file.absolutePath}", e)
+            }
         }
 
         fun refreshSettings() {

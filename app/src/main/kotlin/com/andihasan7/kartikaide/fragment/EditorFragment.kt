@@ -5,22 +5,13 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.fragment
 
+import andihasan7.kartikaide.build.dex.D8Task
+import andihasan7.kartikaide.common.BaseBindingFragment
+import andihasan7.kartikaide.common.Prefs
+import andihasan7.kartikaide.project.Language
+import andihasan7.kartikaide.project.Project
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -32,6 +23,25 @@ import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.andihasan7.kartikaide.FileProvider.openFileWithExternalApp
+import com.andihasan7.kartikaide.R
+import com.andihasan7.kartikaide.adapter.EditorAdapter
+import com.andihasan7.kartikaide.adapter.NavAdapter
+import com.andihasan7.kartikaide.databinding.FragmentEditorBinding
+import com.andihasan7.kartikaide.databinding.NavigationElementsBinding
+import com.andihasan7.kartikaide.databinding.NewDependencyBinding
+import com.andihasan7.kartikaide.databinding.TextDialogBinding
+import com.andihasan7.kartikaide.databinding.TreeviewContextActionDialogItemBinding
+import com.andihasan7.kartikaide.editor.IdeEditor
+import com.andihasan7.kartikaide.editor.formatter.GoogleJavaFormat
+import com.andihasan7.kartikaide.editor.formatter.ktfmtFormatter
+import com.andihasan7.kartikaide.editor.language.KotlinLanguage
+import com.andihasan7.kartikaide.model.FileViewModel
+import com.andihasan7.kartikaide.model.ProjectViewModel
+import com.andihasan7.kartikaide.util.CommonUtils
+import com.andihasan7.kartikaide.util.FileFactoryProvider
+import com.andihasan7.kartikaide.util.FileIndex
+import com.andihasan7.kartikaide.util.ProjectHandler
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
@@ -48,38 +58,14 @@ import kotlinx.coroutines.withContext
 import org.cosmic.ide.dependency.resolver.api.Repository
 import org.cosmic.ide.dependency.resolver.getArtifact
 import org.cosmic.ide.dependency.resolver.repositories
-import com.andihasan7.kartikaide.FileProvider.openFileWithExternalApp
-import com.andihasan7.kartikaide.R
-import com.andihasan7.kartikaide.adapter.EditorAdapter
-import com.andihasan7.kartikaide.adapter.NavAdapter
-import andihasan7.kartikaide.build.dex.D8Task
-import andihasan7.kartikaide.common.BaseBindingFragment
-import andihasan7.kartikaide.common.Prefs
-import com.andihasan7.kartikaide.databinding.FragmentEditorBinding
-import com.andihasan7.kartikaide.databinding.NavigationElementsBinding
-import com.andihasan7.kartikaide.databinding.NewDependencyBinding
-import com.andihasan7.kartikaide.databinding.TextDialogBinding
-import com.andihasan7.kartikaide.databinding.TreeviewContextActionDialogItemBinding
-import com.andihasan7.kartikaide.editor.IdeEditor
-import com.andihasan7.kartikaide.editor.formatter.GoogleJavaFormat
-import com.andihasan7.kartikaide.editor.formatter.ktfmtFormatter
-import com.andihasan7.kartikaide.editor.language.KotlinLanguage
-import com.andihasan7.kartikaide.model.FileViewModel
-import andihasan7.kartikaide.project.Language
-import andihasan7.kartikaide.project.Project
-import com.andihasan7.kartikaide.util.CommonUtils
-import com.andihasan7.kartikaide.util.FileFactoryProvider
-import com.andihasan7.kartikaide.util.FileIndex
-import com.andihasan7.kartikaide.util.ProjectHandler
 import java.io.File
 import java.io.OutputStream
 import java.io.PrintStream
-import kotlin.collections.get
-import kotlin.text.get
 
 class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private lateinit var fileIndex: FileIndex
     private val fileViewModel by activityViewModels<FileViewModel>()
+    private val projectViewModel by activityViewModels<ProjectViewModel>()
     private lateinit var editorAdapter: EditorAdapter
     private val project by lazy { requireArguments().getSerializable("project") as Project }
 
@@ -99,6 +85,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         
         // Update project name in drawer header
         binding.included.projectName.text = project.name
+        binding.included.drawerHeader.setOnLongClickListener {
+            showTreeViewMenu(it, project.root)
+            true
+        }
 
         binding.pager.apply {
             editorAdapter = EditorAdapter(this@EditorFragment, fileViewModel)
@@ -653,7 +643,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private fun showMainSelectionDialog(mains: List<String>) {
         val items = mains.toTypedArray()
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select main class")
+            .setTitle("Select main function in class:")
             .setItems(items) { _, which ->
                 navigateToCompileInfoFragment(mains[which])
             }
@@ -720,6 +710,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 popup.menu.findItem(R.id.execute).isVisible = true
             }
         }
+        
+        // Don't allow deleting or renaming the root project folder from here
+        if (file == project.root) {
+            popup.menu.removeItem(R.id.delete)
+            popup.menu.removeItem(R.id.rename)
+        }
 
         if (file.extension == "jar") {
             popup.menu.add("DEX").setOnMenuItemClickListener {
@@ -737,7 +733,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     getCurrentFragment()?.hideWindows()
                     navigateToCompileInfoFragment(
                         file.absolutePath.replace(
-                            project.srcDir.absolutePath + "/", ""
+                            project.srcDir.absolutePath + File.separator, ""
                         )
                     )
                 }
@@ -747,9 +743,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     binding.textInputLayout.suffixText = ".kt"
                     MaterialAlertDialogBuilder(v.context).setTitle("Create kotlin class")
                         .setView(binding.root).setPositiveButton("Create") { _, _ ->
-                            var name = binding.textInputLayout.editText?.text.toString()
-                            name = name.replace("\\.", "")
-                            file.resolve("$name.kt").createNewFile()
+                            val name = binding.textInputLayout.editText?.text.toString()
+                            if (name.isEmpty()) return@setPositiveButton
+                            val newFile = file.resolve("$name.kt")
+                            newFile.createNewFile()
+                            val packageName = getPackageName(file)
+                            newFile.writeText(Language.Kotlin.simpleClassFileContent(name, packageName))
                             initTreeView()
                         }.setNegativeButton("Cancel") { dialog, _ ->
                             dialog.dismiss()
@@ -761,9 +760,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     binding.textInputLayout.suffixText = ".java"
                     MaterialAlertDialogBuilder(v.context).setTitle("Create java class")
                         .setView(binding.root).setPositiveButton("Create") { _, _ ->
-                            var name = binding.textInputLayout.editText?.text.toString()
-                            name = name.replace("\\.", "")
-                            file.resolve("$name.java").createNewFile()
+                            val name = binding.textInputLayout.editText?.text.toString()
+                            if (name.isEmpty()) return@setPositiveButton
+                            val newFile = file.resolve("$name.java")
+                            newFile.createNewFile()
+                            val packageName = getPackageName(file)
+                            newFile.writeText(Language.Java.simpleClassFileContent(name, packageName))
                             initTreeView()
                         }.setNegativeButton("Cancel") { dialog, _ ->
                             dialog.dismiss()
@@ -774,8 +776,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     val binding = TreeviewContextActionDialogItemBinding.inflate(layoutInflater)
                     MaterialAlertDialogBuilder(v.context).setTitle("Create folder")
                         .setView(binding.root).setPositiveButton("Create") { _, _ ->
-                            var name = binding.textInputLayout.editText?.text.toString()
-                            name = name.replace("\\.", "")
+                            val name = binding.textInputLayout.editText?.text.toString()
+                            if (name.isEmpty()) return@setPositiveButton
                             file.resolve(name).mkdirs()
                             initTreeView()
                         }.setNegativeButton("Cancel") { dialog, _ ->
@@ -787,8 +789,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     val binding = TreeviewContextActionDialogItemBinding.inflate(layoutInflater)
                     MaterialAlertDialogBuilder(v.context).setTitle("Create file")
                         .setView(binding.root).setPositiveButton("Create") { _, _ ->
-                            var name = binding.textInputLayout.editText?.text.toString()
-                            name = name.replace("\\.", "")
+                            val name = binding.textInputLayout.editText?.text.toString()
+                            if (name.isEmpty()) return@setPositiveButton
                             file.resolve(name).createNewFile()
                             initTreeView()
                         }.setNegativeButton("Cancel") { dialog, _ ->
@@ -800,11 +802,43 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     val binding = TreeviewContextActionDialogItemBinding.inflate(layoutInflater)
                     binding.textInputLayout.editText?.setText(file.name)
                     MaterialAlertDialogBuilder(v.context).setTitle("Rename").setView(binding.root)
-                        .setPositiveButton("Create") { _, _ ->
-                            var name = binding.textInputLayout.editText?.text.toString()
-                            name = name.replace("\\.", "")
-                            file.renameTo(file.parentFile!!.resolve(name))
-                            initTreeView()
+                        .setPositiveButton("Rename") { _, _ ->
+                            val name = binding.textInputLayout.editText?.text.toString()
+                            if (name.isEmpty() || name == file.name) return@setPositiveButton
+                            
+                            val oldPath = file.absolutePath
+                            val newFile = file.parentFile!!.resolve(name)
+                            
+                            // 1. Save all files before rename to avoid saving to old path
+                            editorAdapter.saveAll()
+                            
+                            if (file.renameTo(newFile)) {
+                                if (file == project.root) {
+                                    project.root = newFile
+                                    this.binding.included.projectName.text = name
+                                    this.binding.toolbar.title = name
+                                    projectViewModel.loadProjects()
+                                }
+                                
+                                // 2. Update paths in ViewModel IMMEDIATELY for any renamed file/folder
+                                fileViewModel.updatePaths(oldPath, newFile.absolutePath)
+                                
+                                // Update packages recursively
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    if (newFile.isDirectory) {
+                                        newFile.walkTopDown().forEach { child ->
+                                            updatePackageDeclaration(child)
+                                        }
+                                    } else {
+                                        updatePackageDeclaration(newFile)
+                                    }
+                                    
+                                    withContext(Dispatchers.Main) {
+                                        editorAdapter.reloadAll()
+                                        initTreeView()
+                                    }
+                                }
+                            }
                         }.setNegativeButton("Cancel") { dialog, _ ->
                             dialog.dismiss()
                         }.show()
@@ -814,8 +848,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     MaterialAlertDialogBuilder(v.context).setTitle("Delete")
                         .setMessage("Are you sure you want to delete this file")
                         .setPositiveButton("Delete") { _, _ ->
-                            file.deleteRecursively()
-                            initTreeView()
+                            val path = file.absolutePath
+                            if (file.deleteRecursively()) {
+                                fileViewModel.removePath(path)
+                                initTreeView()
+                            }
                         }.setNegativeButton("Cancel") { dialog, _ ->
                             dialog.dismiss()
                         }.show()
@@ -828,6 +865,77 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             true
         }
         popup.show()
+    }
+
+    private fun updatePackageDeclaration(file: File) {
+        if (!file.isFile || (file.extension != "java" && file.extension != "kt")) return
+        
+        val newPackage = getPackageName(file)
+        val content = try { file.readText() } catch (e: Exception) { return }
+        val lines = content.lines().toMutableList()
+        
+        var packageLineIndex = -1
+        for (i in lines.indices) {
+            val line = lines[i].trim()
+            if (line.startsWith("package ")) {
+                packageLineIndex = i
+                break
+            }
+            // Stop if we see code (not comment or empty)
+            if (line.isNotEmpty() && !line.startsWith("/") && !line.startsWith("*")) {
+                break
+            }
+        }
+        
+        val newPackageLine = if (file.extension == "java") {
+            if (newPackage.isEmpty()) "" else "package $newPackage;"
+        } else {
+            if (newPackage.isEmpty()) "" else "package $newPackage"
+        }
+        
+        if (packageLineIndex != -1) {
+            if (newPackageLine.isEmpty()) {
+                lines.removeAt(packageLineIndex)
+            } else {
+                lines[packageLineIndex] = newPackageLine
+            }
+            file.writeText(lines.joinToString("\n"))
+        } else if (newPackage.isNotEmpty()) {
+            // Insert at top, but after potential license comments
+            var insertIndex = 0
+            for (i in lines.indices) {
+                val line = lines[i].trim()
+                if (line.startsWith("/") || line.startsWith("*") || line.isEmpty()) {
+                    insertIndex = i + 1
+                } else {
+                    break
+                }
+            }
+            lines.add(insertIndex, newPackageLine)
+            if (insertIndex + 1 < lines.size && lines[insertIndex + 1].trim().isNotEmpty()) {
+                lines.add(insertIndex + 1, "")
+            }
+            file.writeText(lines.joinToString("\n"))
+        }
+    }
+
+    private fun getPackageName(file: File): String {
+        val srcPath = project.srcDir.absolutePath
+        val filePath = file.absolutePath
+        if (filePath.startsWith(srcPath)) {
+            val relativePath = filePath.substring(srcPath.length)
+                .removePrefix(File.separator)
+            
+            // If it's the srcDir itself or a direct file in it, return empty
+            if (relativePath.isEmpty()) return ""
+            
+            val parentPath = if (file.isDirectory) relativePath else File(relativePath).parent ?: ""
+            
+            return parentPath.replace(File.separatorChar, '.')
+                .removePrefix(".")
+                .removeSuffix(".")
+        }
+        return ""
     }
 
     companion object {

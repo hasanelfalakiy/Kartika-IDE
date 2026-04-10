@@ -104,4 +104,5 @@
     <string name="advanced">Advanced</string>
     <string name="gemini_3_flash_preview">Gemini 3 Flash Preview</string>
     <string name="terminal">Terminal</string>
+    <string name="open_project">Open Project</string>
 </resources>

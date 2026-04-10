@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ This file is part of Cosmic IDE.
   ~ Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -5,17 +6,11 @@
   ~ You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<menu xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <item
-        android:id="@+id/rename"
-        android:title="@string/rename" />
-
-    <item
-        android:id="@+id/backup"
-        android:title="@string/backup" />
-
-    <item
-        android:id="@+id/delete"
-        android:title="@string/delete" />
-</menu>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/header_title"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp"
+    android:background="?colorSurfaceContainer"
+    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+    android:textColor="?colorPrimary" />
