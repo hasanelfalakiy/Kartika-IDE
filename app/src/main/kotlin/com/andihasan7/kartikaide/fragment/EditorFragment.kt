@@ -711,9 +711,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }
         
-        // Don't allow deleting the root project folder from here
+        // Don't allow deleting or renaming the root project folder from here
         if (file == project.root) {
             popup.menu.removeItem(R.id.delete)
+            popup.menu.removeItem(R.id.rename)
         }
 
         if (file.extension == "jar") {

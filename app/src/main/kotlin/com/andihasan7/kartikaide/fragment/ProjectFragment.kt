@@ -48,6 +48,7 @@ import andihasan7.kartikaide.common.Analytics
 import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
 import com.andihasan7.kartikaide.databinding.FragmentProjectBinding
+import com.andihasan7.kartikaide.databinding.TreeviewContextActionDialogItemBinding
 import com.andihasan7.kartikaide.model.ProjectViewModel
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
@@ -272,6 +273,40 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
         popupMenu.inflate(R.menu.project_menu)
         popupMenu.setOnMenuItemClickListener {
             when (it.itemId) {
+                R.id.rename -> {
+                    if (isExternalPath(p.root) && !PermissionUtils.hasStoragePermission(requireContext())) {
+                        checkStoragePermission()
+                        return@setOnMenuItemClickListener true
+                    }
+                    
+                    val binding = TreeviewContextActionDialogItemBinding.inflate(layoutInflater)
+                    binding.textInputLayout.editText?.setText(p.name)
+                    
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("Rename Project")
+                        .setView(binding.root)
+                        .setPositiveButton("Rename") { _, _ ->
+                            val newName = binding.textInputLayout.editText?.text.toString()
+                            if (newName.isEmpty() || newName == p.name) return@setPositiveButton
+                            
+                            val newRoot = p.root.parentFile!!.resolve(newName)
+                            if (newRoot.exists()) {
+                                Toast.makeText(requireContext(), "Project with this name already exists", Toast.LENGTH_SHORT).show()
+                                return@setPositiveButton
+                            }
+                            
+                            if (p.root.renameTo(newRoot)) {
+                                viewModel.loadProjects()
+                                Toast.makeText(requireContext(), "Project renamed", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(requireContext(), "Failed to rename project", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                    true
+                }
+
                 R.id.backup -> {
                     if (isExternalPath(p.root) && !PermissionUtils.hasStoragePermission(requireContext())) {
                         checkStoragePermission()
