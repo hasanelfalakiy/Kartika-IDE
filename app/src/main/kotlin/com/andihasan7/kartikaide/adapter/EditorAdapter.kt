@@ -51,6 +51,15 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
     init {
         fileViewModel.files.observe(fragment.viewLifecycleOwner) { files ->
             val project = ProjectHandler.getProject()
+            
+            // Update existing fragments paths BEFORE changing IDs
+            // This prevents old paths from being used during fragment destruction (save on destroy)
+            if (files.size == ids.size) {
+                ids.forEachIndexed { index, oldId ->
+                    fragments[oldId]?.updateFile(files[index])
+                }
+            }
+
             val newIds = files.map { file ->
                 // Use relative path for stable ID during renames
                 if (project != null && file.absolutePath.startsWith(project.root.absolutePath)) {
@@ -62,7 +71,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             
             ids = newIds
             
-            // Update existing fragments with their new File objects (handles renamed root)
+            // Ensure fragments that stayed (same ID) also have the latest file object
             fragments.forEach { (id, fragment) ->
                 val index = ids.indexOf(id)
                 if (index != -1) {
@@ -198,9 +207,14 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             if (file.extension == "class") return
             
             try {
-                // Double check parent existence.ENOENT happens if parent folder was renamed but path is old.
+                // If folder doesn't exist, it means it was renamed and we might be using an old File object.
+                // But we update paths in updateFile now to avoid this.
                 val parent = file.parentFile
                 if (parent != null && !parent.exists()) {
+                    // Safety check: if the parent doesn't exist, we SHOULD NOT recreate it blindly
+                    // as it might be an old path from a rename.
+                    // But if we are sure it's the correct path, we mkdirs.
+                    // For now, let's keep mkdirs but rely on updateFile to have correct path.
                     parent.mkdirs()
                 }
                 file.writeText(editor.text.toString())

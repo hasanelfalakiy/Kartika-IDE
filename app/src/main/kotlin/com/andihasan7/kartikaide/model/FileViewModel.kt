@@ -125,7 +125,9 @@ class FileViewModel : ViewModel() {
         val currentFiles = files.value.orEmpty()
         val updatedFiles = currentFiles.map { file ->
             val path = file.absolutePath
-            if (path.startsWith(oldPath)) {
+            if (path == oldPath) {
+                File(newPath)
+            } else if (path.startsWith(oldPath + File.separator)) {
                 File(newPath + path.substring(oldPath.length))
             } else {
                 file
@@ -139,13 +141,16 @@ class FileViewModel : ViewModel() {
      */
     fun removePath(deletedPath: String) {
         val currentFiles = files.value.orEmpty()
-        val updatedFiles = currentFiles.filterNot { it.absolutePath.startsWith(deletedPath) }
+        val updatedFiles = currentFiles.filterNot { 
+            val path = it.absolutePath
+            path == deletedPath || path.startsWith(deletedPath + File.separator)
+        }
         
         if (currentFiles.size != updatedFiles.size) {
             files.value = updatedFiles
             // Adjust current position if it was pointing to a removed file
             val currentFile = currentFile
-            if (currentFile != null && currentFile.absolutePath.startsWith(deletedPath)) {
+            if (currentFile != null && (currentFile.absolutePath == deletedPath || currentFile.absolutePath.startsWith(deletedPath + File.separator))) {
                 setCurrentPosition(if (updatedFiles.isEmpty()) -1 else 0)
             } else if (currentFile != null) {
                 setCurrentPosition(updatedFiles.indexOfFirst { it.absolutePath == currentFile.absolutePath })
