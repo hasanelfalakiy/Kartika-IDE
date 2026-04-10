@@ -12,9 +12,37 @@
     android:orientation="vertical">
 
     <LinearLayout
+        android:id="@+id/open_project"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clickable="true"
+        android:gravity="end|center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:text="@string/open_project"
+            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+            android:textSize="16sp" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:clickable="false"
+            android:contentDescription="@string/open_project"
+            android:elevation="0dp"
+            android:src="@drawable/ic_outline_folder_open_24"
+            app:elevation="0dp"
+            app:rippleColor="?colorPrimaryDark" />
+    </LinearLayout>
+
+    <LinearLayout
         android:id="@+id/git_clone"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
         android:clickable="true"
         android:gravity="end|center_vertical"
         android:orientation="horizontal">
@@ -51,7 +79,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="10dp"
-            android:text="@string/import_project"
+            android:text="@string/restore_project_zip"
             android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
             android:textSize="16sp" />
 
@@ -59,7 +87,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:clickable="false"
-            android:contentDescription="@string/import_project"
+            android:contentDescription="@string/restore_project_zip"
             android:elevation="0dp"
             app:elevation="0dp"
             app:rippleColor="?colorPrimaryDark"

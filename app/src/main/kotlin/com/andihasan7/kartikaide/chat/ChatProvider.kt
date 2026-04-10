@@ -32,9 +32,7 @@ import java.util.concurrent.CompletableFuture
 
 object ChatProvider {
 
-    private val client = Client.builder()
-        .apiKey(Prefs.geminiApiKey.ifEmpty { BuildConfig.GEMINI_API_KEY })
-        .build()
+    private var client = createClient()
 
     private var config = GenerateContentConfig.builder()
         .maxOutputTokens(Prefs.maxTokens)
@@ -44,7 +42,13 @@ object ChatProvider {
         .build()
 
     private var chat =
-        client.async.chats.create(Prefs.geminiModel.ifEmpty { "gemini-2.0-flash" }, config)
+        client.async.chats.create(Prefs.geminiModel.ifEmpty { "gemini-3-flash-preview" }, config)
+
+    private fun createClient(): Client {
+        return Client.builder()
+            .apiKey(Prefs.geminiApiKey.ifEmpty { BuildConfig.GEMINI_API_KEY })
+            .build()
+    }
 
     fun regenerateModel(
         temp: Float = Prefs.temperature,
@@ -57,6 +61,9 @@ object ChatProvider {
             "regenerateModel: temperature ${Prefs.temperature}, topP ${Prefs.topP}, topK ${Prefs.topK}, maxTokens ${Prefs.maxTokens}"
         )
 
+        // Always recreate client to pick up new API key if it changed
+        client = createClient()
+
         config = GenerateContentConfig.builder()
             .maxOutputTokens(maxTokens)
             .temperature(temp)
@@ -64,7 +71,7 @@ object ChatProvider {
             .topK(top_k)
             .build()
 
-        chat = client.async.chats.create(Prefs.geminiModel.ifEmpty { "gemini-2.0-flash" }, config)
+        chat = client.async.chats.create(Prefs.geminiModel.ifEmpty { "gemini-3-flash-preview" }, config)
     }
 
     fun generate(conversation: List<Pair<String, String>>): CompletableFuture<ResponseStream<GenerateContentResponse>> {

@@ -5,20 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide
 
 import android.app.Activity
@@ -103,13 +89,18 @@ class App : Application() {
         instance = WeakReference(this)
         HookManager.context = WeakReference(this)
 
-        setupHooks()
-
-        loadPlugins()
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             HiddenApiBypass.addHiddenApiExemptions("L")
         }
+
+        // Setup hooks safely. Some devices crash with LSPlant during init.
+        try {
+            setupHooks()
+        } catch (t: Throwable) {
+            Log.e("App", "Failed to setup hooks safely", t)
+        }
+
+        loadPlugins()
 
         DynamicColors.applyToActivitiesIfAvailable(this)
 
@@ -120,15 +111,16 @@ class App : Application() {
 
         val theme = getTheme(Prefs.appTheme)
         val uiModeManager = getSystemService(UiModeManager::class.java)
-        if (uiModeManager.nightMode == theme) return
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            uiModeManager.setApplicationNightMode(theme)
-        } else {
-            AppCompatDelegate.setDefaultNightMode(if (theme == UiModeManager.MODE_NIGHT_AUTO) AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM else theme)
+        if (uiModeManager != null) {
+            if (uiModeManager.nightMode != theme) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    uiModeManager.setApplicationNightMode(theme)
+                } else {
+                    AppCompatDelegate.setDefaultNightMode(if (theme == UiModeManager.MODE_NIGHT_AUTO) AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM else theme)
+                }
+            }
         }
 
-        // iterate through each activity and apply theme
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, p1: Bundle?) {
                 (activity as? ComponentActivity)?.enableEdgeToEdge()
@@ -183,27 +175,34 @@ class App : Application() {
     }
 
     fun extractAsset(assetName: String, targetFile: File) {
-        if (targetFile.exists() && assetNeedsUpdate(assetName, targetFile)) {
-            targetFile.delete()
-        }
-
         try {
-            assets.open(assetName).use { inputStream ->
-                targetFile.outputStream().use { outputStream ->
-                    inputStream.copyTo(outputStream)
+            if (targetFile.exists() && assetNeedsUpdate(assetName, targetFile)) {
+                targetFile.delete()
+            }
+
+            if (!targetFile.exists()) {
+                assets.open(assetName).use { inputStream ->
+                    targetFile.outputStream().use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
                 }
             }
-        } catch (e: FileNotFoundException) {
+        } catch (e: Exception) {
             Log.e("App", "Failed to extract asset: $assetName", e)
         }
     }
 
     fun assetNeedsUpdate(assetName: String, targetFile: File): Boolean {
-        val assetInputStream = assets.open(assetName)
-        FileInputStream(targetFile).use { targetFileInputStream ->
-            val assetChecksum = calculateChecksum(assetInputStream)
-            val targetFileChecksum = calculateChecksum(targetFileInputStream)
-            return assetChecksum != targetFileChecksum
+        return try {
+            assets.open(assetName).use { assetInputStream ->
+                FileInputStream(targetFile).use { targetFileInputStream ->
+                    val assetChecksum = calculateChecksum(assetInputStream)
+                    val targetFileChecksum = calculateChecksum(targetFileInputStream)
+                    assetChecksum != targetFileChecksum
+                }
+            }
+        } catch (e: Exception) {
+            true
         }
     }
 
@@ -230,22 +229,20 @@ class App : Application() {
     }
 
     private fun setupHooks() {
-        // Some libraries may call System.exit() to exit the app, which crashes the app.
-        // Currently, only JGit does this.
         try {
+            // Hook System.exit to prevent JGit from killing the process
             HookManager.registerHook(object : Hook(
                 method = "exit",
                 argTypes = arrayOf(Int::class.java),
                 type = System::class.java
             ) {
                 override fun before(param: XC_MethodHook.MethodHookParam) {
-                    System.err.println("System.exit() called!")
-                    // Setting result to null bypasses the original method call.
+                    System.err.println("System.exit() intercepted!")
                     param.result = null
                 }
             })
 
-            // Fix crash in ViewPager2
+            // Fix potential crash in ViewPager2/RecyclerView layout
             HookManager.registerHook(object : Hook(
                 method = "onLayoutChildren",
                 argTypes = arrayOf(
@@ -256,7 +253,6 @@ class App : Application() {
             ) {
                 override fun before(param: XC_MethodHook.MethodHookParam) {
                     try {
-                        // Call the original method.
                         HookManager.invokeOriginal(
                             param.method,
                             param.thisObject,
@@ -264,30 +260,35 @@ class App : Application() {
                             param.args[1]
                         )
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        Log.e("App", "Error in onLayoutChildren hook", e)
                     }
-                    // Bypass method call as we have already called the original method.
                     param.result = null
                 }
             })
 
-            injectPrint("fine")
-            injectPrint("info")
-        } catch (e: UnsatisfiedLinkError) {
-            Log.e("App", "Failed to setup hooks", e)
+            // Optional: logging hooks
+            // injectPrint("fine")
+            // injectPrint("info")
+            
+        } catch (e: Throwable) {
+            Log.e("App", "Error setting up specific hooks", e)
         }
     }
 
     private fun injectPrint(method: String) {
-        HookManager.registerHook(object : Hook(
-            method = method,
-            argTypes = arrayOf(String::class.java),
-            type = Logger::class.java
-        ) {
-            override fun before(param: XC_MethodHook.MethodHookParam) {
-                println(param.args[0])
-            }
-        })
+        try {
+            HookManager.registerHook(object : Hook(
+                method = method,
+                argTypes = arrayOf(String::class.java),
+                type = Logger::class.java
+            ) {
+                override fun before(param: XC_MethodHook.MethodHookParam) {
+                    println(param.args[0])
+                }
+            })
+        } catch (e: Throwable) {
+            // Ignore logging hook failures
+        }
     }
 
 
@@ -324,17 +325,17 @@ class App : Application() {
     }
 
     fun loadPlugins() {
-        PluginsFragment.getPlugins().forEach { plugin ->
-            val dir = FileUtil.pluginDir.resolve(plugin.name)
+        try {
+            PluginsFragment.getPlugins().forEach { plugin ->
+                val dir = FileUtil.pluginDir.resolve(plugin.name)
 
-            if (plugin.isEnabled) {
-                Log.i("App", "Loading plugin: ${plugin.name}")
-            } else {
-                Log.i("App", "Plugin ${plugin.name} is disabled")
-                return@forEach
+                if (plugin.isEnabled) {
+                    Log.i("App", "Loading plugin: ${plugin.name}")
+                    PluginLoader.loadPlugin(dir, plugin)
+                }
             }
-
-            PluginLoader.loadPlugin(dir, plugin)
+        } catch (e: Exception) {
+            Log.e("App", "Failed to load plugins", e)
         }
     }
 }

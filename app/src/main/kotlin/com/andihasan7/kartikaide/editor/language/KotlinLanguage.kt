@@ -18,6 +18,7 @@ import android.os.Bundle
 import android.util.Log
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.tyron.kotlin.completion.KotlinEnvironment
+import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
 import io.github.rosemoe.sora.lang.completion.CompletionPublisher
 import io.github.rosemoe.sora.lang.diagnostic.DiagnosticDetail
 import io.github.rosemoe.sora.lang.diagnostic.DiagnosticRegion
@@ -58,6 +59,8 @@ class KotlinLanguage(
 
     init {
         CoroutineScope(Dispatchers.IO).launch {
+
+
             if (Prefs.kotlinRealtimeErrors) {
                 kotlinEnvironment.addIssueListener {
                     val severity = when (it.severity) {
@@ -121,7 +124,7 @@ class KotlinLanguage(
 
             publisher.addItems(itemList)
         } catch (e: Throwable) {
-            if (e !is InterruptedException && e !is ProcessCanceledException) {
+            if (e !is InterruptedException && e !is ProcessCanceledException && e !is CompletionCancelledException) {
                 Log.e(TAG, "Failed to fetch code completions", e)
             }
         }

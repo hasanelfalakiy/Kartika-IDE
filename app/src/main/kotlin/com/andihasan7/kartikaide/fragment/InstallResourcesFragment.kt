@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.fragment
 
 import android.annotation.SuppressLint
@@ -46,8 +39,8 @@ class InstallResourcesFragment : BaseBindingFragment<InstallResourcesFragmentBin
                 for (res in ResourceUtil.missingResources()) {
                     withContext(Dispatchers.Main) {
                         binding.installResourcesText.text = "Preparing to download resource $res"
-                        binding.installResourcesProgress.progress = 0
-                        binding.installResourcesProgressText.text = "0%"
+                        binding.installResourcesProgress.isIndeterminate = true
+                        binding.installResourcesProgressText.text = "Connecting..."
                     }
                     if (installResource(res).not()) {
                         return@launch
@@ -67,28 +60,37 @@ class InstallResourcesFragment : BaseBindingFragment<InstallResourcesFragmentBin
 
     @SuppressLint("SetTextI18n")
     suspend fun installResource(res: String): Boolean {
-        try {
+        return try {
             val url = rawUrl + res.substringAfterLast('/')
             val file = FileUtil.dataDir.resolve(res)
-            file.parentFile!!.mkdirs()
-            file.createNewFile()
-            Download(url) {
+            file.parentFile?.mkdirs()
+            if (!file.exists()) file.createNewFile()
+            
+            Download(url) { percent ->
                 lifecycleScope.launch(Dispatchers.Main) {
-                    binding.installResourcesProgressText.text = "$it%"
-                    binding.installResourcesProgress.progress = it
+                    if (percent == -1) {
+                        if (!binding.installResourcesProgress.isIndeterminate) {
+                            binding.installResourcesProgress.isIndeterminate = true
+                        }
+                        binding.installResourcesProgressText.text = "Downloading..."
+                    } else {
+                        binding.installResourcesProgress.isIndeterminate = false
+                        binding.installResourcesProgress.progress = percent
+                        binding.installResourcesProgressText.text = "$percent%"
+                    }
                 }
             }.start(file)
-            return true
+            true
         } catch (e: Exception) {
             e.printStackTrace()
             withContext(Dispatchers.Main) {
                 binding.installResourcesText.text =
-                    "Failed to download resource $res: ${e.stackTraceToString()}"
+                    "Failed to download resource $res: ${e.message}"
                 binding.installResourcesButton.isEnabled = true
                 binding.installResourcesProgress.visibility = View.GONE
                 binding.installResourcesProgressText.visibility = View.GONE
             }
-            return false
+            false
         }
     }
 }

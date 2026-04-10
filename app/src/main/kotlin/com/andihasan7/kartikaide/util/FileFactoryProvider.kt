@@ -30,6 +30,7 @@ import org.jetbrains.kotlin.config.AnalysisFlags
 import org.jetbrains.kotlin.config.ApiVersion
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.config.JVMConfigurationKeys
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.config.LanguageVersionSettingsImpl
 import org.jetbrains.kotlin.idea.KotlinFileType
@@ -56,6 +57,7 @@ object FileFactoryProvider {
                 CommonConfigurationKeys.MODULE_NAME,
                 JvmProtoBufUtil.DEFAULT_MODULE_NAME
             )
+            put(JVMConfigurationKeys.USE_PSI_CLASS_FILES_READING, false)
             val languageVersionSettings = LanguageVersionSettingsImpl(
                 LanguageVersion.fromVersionString(Prefs.kotlinVersion)!!,
                 ApiVersion.createByLanguageVersion(LanguageVersion.fromVersionString(Prefs.kotlinVersion)!!),

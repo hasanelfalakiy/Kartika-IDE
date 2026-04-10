@@ -45,14 +45,14 @@ class GeminiSettings(private val activity: FragmentActivity) : SettingsProvider 
             editText(PreferenceKeys.GEMINI_API_KEY) {
                 title = "Gemini API Key"
                 summary =
-                    "The API key to connect to the Gemini API. You can get one at https://makersuite.google.com/app/apikey"
+                    "The API key to connect to the Gemini API. You can get one at https://aistudio.google.com/api-keys"
             }
 
             editText(PreferenceKeys.GEMINI_MODEL) {
                 title = "Gemini Model"
                 summary =
-                    "The model to use for Gemini. Default is 'gemini-2.0-flash'. Do not change this unless you know what you are doing."
-                defaultValue = "gemini-2.0-flash"
+                    "The model to use for Gemini. Default is 'gemini-3-flash-preview'. Do not change this unless you know what you are doing."
+                defaultValue = "gemini-3-flash-preview"
             }
 
             singleChoice(PreferenceKeys.TEMPERATURE, keys) {

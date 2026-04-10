@@ -5,25 +5,17 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.fragment
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -33,6 +25,7 @@ import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
@@ -55,12 +48,16 @@ import andihasan7.kartikaide.common.Analytics
 import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
 import com.andihasan7.kartikaide.databinding.FragmentProjectBinding
+import com.andihasan7.kartikaide.databinding.TreeviewContextActionDialogItemBinding
 import com.andihasan7.kartikaide.model.ProjectViewModel
+import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.FileUtil
+import andihasan7.kartikaide.rewrite.util.PermissionUtils
 import andihasan7.kartikaide.rewrite.util.compressToZip
 import andihasan7.kartikaide.rewrite.util.unzip
 import com.andihasan7.kartikaide.util.CommonUtils
+import java.io.File
 import java.io.OutputStream
 import java.io.PrintWriter
 
@@ -127,6 +124,27 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
             }
         }
 
+    private val directoryPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null) {
+                val path = CommonUtils.getPathFromTreeUri(uri)
+                if (path != null) {
+                    val file = File(path)
+                    if (file.isDirectory) {
+                        if (isExternalPath(file) && !PermissionUtils.hasStoragePermission(requireContext())) {
+                            checkStoragePermission()
+                            return@registerForActivityResult
+                        }
+                        val language = if (file.walkTopDown().maxDepth(5).any { f -> f.path.contains("src${File.separator}main${File.separator}java") }) Language.Java else Language.Kotlin
+                        val externalProject = Project(file, language)
+                        navigateToEditorFragment(externalProject)
+                    } else {
+                        Toast.makeText(requireContext(), "Selected path is not a directory", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
     override fun getViewBinding() = FragmentProjectBinding.inflate(layoutInflater)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -155,9 +173,34 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
 
     override fun onResume() {
         super.onResume()
-
+        checkStoragePermission()
         viewModel.loadProjects()
         setOnClickListeners()
+    }
+
+    private fun checkStoragePermission() {
+        if (PermissionUtils.hasStoragePermission(requireContext())) return
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Permission Required")
+                .setMessage("KartikaIDE needs access to all files to manage projects in external storage. Please grant the permission in the next screen.")
+                .setPositiveButton("Grant") { _, _ ->
+                    try {
+                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                        intent.data = Uri.parse("package:${requireContext().packageName}")
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                        startActivity(intent)
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        } else {
+            val permissions = arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            requestPermissions(permissions, 100)
+        }
     }
 
     private fun setOnClickListeners() {
@@ -165,6 +208,7 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
         binding.fabs.fabNewProject.visibility = View.GONE
         binding.fabs.cancelText.visibility = View.GONE
         binding.fabs.gitClone.visibility = View.GONE
+        binding.fabs.openProject.visibility = View.GONE
 
         binding.fabs.cancel.setOnClickListener {
             if (!binding.fabs.importButton.isVisible) {
@@ -172,6 +216,7 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                 binding.fabs.fabNewProject.visibility = View.VISIBLE
                 binding.fabs.cancelText.visibility = View.VISIBLE
                 binding.fabs.gitClone.visibility = View.VISIBLE
+                binding.fabs.openProject.visibility = View.VISIBLE
                 binding.fabs.cancelFab.setImageDrawable(
                     ResourcesCompat.getDrawable(
                         resources,
@@ -193,11 +238,15 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                 binding.fabs.gitClone.setOnClickListener {
                     gitClone()
                 }
+                binding.fabs.openProject.setOnClickListener {
+                    openExternalProject()
+                }
             } else {
                 binding.fabs.importButton.visibility = View.GONE
                 binding.fabs.fabNewProject.visibility = View.GONE
                 binding.fabs.cancelText.visibility = View.GONE
                 binding.fabs.gitClone.visibility = View.GONE
+                binding.fabs.openProject.visibility = View.GONE
 
                 binding.fabs.cancelFab.setImageDrawable(
                     ResourcesCompat.getDrawable(resources, R.drawable.sharp_add_24, activity?.theme)
@@ -211,19 +260,68 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
         }
     }
 
+    private fun openExternalProject() {
+        if (!PermissionUtils.hasStoragePermission(requireContext())) {
+            checkStoragePermission()
+            return
+        }
+        directoryPickerLauncher.launch(null)
+    }
+
     private fun showMenu(v: View, p: Project) {
-        // show project_menu attached to view
         val popupMenu = PopupMenu(requireContext(), v)
         popupMenu.inflate(R.menu.project_menu)
         popupMenu.setOnMenuItemClickListener {
             when (it.itemId) {
+                R.id.rename -> {
+                    if (isExternalPath(p.root) && !PermissionUtils.hasStoragePermission(requireContext())) {
+                        checkStoragePermission()
+                        return@setOnMenuItemClickListener true
+                    }
+                    
+                    val binding = TreeviewContextActionDialogItemBinding.inflate(layoutInflater)
+                    binding.textInputLayout.editText?.setText(p.name)
+                    
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("Rename Project")
+                        .setView(binding.root)
+                        .setPositiveButton("Rename") { _, _ ->
+                            val newName = binding.textInputLayout.editText?.text.toString()
+                            if (newName.isEmpty() || newName == p.name) return@setPositiveButton
+                            
+                            val newRoot = p.root.parentFile!!.resolve(newName)
+                            if (newRoot.exists()) {
+                                Toast.makeText(requireContext(), "Project with this name already exists", Toast.LENGTH_SHORT).show()
+                                return@setPositiveButton
+                            }
+                            
+                            if (p.root.renameTo(newRoot)) {
+                                viewModel.loadProjects()
+                                Toast.makeText(requireContext(), "Project renamed", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(requireContext(), "Failed to rename project", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                    true
+                }
+
                 R.id.backup -> {
+                    if (isExternalPath(p.root) && !PermissionUtils.hasStoragePermission(requireContext())) {
+                        checkStoragePermission()
+                        return@setOnMenuItemClickListener true
+                    }
                     project = p
                     zipContract.launch("${p.name}.zip")
                     true
                 }
 
                 R.id.delete -> {
+                    if (isExternalPath(p.root) && !PermissionUtils.hasStoragePermission(requireContext())) {
+                        checkStoragePermission()
+                        return@setOnMenuItemClickListener true
+                    }
                     MaterialAlertDialogBuilder(requireContext())
                         .setTitle("Delete Project")
                         .setMessage("Are you sure, you want to delete ${p.name}")
@@ -244,18 +342,31 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     }
 
     private fun observeViewModelProjects() {
-        viewModel.projects.observe(viewLifecycleOwner) { projects ->
-            projectAdapter.submitList(projects)
+        viewModel.internalProjects.observe(viewLifecycleOwner) { internal ->
+            val external = viewModel.externalProjects.value ?: emptyList()
+            projectAdapter.submitProjects(internal, external)
+            updateUI(internal.isEmpty() && external.isEmpty())
+        }
+        viewModel.externalProjects.observe(viewLifecycleOwner) { external ->
+            val internal = viewModel.internalProjects.value ?: emptyList()
+            projectAdapter.submitProjects(internal, external)
+            updateUI(internal.isEmpty() && external.isEmpty())
+        }
+    }
 
-            if (projects.isEmpty() && binding.switcher.currentView != binding.noProjects) {
-                binding.switcher.showNext()
-            } else if (projects.isNotEmpty() && binding.switcher.currentView != binding.projectList) {
-                binding.switcher.showPrevious()
-            }
+    private fun updateUI(isEmpty: Boolean) {
+        if (isEmpty && binding.switcher.currentView != binding.noProjects) {
+            binding.switcher.showNext()
+        } else if (!isEmpty && binding.switcher.currentView != binding.projectList) {
+            binding.switcher.showPrevious()
         }
     }
 
     override fun onProjectClicked(project: Project) {
+        if (isExternalPath(project.root) && !PermissionUtils.hasStoragePermission(requireContext())) {
+            checkStoragePermission()
+            return
+        }
         navigateToEditorFragment(project)
     }
 
@@ -427,5 +538,9 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
             })
             addToBackStack(null)
         }
+    }
+
+    private fun isExternalPath(file: File): Boolean {
+        return file.absolutePath.startsWith(Environment.getExternalStorageDirectory().absolutePath)
     }
 }

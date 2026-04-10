@@ -5,24 +5,12 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.util
 
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.DocumentsContract
 import android.text.method.ScrollingMovementMethod
 import android.util.Log
 import android.view.View
@@ -88,6 +76,17 @@ object CommonUtils {
             checkSelfPermission(ShizukuProvider.PERMISSION) == PackageManager.PERMISSION_GRANTED
         } else {
             Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    fun getPathFromTreeUri(uri: Uri): String? {
+        val treeId = DocumentsContract.getTreeDocumentId(uri)
+        val split = treeId.split(":")
+        val type = split[0]
+        return if ("primary".equals(type, ignoreCase = true)) {
+            "/storage/emulated/0/" + if (split.size > 1) split[1] else ""
+        } else {
+            "/storage/$type/" + if (split.size > 1) split[1] else ""
         }
     }
 }

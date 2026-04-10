@@ -8,7 +8,7 @@
 <resources>
     <string name="app_name">Cosmic IDE Rewrite</string>
     <string name="action_settings">Налаштування</string>
-    <string name="import_project">Імпортний проект</string>
+    <string name="restore_project_zip">Імпортний проект</string>
     <string name="projects">Проект</string>
     <string name="new_project">Новий проект</string>
     <string name="use_kotlin_template">Використовуйте Котлін шаблон</string>

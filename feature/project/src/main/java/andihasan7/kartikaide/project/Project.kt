@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package andihasan7.kartikaide.project
 
 import java.io.File
@@ -19,50 +12,92 @@ import java.io.Serializable
 
 /**
  * Represents a project.
- *
- * @property root The root directory of the project.
- * @property language The programming language used in the project.
  */
-data class Project(
-    val root: File,
+class Project : Serializable {
+    var root: File
     val language: Language
-) : Serializable {
+
+    constructor(root: File, language: Language) {
+        this.root = root
+        this.language = language
+    }
 
     /**
      * The name of the project, derived from the root directory.
      */
-    val name: String = root.name
+    val name: String get() = root.name
 
     /**
      * The source directory of the project, based on the language used.
      */
     val srcDir: File
-        get() = when (language) {
-            is Language.Java -> File(root, "src/main/java")
-            is Language.Kotlin -> File(root, "src/main/kotlin")
+        get() {
+            // Priority 1: Standard Gradle/Maven structure at root
+            val javaSrc = File(root, "src/main/java")
+            if (javaSrc.exists()) return javaSrc
+            val kotlinSrc = File(root, "src/main/kotlin")
+            if (kotlinSrc.exists()) return kotlinSrc
+
+            // Priority 2: Common modules like 'app' or 'lib'
+            val modules = listOf("app", "lib", "library", "module")
+            for (module in modules) {
+                val moduleJava = File(root, "$module/src/main/java")
+                if (moduleJava.exists()) return moduleJava
+                val moduleKotlin = File(root, "$module/src/main/kotlin")
+                if (moduleKotlin.exists()) return moduleKotlin
+            }
+
+            // Priority 3: Deep search
+            val detected = root.walkTopDown().maxDepth(5)
+                .filter { it.isDirectory && (it.path.endsWith("src${File.separator}main${File.separator}java") || it.path.endsWith("src${File.separator}main${File.separator}kotlin")) }
+                .firstOrNull()
+
+            return detected ?: root
+        }
+
+    /**
+     * The resources directory of the project.
+     */
+    val resourcesDir: File
+        get() {
+            val res = File(root, "src/main/resources")
+            if (res.exists()) return res
+            
+            // Try in common modules
+            listOf("app", "lib").forEach { module ->
+                val moduleRes = File(root, "$module/src/main/resources")
+                if (moduleRes.exists()) return moduleRes
+            }
+            
+            return res // default
         }
 
     /**
      * The build directory of the project.
      */
-    val buildDir = File(root, "build")
+    val buildDir get() = File(root, "build")
 
     /**
      * The cache directory of the project.
      */
-    val cacheDir = File(buildDir, "cache")
+    val cacheDir get() = File(buildDir, "cache")
 
     /**
      * The binary directory of the project.
      */
-    val binDir = File(buildDir, "bin")
+    val binDir get() = File(buildDir, "bin")
+
+    /**
+     * The classes directory where compiled class files are stored.
+     */
+    val classesDir get() = File(buildDir, "classes")
 
     /**
      * The library directory of the project.
      */
-    val libDir = File(root, "libs")
+    val libDir get() = File(root, "libs")
 
-    var args = listOf<String>()
+    var args: List<String> = listOf()
         get() {
             val f = cacheDir.resolve("args.txt")
             if (f.exists()) {
@@ -73,6 +108,7 @@ data class Project(
         }
         set(value) {
             val f = cacheDir.resolve("args.txt")
+            if (!cacheDir.exists()) cacheDir.mkdirs()
             f.writeText(value.joinToString("\n"))
             field = value
         }
@@ -88,5 +124,24 @@ data class Project(
         } else {
             throw IllegalStateException("Cannot delete directory: ${root.absolutePath}")
         }
+    }
+
+    // Manual implementation of equals/hashCode to mimic data class behavior if needed
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is Project) return false
+        if (root != other.root) return false
+        if (language != other.language) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = root.hashCode()
+        result = 31 * result + language.hashCode()
+        return result
+    }
+
+    override fun toString(): String {
+        return "Project(root=$root, language=$language)"
     }
 }

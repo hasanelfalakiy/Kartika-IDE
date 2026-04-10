@@ -10,7 +10,7 @@
     <string name="action_settings">Settings</string>
 
     <!-- Strings used for fragments for navigation -->
-    <string name="import_project">Import Project</string>
+    <string name="restore_project_zip">Restore Project .zip</string>
     <string name="app_theme">App theme</string>
 
     <string name="projects">Projects</string>
@@ -102,6 +102,7 @@
     <string name="backup">Backup</string>
     <string name="program_arguments">Program Arguments</string>
     <string name="advanced">Advanced</string>
-    <string name="gemini_pro">Gemini Pro</string>
+    <string name="gemini_3_flash_preview">Gemini 3 Flash Preview</string>
     <string name="terminal">Terminal</string>
+    <string name="open_project">Open Project</string>
 </resources>

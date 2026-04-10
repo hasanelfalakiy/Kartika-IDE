@@ -36,6 +36,8 @@
         <item>dropbox</item>
         <item>google</item>
         <item>kotlinlang</item>
+        <item>ktlint</item>
+        <item>custom</item>
     </string-array>
 
     <string-array name="app_theme_entries">

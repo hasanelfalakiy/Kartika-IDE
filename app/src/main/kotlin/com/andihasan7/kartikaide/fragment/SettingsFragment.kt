@@ -111,7 +111,7 @@ class SettingsFragment : BaseBindingFragment<FragmentSettingsBinding>() {
             subScreen {
                 collapseIcon = true
                 title = "About"
-                summary = "Learn more about Cosmic IDE"
+                summary = "Learn more about Kartika IDE"
                 aboutSettings.provideSettings(this)
             }
         }
@@ -133,6 +133,7 @@ class SettingsFragment : BaseBindingFragment<FragmentSettingsBinding>() {
                 ChatProvider.regenerateModel()
             }
             if (!preferencesAdapter.goBack()) {
+                parentFragmentManager.setFragmentResult("settings_changed", Bundle())
                 parentFragmentManager.popBackStack()
             }
         }
@@ -147,6 +148,7 @@ class SettingsFragment : BaseBindingFragment<FragmentSettingsBinding>() {
                         ChatProvider.regenerateModel()
                     }
                     if (!preferencesAdapter.goBack()) {
+                        parentFragmentManager.setFragmentResult("settings_changed", Bundle())
                         isEnabled = false
                         parentFragmentManager.popBackStack()
                     }

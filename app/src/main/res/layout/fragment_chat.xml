@@ -5,13 +5,13 @@
   ~ You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?colorSurfaceContainerLow"
-    android:fitsSystemWindows="true">
+    android:orientation="vertical">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/app_bar"
@@ -26,29 +26,28 @@
             android:minHeight="?attr/actionBarSize"
             app:navigationIcon="@drawable/baseline_arrow_back_24"
             app:titleCentered="true"
-            tools:title="Gemini 2.0"
+            tools:title="Gemini 3 Flash Preview"
             app:menu="@menu/chat_menu" />
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerview"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:clipToPadding="false"
-        android:paddingBottom="80dp"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior"
+        android:paddingBottom="8dp"
         tools:listitem="@layout/conversation_item_received" />
 
     <LinearLayout
         android:id="@+id/chat_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
         android:background="?colorSurfaceContainer"
         android:padding="8dp"
         android:paddingHorizontal="12dp"
-        android:paddingBottom="8dp"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:elevation="4dp">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/message_text"
@@ -88,4 +87,4 @@
         </LinearLayout>
     </LinearLayout>
 
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+</LinearLayout>
