@@ -118,9 +118,9 @@ class CompileInfoFragment : DialogFragment() {
 
     override fun onStart() {
         super.onStart()
-        // Set dialog height to 70% of screen height to ensure IdeEditor with weight=1 can expand
+        // Set dialog height to 85% of screen height to ensure IdeEditor with weight=1 can expand
         val displayMetrics = resources.displayMetrics
-        val height = (displayMetrics.heightPixels * 0.7).toInt()
+        val height = (displayMetrics.heightPixels * 0.85).toInt()
         dialog?.window?.setLayout(
             ViewGroup.LayoutParams.MATCH_PARENT,
             height
