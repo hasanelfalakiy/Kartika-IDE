@@ -125,6 +125,8 @@ class MainActivity : AppCompatActivity() {
         val themeRegistry = ThemeRegistry.getInstance()
         themeRegistry.loadTheme(loadTheme("darcula.json", "darcula"))
         themeRegistry.loadTheme(loadTheme("QuietLight.tmTheme.json", "QuietLight"))
+        themeRegistry.loadTheme(loadTheme("dracula_2.json", "dracula_2"))
+        themeRegistry.loadTheme(loadTheme("onedark.json", "onedark"))
 
         App.instance.get()!!.applyThemeBasedOnConfiguration()
     }

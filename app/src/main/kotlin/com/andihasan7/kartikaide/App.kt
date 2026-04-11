@@ -26,6 +26,7 @@ import io.github.rosemoe.sora.langs.textmate.registry.FileProviderRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
+import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
 import andihasan7.kartikaide.common.Analytics
 import andihasan7.kartikaide.common.Prefs
 import com.andihasan7.kartikaide.fragment.PluginsFragment
@@ -40,6 +41,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import rikka.sui.Sui
+import org.eclipse.tm4e.core.registry.IThemeSource
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
@@ -196,6 +198,32 @@ class App : Application() {
         val fileProvider = AssetsFileResolver(assets)
         FileProviderRegistry.getInstance().addFileProvider(fileProvider)
         GrammarRegistry.getInstance().loadGrammars("textmate/languages.json")
+
+        // MUAT TEMA SECARA EKSPLISIT
+        val registry = ThemeRegistry.getInstance()
+        try {
+            registry.loadTheme(ThemeModel(
+                IThemeSource.fromInputStream(assets.open("textmate/darcula.json"), "darcula.json", null),
+                "darcula"
+            ))
+            registry.loadTheme(ThemeModel(
+                IThemeSource.fromInputStream(assets.open("textmate/dracula_2.json"), "dracula_2.json", null),
+                "dracula_2"
+            ))
+            registry.loadTheme(ThemeModel(
+                IThemeSource.fromInputStream(assets.open("textmate/onedark.json"), "onedark.json", null),
+                "onedark"
+            ))
+            // Tambahkan QuietLight jika ada
+            if (assets.list("textmate")?.contains("QuietLight.tmTheme.json") == true) {
+                registry.loadTheme(ThemeModel(
+                    IThemeSource.fromInputStream(assets.open("textmate/QuietLight.tmTheme.json"), "QuietLight.tmTheme.json", null),
+                    "QuietLight"
+                ))
+            }
+        } catch (e: Exception) {
+            Log.e("App", "Failed to load themes", e)
+        }
     }
 
     private fun setupHooks() {
@@ -238,11 +266,15 @@ class App : Application() {
     }
 
     fun applyThemeBasedOnConfiguration() {
-        val themeName = when (getTheme(Prefs.appTheme)) {
-            AppCompatDelegate.MODE_NIGHT_YES -> "darcula"
-            AppCompatDelegate.MODE_NIGHT_NO -> "QuietLight"
-            else -> {
-                if ((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES) "darcula" else "QuietLight"
+        val themeName = if (Prefs.editorColorScheme != "darcula") {
+            Prefs.editorColorScheme
+        } else {
+            when (getTheme(Prefs.appTheme)) {
+                AppCompatDelegate.MODE_NIGHT_YES -> "darcula"
+                AppCompatDelegate.MODE_NIGHT_NO -> "QuietLight"
+                else -> {
+                    if ((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES) "darcula" else "QuietLight"
+                }
             }
         }
         ThemeRegistry.getInstance().setTheme(themeName)

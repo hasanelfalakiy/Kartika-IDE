@@ -139,6 +139,9 @@ object Prefs {
     val editorFont: String
         get() = prefs.getString(PreferenceKeys.EDITOR_FONT, "") ?: ""
 
+    val editorColorScheme: String
+        get() = prefs.getString(PreferenceKeys.EDITOR_COLOR_SCHEME, "darcula") ?: "darcula"
+
     val repositories: String
         get() = prefs.getString("repos", "") ?: """
             Maven Central: https://repo1.maven.org/maven2

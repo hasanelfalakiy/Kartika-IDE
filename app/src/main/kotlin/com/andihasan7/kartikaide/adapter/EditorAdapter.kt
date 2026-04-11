@@ -118,6 +118,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
     fun refreshSettings() {
         fragments.values.forEach { it.refreshSettings() }
+
     }
 
     fun reloadAll() {

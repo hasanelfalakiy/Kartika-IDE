@@ -42,7 +42,6 @@ class IdeEditor @JvmOverloads constructor(
     )
 
     init {
-        colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
         setCompletionLayout()
         setTooltipImprovements()
         updateSettings()
@@ -62,6 +61,20 @@ class IdeEditor @JvmOverloads constructor(
         isLineNumberEnabled = Prefs.lineNumbers
         props.deleteEmptyLineFast = Prefs.quickDelete
         props.stickyScroll = Prefs.stickyScroll
+
+        updateColorScheme()
+    }
+
+    private fun updateColorScheme() {
+        val themeName = if (Prefs.editorColorScheme != "darcula") {
+            Prefs.editorColorScheme
+        } else {
+            if ((context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES) "darcula" else "QuietLight"
+        }
+
+        ThemeRegistry.getInstance().setTheme(themeName)
+        colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
+        invalidate()
     }
 
     override fun commitText(text: CharSequence, applyAutoIndent: Boolean) {
@@ -126,7 +139,7 @@ class IdeEditor @JvmOverloads constructor(
 
     override fun onConfigurationChanged(newConfig: Configuration?) {
         super.onConfigurationChanged(newConfig)
-
+        updateColorScheme()
         if (editorLanguage is TsLanguageJava) {
             (editorLanguage as TsLanguageJava).onConfigurationChanged()
         }
