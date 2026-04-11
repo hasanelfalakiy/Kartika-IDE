@@ -654,10 +654,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private fun navigateToCompileInfoFragment(clazz: String? = null) {
         ProjectHandler.clazz = clazz
         editorAdapter.saveAll()
-        parentFragmentManager.commit {
-            add(R.id.fragment_container, CompileInfoFragment())
-            addToBackStack(null)
-        }
+        CompileInfoFragment().show(parentFragmentManager, "compile_info")
     }
 
     private fun navigateToSettingsFragment() {
