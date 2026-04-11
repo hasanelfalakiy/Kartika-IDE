@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.compile
 
 import com.andihasan7.kartikaide.App
@@ -83,27 +76,37 @@ class Compiler(
      * @param message The message to be reported when the task starts compiling.
      */
     private inline fun <reified T : Task> compileTask(message: String) {
-        val task = CompilerCache.getCache<T>()
+        var taskInstance = CompilerCache.getCache<T>()
 
         with(reporter) {
             if (failure) return
             reportInfo(message)
             compileListener(T::class.java, BuildStatus.STARTED)
             try {
-                task.execute(this)
+                taskInstance.execute(this)
             } catch (e: Exception) {
+                val errorStr = e.stackTraceToString()
                 // Tangani error spesifik Kotlin Binary Cache NPE atau kegagalan incremental
                 if (T::class == KotlinCompiler::class && 
                     (e.message?.contains("Incremental compilation failed") == true || 
-                     e.stackTraceToString().contains("KotlinBinaryClassCache"))) {
+                     errorStr.contains("KotlinBinaryClassCache") ||
+                     errorStr.contains("NullPointerException"))) {
                     
-                    reportInfo("Incremental compilation failed, performing clean build...")
+                    reportInfo("Incremental compilation failed or compiler state corrupted, performing clean build...")
                     // Hapus folder build untuk membersihkan cache korup
                     project.binDir.deleteRecursively()
                     project.binDir.mkdirs()
                     
-                    // Re-inisialisasi task dan coba lagi sekali lagi
-                    task.execute(this)
+                    // Re-inisialisasi task dengan instance baru untuk mereset state internal
+                    val newTask = KotlinCompiler(project)
+                    CompilerCache.saveCache(newTask)
+                    
+                    // Coba lagi dengan instance baru
+                    try {
+                        newTask.execute(this)
+                    } catch (e2: Exception) {
+                        throw e2
+                    }
                 } else {
                     throw e
                 }

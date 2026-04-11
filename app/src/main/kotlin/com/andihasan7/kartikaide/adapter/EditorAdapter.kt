@@ -180,10 +180,11 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             when (file.extension) {
                 "java" -> {
                     editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
+                    if (::eventReceiver.isInitialized) eventReceiver.unsubscribe()
                     eventReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
                 }
                 "kt", "kts" -> {
-                    if (editor.editorLanguage is KotlinLanguage) return
+                    // Re-set even if it's already KotlinLanguage to ensure theme is applied correctly
                     editor.setEditorLanguage(KotlinLanguage(editor, project, file))
                 }
                 "class" -> {
@@ -239,6 +240,8 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         fun refreshSettings() {
             if (::editor.isInitialized) {
                 editor.updateSettings()
+                // Force update language to refresh TreeSitter theme mapping
+                setEditorLanguage()
                 setupSymbols()
             }
         }
@@ -247,6 +250,8 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             super.onConfigurationChanged(newConfig)
             if (::editor.isInitialized) {
                 setColorScheme()
+                // Update language on config change as well
+                setEditorLanguage()
             }
         }
 

@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.editor.language
 
 import android.content.res.AssetManager
@@ -24,43 +17,24 @@ import io.github.rosemoe.sora.lang.styling.TextStyle
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 
 object TreeSitterUtil {
-    fun applyTheme(desc: TsThemeBuilder) {
+    fun applyTheme(desc: TsThemeBuilder, scheme: EditorColorScheme) {
         desc.apply {
-            TextStyle.makeStyle(
-                EditorColorScheme.COMMENT,
-                0,
-                false,
-                true,
-                false
-            ) applyTo "comment"
-            TextStyle.makeStyle(
-                EditorColorScheme.KEYWORD,
-                0,
-                true,
-                false,
-                false
-            ) applyTo "keyword"
-            TextStyle.makeStyle(EditorColorScheme.LITERAL) applyTo arrayOf(
-                "constant.builtin",
-                "string",
-                "number"
-            )
-            TextStyle.makeStyle(EditorColorScheme.IDENTIFIER_VAR) applyTo arrayOf(
-                "variable.builtin",
-                "variable",
-                "constant"
-            )
-            TextStyle.makeStyle(EditorColorScheme.IDENTIFIER_NAME) applyTo arrayOf(
-                "type.builtin",
-                "type",
-                "attribute"
-            )
-            TextStyle.makeStyle(EditorColorScheme.FUNCTION_NAME) applyTo arrayOf(
-                "function.method",
-                "function.builtin",
-                "variable.field"
-            )
-            TextStyle.makeStyle(EditorColorScheme.OPERATOR) applyTo arrayOf("operator")
+            TextStyle.makeStyle(EditorColorScheme.COMMENT, 0, false, true, false) applyTo "comment"
+            TextStyle.makeStyle(EditorColorScheme.KEYWORD, 0, true, false, false) applyTo "keyword"
+            
+            val literalStyle = TextStyle.makeStyle(EditorColorScheme.LITERAL)
+            literalStyle applyTo arrayOf("constant.builtin", "string", "number")
+            
+            val varStyle = TextStyle.makeStyle(EditorColorScheme.IDENTIFIER_VAR)
+            varStyle applyTo arrayOf("variable", "variable.builtin", "constant", "import.package", "package.decl")
+            
+            val typeStyle = TextStyle.makeStyle(EditorColorScheme.IDENTIFIER_NAME)
+            typeStyle applyTo arrayOf("type", "type.builtin", "attribute", "import.type")
+            
+            val funcStyle = TextStyle.makeStyle(EditorColorScheme.FUNCTION_NAME)
+            funcStyle applyTo arrayOf("function.declaration", "function.invocation", "function.builtin", "variable.field", "import.member")
+            
+            TextStyle.makeStyle(EditorColorScheme.OPERATOR) applyTo "operator"
         }
     }
 
