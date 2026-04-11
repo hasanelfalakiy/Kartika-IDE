@@ -804,7 +804,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                             if (name.isEmpty() || name == file.name) return@setPositiveButton
                             
                             val oldPath = file.absolutePath
+                            val oldName = file.nameWithoutExtension
                             val newFile = file.parentFile!!.resolve(name)
+                            val newName = newFile.nameWithoutExtension
                             
                             // 1. Save all files before rename to avoid saving to old path
                             editorAdapter.saveAll()
@@ -820,13 +822,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                 // 2. Update paths in ViewModel IMMEDIATELY for any renamed file/folder
                                 fileViewModel.updatePaths(oldPath, newFile.absolutePath)
                                 
-                                // Update packages recursively
+                                // Update packages and classes recursively
                                 lifecycleScope.launch(Dispatchers.IO) {
                                     if (newFile.isDirectory) {
                                         newFile.walkTopDown().forEach { child ->
                                             updatePackageDeclaration(child)
                                         }
                                     } else {
+                                        updateClassDeclaration(newFile, oldName, newName)
                                         updatePackageDeclaration(newFile)
                                     }
                                     
@@ -913,6 +916,34 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 lines.add(insertIndex + 1, "")
             }
             file.writeText(lines.joinToString("\n"))
+        }
+    }
+
+    private fun updateClassDeclaration(file: File, oldName: String, newName: String) {
+        if (!file.isFile || (file.extension != "java" && file.extension != "kt")) return
+        if (oldName == newName) return
+
+        val content = try {
+            file.readText()
+        } catch (e: Exception) {
+            return
+        }
+
+        val newContent = if (file.extension == "java") {
+            // Java: match class, interface, enum, or @interface followed by oldName
+            content.replace(Regex("""\b(class|interface|enum|@interface)\s+$oldName\b"""), "$1 $newName")
+        } else {
+            // Kotlin: match class, interface, or object followed by oldName
+            // Note: data class and annotation class are handled by matching 'class'
+            content.replace(Regex("""\b(class|interface|object)\s+$oldName\b"""), "$1 $newName")
+        }
+
+        if (content != newContent) {
+            try {
+                file.writeText(newContent)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
