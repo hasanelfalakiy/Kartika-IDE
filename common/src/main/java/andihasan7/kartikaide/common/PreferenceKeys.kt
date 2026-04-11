@@ -39,6 +39,7 @@ object PreferenceKeys {
     const val QUICK_DELETE = "quick_delete"
     const val STICKY_SCROLL = "sticky_scroll"
     const val DISABLE_SYMBOLS_VIEW = "disable_symbols_view"
+    const val EDITOR_CUSTOM_SYMBOLS = "editor_custom_symbols"
 
     // Formatter
     const val FORMATTER_KTFMT_STYLE = "ktfmt_style"

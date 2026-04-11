@@ -168,10 +168,18 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                 }
                 symbolViewContainer.visibility = View.VISIBLE
                 symbolView.bindEditor(editor)
-                symbolView.addSymbols(
-                    arrayOf("→", "(", ")", "{", "}", "[", "]", ";", ",", "."),
-                    arrayOf("\t", "(", ")", "{", "}", "[", "]", ";", ",", ".")
-                )
+                
+                // Clear existing symbols to prevent accumulation/duplication
+                symbolView.removeSymbols()
+                
+                val rawSymbols = Prefs.customSymbols.split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                
+                val symbols = rawSymbols.map { if (it == "→") "\t" else it }.toTypedArray()
+                val displays = rawSymbols.toTypedArray()
+                
+                symbolView.addSymbols(displays, symbols)
             }
         }
 
