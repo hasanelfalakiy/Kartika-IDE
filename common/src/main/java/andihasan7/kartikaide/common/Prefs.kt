@@ -183,4 +183,8 @@ object Prefs {
 
     val clientName: String
         get() = prefs.getString("client_name", null)?.replace(" ", "") ?: Build.ID
+
+    var lastExtractedVersion: Int
+        get() = prefs.getInt("last_extracted_version", -1)
+        set(value) = prefs.edit().putInt("last_extracted_version", value).apply()
 }
