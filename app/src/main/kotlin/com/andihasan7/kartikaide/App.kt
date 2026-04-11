@@ -7,6 +7,12 @@
 
 package com.andihasan7.kartikaide
 
+import andihasan7.kartikaide.common.Analytics
+import andihasan7.kartikaide.common.Prefs
+import andihasan7.kartikaide.rewrite.plugin.api.Hook
+import andihasan7.kartikaide.rewrite.plugin.api.HookManager
+import andihasan7.kartikaide.rewrite.plugin.api.PluginLoader
+import andihasan7.kartikaide.rewrite.util.FileUtil
 import android.app.Activity
 import android.app.Application
 import android.app.UiModeManager
@@ -19,40 +25,28 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.andihasan7.kartikaide.fragment.PluginsFragment
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.config.JavacConfigProvider
 import de.robv.android.xposed.XC_MethodHook
 import io.github.rosemoe.sora.langs.textmate.registry.FileProviderRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
-import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
 import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
-import andihasan7.kartikaide.common.Analytics
-import andihasan7.kartikaide.common.Prefs
-import com.andihasan7.kartikaide.fragment.PluginsFragment
-import andihasan7.kartikaide.rewrite.plugin.api.Hook
-import andihasan7.kartikaide.rewrite.plugin.api.HookManager
-import andihasan7.kartikaide.rewrite.plugin.api.PluginLoader
-import andihasan7.kartikaide.rewrite.util.FileUtil
+import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import org.eclipse.tm4e.core.registry.IThemeSource
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import rikka.sui.Sui
-import org.eclipse.tm4e.core.registry.IThemeSource
 import java.io.File
-import java.io.FileInputStream
-import java.io.InputStream
 import java.lang.ref.WeakReference
-import java.math.BigInteger
 import java.net.URL
-import java.security.MessageDigest
 import java.time.ZonedDateTime
 import java.util.Locale
 import java.util.TimeZone
-import java.util.logging.Logger
 
 class App : Application() {
 

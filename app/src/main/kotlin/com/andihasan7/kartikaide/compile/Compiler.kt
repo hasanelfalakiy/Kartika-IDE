@@ -22,7 +22,9 @@ import andihasan7.kartikaide.build.dex.D8Task
 import andihasan7.kartikaide.build.java.JarTask
 import andihasan7.kartikaide.build.java.JavaCompileTask
 import andihasan7.kartikaide.build.kotlin.KotlinCompiler
+import com.andihasan7.kartikaide.util.CommonUtils
 import andihasan7.kartikaide.project.Project
+import java.io.File
 
 /**
  * A class responsible for compiling Java and Kotlin code and converting class files to dex format.
@@ -87,7 +89,25 @@ class Compiler(
             if (failure) return
             reportInfo(message)
             compileListener(T::class.java, BuildStatus.STARTED)
-            task.execute(this)
+            try {
+                task.execute(this)
+            } catch (e: Exception) {
+                // Tangani error spesifik Kotlin Binary Cache NPE atau kegagalan incremental
+                if (T::class == KotlinCompiler::class && 
+                    (e.message?.contains("Incremental compilation failed") == true || 
+                     e.stackTraceToString().contains("KotlinBinaryClassCache"))) {
+                    
+                    reportInfo("Incremental compilation failed, performing clean build...")
+                    // Hapus folder build untuk membersihkan cache korup
+                    project.binDir.deleteRecursively()
+                    project.binDir.mkdirs()
+                    
+                    // Re-inisialisasi task dan coba lagi sekali lagi
+                    task.execute(this)
+                } else {
+                    throw e
+                }
+            }
             compileListener(T::class.java, BuildStatus.FINISHED)
 
             if (failure) {
