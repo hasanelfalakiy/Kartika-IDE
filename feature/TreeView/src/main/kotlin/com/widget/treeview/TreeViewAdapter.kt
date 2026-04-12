@@ -112,7 +112,9 @@ class TreeViewAdapter(
         notifyItemChanged(position)
     }
 
-    private fun expandDirectory(node: Node<File>, position: Int) {
+    fun expandDirectory(node: Node<File>, position: Int) {
+        if (node.isExpanded) return
+        
         var parent = node
         var children: List<Node<File>>
         var index = position
@@ -131,7 +133,9 @@ class TreeViewAdapter(
         notifyItemRangeInserted(position + 1, count)
     }
 
-    private fun collapseDirectory(node: Node<File>, position: Int) {
+    fun collapseDirectory(node: Node<File>, position: Int) {
+        if (!node.isExpanded) return
+
         val descendants = TreeUtils.getDescendants(node)
         nodes.removeAll(descendants.toSet())
         TreeUtils.removeChildren(node)
@@ -141,6 +145,14 @@ class TreeViewAdapter(
     override fun getItemViewType(position: Int) = position
 
     override fun getItemCount() = nodes.size
+
+    fun getNodes(): List<Node<File>> = nodes
+
+    fun setNodes(newNodes: List<Node<File>>) {
+        this.nodes.clear()
+        this.nodes.addAll(newNodes)
+        notifyDataSetChanged()
+    }
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val expandView: ImageView = view.findViewById(R.id.expand)

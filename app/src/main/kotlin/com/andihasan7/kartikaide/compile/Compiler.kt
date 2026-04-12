@@ -93,15 +93,22 @@ class Compiler(
                      errorStr.contains("NullPointerException"))) {
                     
                     reportInfo("Incremental compilation failed or compiler state corrupted, performing clean build...")
-                    // Hapus folder build untuk membersihkan cache korup
-                    project.binDir.deleteRecursively()
-                    project.binDir.mkdirs()
                     
-                    // Re-inisialisasi task dengan instance baru untuk mereset state internal
+                    // Membersihkan seluruh folder build untuk memastikan tidak ada metadata lama yang tersisa
+                    try {
+                        project.buildDir.deleteRecursively()
+                        project.buildDir.mkdirs()
+                        project.binDir.mkdirs()
+                        project.classesDir.mkdirs()
+                    } catch (ioe: Exception) {
+                        reportError("Failed to clean build directory: ${ioe.message}")
+                    }
+                    
+                    // Re-inisialisasi task dengan instance baru untuk mereset state internal compiler
                     val newTask = KotlinCompiler(project)
                     CompilerCache.saveCache(newTask)
                     
-                    // Coba lagi dengan instance baru
+                    // Coba lagi dengan instance baru (Clean Build)
                     try {
                         newTask.execute(this)
                     } catch (e2: Exception) {

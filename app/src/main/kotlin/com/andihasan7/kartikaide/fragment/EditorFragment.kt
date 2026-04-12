@@ -47,6 +47,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
+import com.widget.treeview.Node
 import com.widget.treeview.OnTreeItemClickListener
 import com.widget.treeview.TreeUtils.toNodeList
 import com.widget.treeview.TreeViewAdapter
@@ -214,24 +215,47 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     }
 
     private fun initTreeView() {
-        binding.included.recycler.apply {
-            val nodes = project.root.toNodeList()
-            layoutManager = LinearLayoutManager(context)
-            adapter = TreeViewAdapter(context, nodes).apply {
-                setOnItemClickListener(object : OnTreeItemClickListener {
-                    override fun onItemClick(view: View, position: Int) {
-                        val file = nodes[position].value
-                        if (file.exists().not() || file.isDirectory) return
-                        if (file.isFile) {
-                            fileViewModel.addFile(file)
-                        }
-                    }
-
-                    override fun onItemLongClick(view: View, position: Int) {
-                        showTreeViewMenu(view, nodes[position].value)
-                    }
-                })
+        val recyclerView = binding.included.recycler
+        val currentAdapter = recyclerView.adapter as? TreeViewAdapter
+        val expandedPaths = mutableSetOf<String>()
+        
+        currentAdapter?.getNodes()?.forEach { node ->
+            if (node.isExpanded) {
+                expandedPaths.add(node.value.absolutePath)
             }
+        }
+
+        val nodes = project.root.toNodeList()
+        val adapter = TreeViewAdapter(requireContext(), nodes)
+        recyclerView.layoutManager = LinearLayoutManager(requireContext())
+        recyclerView.adapter = adapter
+        
+        adapter.setOnItemClickListener(object : OnTreeItemClickListener {
+            override fun onItemClick(view: View, position: Int) {
+                val file = adapter.getNodes()[position].value
+                if (file.exists().not() || file.isDirectory) return
+                if (file.isFile) {
+                    fileViewModel.addFile(file)
+                }
+            }
+
+            override fun onItemLongClick(view: View, position: Int) {
+                showTreeViewMenu(view, adapter.getNodes()[position].value)
+            }
+        })
+
+        // Restore expanded state
+        restoreExpandedState(adapter, expandedPaths)
+    }
+
+    private fun restoreExpandedState(adapter: TreeViewAdapter, expandedPaths: Set<String>) {
+        var i = 0
+        while (i < adapter.itemCount) {
+            val node = adapter.getNodes()[i]
+            if (node.value.isDirectory && expandedPaths.contains(node.value.absolutePath)) {
+                adapter.expandDirectory(node, i)
+            }
+            i++
         }
     }
 
