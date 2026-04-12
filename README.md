@@ -4,7 +4,6 @@
 # Kartika IDE
 
 [![License](https://img.shields.io/github/license/hasanelfalakiy/Kartika-IDE)](https://github.com/hasanelfalakiy/Kartika-IDE/blob/main/LICENSE)
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/94a4082a551c496cae031bcdb6f2040d)](https://codacy.com/gh/hasanelfalakiy/Kartika-IDE/dashboard)
 [![Total downloads](https://img.shields.io/github/downloads/hasanelfalakiy/Kartika-IDE/total)](https://github.com/hasanelfalakiy/Kartika-IDE/releases)
 [![Telegram](https://img.shields.io/badge/Telegram-join-blue)](https://t.me/moonlight_studio01/9)
 ![GitHub Repo stars](https://img.shields.io/github/stars/hasanelfalakiy/Kartika-IDE)
@@ -38,28 +37,28 @@ If you find any bugs, please report them on our [Telegram Group](https://t.me/mo
 ## Features
 
 - Supports Java 17 and Kotlin 2.1 (K2 compiler)
-- Support running main functions other than the Main.kt/.java class/file
+- Execution of programs, support running main functions other than the Main.kt/.java class/file
+- Open project from /storage/emulated/0/ directory
+- Darcula (Default), Dracula 2, OneDark Pro color scheme and syntax highlight
+- Supports projects created from Intellij Idea and gradle init command whether application, library or module
 - Plugin support (plugins can be written in Java or Kotlin)
 - Git integration
 - Fast incremental compilation
 - Integrated dependency management
 - Code completion for Java and Kotlin
 - Google Gemini AI chatbot
-- Syntax highlighting
-- Execution of programs
 - Code navigation
-- Support for custom fonts and ligatures
+- Support for custom fonts, symbol view, and ligatures
 - Highly customizable editor
-- Google Java Format and ktfmt integration
+- Google Java Format, ktfmt integration, and custom formatter
 - Support for plugins
 - Highly customizable
 - High-performance code editor (Sora Editor)
-- Code navigation
-- Bytecode Disassembler
 - Backup and restore
 - Material You Design
 - Modern UI with prebuilt themes
 - Dark mode (and light mode)
+- Build speed optimization is better than the previous version which has been discontinued
 
 ## Benefits
 
@@ -80,9 +79,9 @@ If you appreciate the work that has been put into Kartika IDE, you can donate to
 
 ## Acknowledgment
 
-We would like to thank the following projects and their maintainers for their work, which has been used in Cosmic IDE:
+We would like to thank the following projects and their maintainers for their work, which has been used in Kartika IDE:
 
-- [Cosmic-IDE](https://github.com/Cosmic-Ide/Cosmic-IDE.git) for base app, licensed under the GNU GPL-v3 License
+- [Cosmic-IDE](https://github.com/Cosmic-Ide/Cosmic-IDE.git) Original application, licensed under the GNU GPL-v3 License
 - [Iyxan23](https://github.com/Iyxan23) for the app icon!
 - [Sora Editor](https://github.com/Rosemoe/sora-editor) licensed under the GNU Lesser General Public License v2.1
 - [CodeAssist Kotlin code completion](https://github.com/tyron12233/CodeAssist/tree/main/kotlin-completion) licensed under GNU GPL-v3
