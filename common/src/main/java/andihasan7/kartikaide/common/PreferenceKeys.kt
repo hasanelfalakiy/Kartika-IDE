@@ -34,10 +34,12 @@ object PreferenceKeys {
     const val EDITOR_EXP_JAVA_COMPLETION = "experimental_java_completion"
     const val KOTLIN_REALTIME_ERRORS = "kotlin_realtime_errors"
     const val EDITOR_FONT = "editor_font"
+    const val EDITOR_COLOR_SCHEME = "editor_color_scheme"
     const val BRACKET_PAIR_AUTOCOMPLETE = "bracket_pair_autocomplete"
     const val QUICK_DELETE = "quick_delete"
     const val STICKY_SCROLL = "sticky_scroll"
     const val DISABLE_SYMBOLS_VIEW = "disable_symbols_view"
+    const val EDITOR_CUSTOM_SYMBOLS = "editor_custom_symbols"
 
     // Formatter
     const val FORMATTER_KTFMT_STYLE = "ktfmt_style"

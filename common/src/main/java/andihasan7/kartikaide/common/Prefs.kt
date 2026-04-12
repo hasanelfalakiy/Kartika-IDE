@@ -117,6 +117,9 @@ object Prefs {
     val disableSymbolsView: Boolean
         get() = prefs.getBoolean(PreferenceKeys.DISABLE_SYMBOLS_VIEW, false)
 
+    val customSymbols: String
+        get() = prefs.getString(PreferenceKeys.EDITOR_CUSTOM_SYMBOLS, "→,\t,(,),{,},[,],;,.,,") ?: "→,\t,(,),{,},[,],;,.,,"
+
     val experimentalJavaCompletion: Boolean
         get() = prefs.getBoolean(PreferenceKeys.EDITOR_EXP_JAVA_COMPLETION, false)
 
@@ -138,6 +141,9 @@ object Prefs {
 
     val editorFont: String
         get() = prefs.getString(PreferenceKeys.EDITOR_FONT, "") ?: ""
+
+    val editorColorScheme: String
+        get() = prefs.getString(PreferenceKeys.EDITOR_COLOR_SCHEME, "darcula") ?: "darcula"
 
     val repositories: String
         get() = prefs.getString("repos", "") ?: """

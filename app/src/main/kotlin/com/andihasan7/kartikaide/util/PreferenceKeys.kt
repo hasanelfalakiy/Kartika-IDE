@@ -47,6 +47,7 @@ object PreferenceKeys {
     const val EDITOR_EXP_JAVA_COMPLETION = CommonKeys.EDITOR_EXP_JAVA_COMPLETION
     const val KOTLIN_REALTIME_ERRORS = CommonKeys.KOTLIN_REALTIME_ERRORS
     const val EDITOR_FONT = CommonKeys.EDITOR_FONT
+    const val EDITOR_COLOR_SCHEME = CommonKeys.EDITOR_COLOR_SCHEME
     const val BRACKET_PAIR_AUTOCOMPLETE = CommonKeys.BRACKET_PAIR_AUTOCOMPLETE
     const val QUICK_DELETE = CommonKeys.QUICK_DELETE
     const val STICKY_SCROLL = CommonKeys.STICKY_SCROLL

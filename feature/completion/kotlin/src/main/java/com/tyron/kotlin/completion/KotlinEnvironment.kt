@@ -553,7 +553,6 @@ data class KotlinEnvironment(
             return KotlinEnvironment(
                 KotlinCoreEnvironment.createForProduction(
                     disposable,
-                    configFiles = EnvironmentConfigFiles.JVM_CONFIG_FILES,
                     configuration =
                     CompilerConfiguration().apply {
                         logTime("compilerConfig") {
@@ -574,15 +573,17 @@ data class KotlinEnvironment(
                                 CommonConfigurationKeys.MODULE_NAME,
                                 JvmProtoBufUtil.DEFAULT_MODULE_NAME
                             )
-                            put(JVMConfigurationKeys.USE_PSI_CLASS_FILES_READING, false)
+                            // Fix: Use PSI instead of binary reading to avoid KotlinBinaryClassCache NPE on Android
+                            put(JVMConfigurationKeys.USE_PSI_CLASS_FILES_READING, true)
                             put(JVMConfigurationKeys.VALIDATE_IR, false)
                             put(JVMConfigurationKeys.DISABLE_CALL_ASSERTIONS, true)
                             put(JVMConfigurationKeys.DISABLE_PARAM_ASSERTIONS, true)
                             put(JVMConfigurationKeys.DISABLE_RECEIVER_ASSERTIONS, true)
-                            put(CommonConfigurationKeys.INCREMENTAL_COMPILATION, true)
+                            put(CommonConfigurationKeys.INCREMENTAL_COMPILATION, false)
                             put(JVMConfigurationKeys.USE_FAST_JAR_FILE_SYSTEM, Prefs.useFastJarFs)
-                            put(CommonConfigurationKeys.USE_FIR, true)
-                            put(CommonConfigurationKeys.USE_LIGHT_TREE, true)
+                            // Disable FIR for now as we are using FE1.0 APIs (BindingContext, etc.)
+                            put(CommonConfigurationKeys.USE_FIR, false)
+                            put(CommonConfigurationKeys.USE_LIGHT_TREE, false)
                             put(CommonConfigurationKeys.PARALLEL_BACKEND_THREADS, 10)
                             put(CommonConfigurationKeys.USE_FIR_EXTENDED_CHECKERS, false)
 
@@ -614,24 +615,29 @@ data class KotlinEnvironment(
                                 classpath
                             )
                         }
-                    }
+                    },
+                    configFiles = EnvironmentConfigFiles.JVM_CONFIG_FILES
                 )
             )
         }
 
+        private val cachedEnvironments = ConcurrentHashMap<Project, KotlinEnvironment>()
+
         fun get(module: Project): KotlinEnvironment {
-            val jars = module.libDir.walk().filter { it.extension == "jar" }.toMutableList()
-            jars.addAll(FileUtil.classpathDir.walk().filter { it.extension == "jar" })
-            val environment = with(jars)
-            environment.kotlinEnvironment.updateClasspath(
-                jars.map { JvmClasspathRoot(it) }
-            )
-            module.srcDir.walk()
-                .filter { it.extension == "kt" }
-                .forEach {
-                    environment.updateKotlinFile(it.absolutePath, it.readText())
-                }
-            return environment
+            return cachedEnvironments.getOrPut(module) {
+                val jars = module.libDir.walk().filter { it.extension == "jar" }.toMutableList()
+                jars.addAll(FileUtil.classpathDir.walk().filter { it.extension == "jar" })
+                val environment = with(jars)
+                environment.kotlinEnvironment.updateClasspath(
+                    jars.map { JvmClasspathRoot(it) }
+                )
+                module.srcDir.walk()
+                    .filter { it.extension == "kt" }
+                    .forEach {
+                        environment.updateKotlinFile(it.absolutePath, it.readText())
+                    }
+                environment
+            }
         }
     }
 }
