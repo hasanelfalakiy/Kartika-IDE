@@ -47,6 +47,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
+import com.widget.treeview.Node
 import com.widget.treeview.OnTreeItemClickListener
 import com.widget.treeview.TreeUtils.toNodeList
 import com.widget.treeview.TreeViewAdapter
@@ -214,24 +215,47 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     }
 
     private fun initTreeView() {
-        binding.included.recycler.apply {
-            val nodes = project.root.toNodeList()
-            layoutManager = LinearLayoutManager(context)
-            adapter = TreeViewAdapter(context, nodes).apply {
-                setOnItemClickListener(object : OnTreeItemClickListener {
-                    override fun onItemClick(view: View, position: Int) {
-                        val file = nodes[position].value
-                        if (file.exists().not() || file.isDirectory) return
-                        if (file.isFile) {
-                            fileViewModel.addFile(file)
-                        }
-                    }
-
-                    override fun onItemLongClick(view: View, position: Int) {
-                        showTreeViewMenu(view, nodes[position].value)
-                    }
-                })
+        val recyclerView = binding.included.recycler
+        val currentAdapter = recyclerView.adapter as? TreeViewAdapter
+        val expandedPaths = mutableSetOf<String>()
+        
+        currentAdapter?.getNodes()?.forEach { node ->
+            if (node.isExpanded) {
+                expandedPaths.add(node.value.absolutePath)
             }
+        }
+
+        val nodes = project.root.toNodeList()
+        val adapter = TreeViewAdapter(requireContext(), nodes)
+        recyclerView.layoutManager = LinearLayoutManager(requireContext())
+        recyclerView.adapter = adapter
+        
+        adapter.setOnItemClickListener(object : OnTreeItemClickListener {
+            override fun onItemClick(view: View, position: Int) {
+                val file = adapter.getNodes()[position].value
+                if (file.exists().not() || file.isDirectory) return
+                if (file.isFile) {
+                    fileViewModel.addFile(file)
+                }
+            }
+
+            override fun onItemLongClick(view: View, position: Int) {
+                showTreeViewMenu(view, adapter.getNodes()[position].value)
+            }
+        })
+
+        // Restore expanded state
+        restoreExpandedState(adapter, expandedPaths)
+    }
+
+    private fun restoreExpandedState(adapter: TreeViewAdapter, expandedPaths: Set<String>) {
+        var i = 0
+        while (i < adapter.itemCount) {
+            val node = adapter.getNodes()[i]
+            if (node.value.isDirectory && expandedPaths.contains(node.value.absolutePath)) {
+                adapter.expandDirectory(node, i)
+            }
+            i++
         }
     }
 
@@ -654,10 +678,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private fun navigateToCompileInfoFragment(clazz: String? = null) {
         ProjectHandler.clazz = clazz
         editorAdapter.saveAll()
-        parentFragmentManager.commit {
-            add(R.id.fragment_container, CompileInfoFragment())
-            addToBackStack(null)
-        }
+        CompileInfoFragment().show(parentFragmentManager, "compile_info")
     }
 
     private fun navigateToSettingsFragment() {
@@ -686,8 +707,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 }
 
                 R.id.close_all_tab -> fileViewModel.removeAll()
-                R.id.close_left_tab -> fileViewModel.removeLeft(pos - 1)
-                R.id.close_right_tab -> fileViewModel.removeRight(pos + 1)
                 R.id.close_other_tab -> fileViewModel.removeOthers(fileViewModel.files.value!![position])
             }
             true
@@ -807,7 +826,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                             if (name.isEmpty() || name == file.name) return@setPositiveButton
                             
                             val oldPath = file.absolutePath
+                            val oldName = file.nameWithoutExtension
                             val newFile = file.parentFile!!.resolve(name)
+                            val newName = newFile.nameWithoutExtension
                             
                             // 1. Save all files before rename to avoid saving to old path
                             editorAdapter.saveAll()
@@ -823,13 +844,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                 // 2. Update paths in ViewModel IMMEDIATELY for any renamed file/folder
                                 fileViewModel.updatePaths(oldPath, newFile.absolutePath)
                                 
-                                // Update packages recursively
+                                // Update packages and classes recursively
                                 lifecycleScope.launch(Dispatchers.IO) {
                                     if (newFile.isDirectory) {
                                         newFile.walkTopDown().forEach { child ->
                                             updatePackageDeclaration(child)
                                         }
                                     } else {
+                                        updateClassDeclaration(newFile, oldName, newName)
                                         updatePackageDeclaration(newFile)
                                     }
                                     
@@ -916,6 +938,34 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 lines.add(insertIndex + 1, "")
             }
             file.writeText(lines.joinToString("\n"))
+        }
+    }
+
+    private fun updateClassDeclaration(file: File, oldName: String, newName: String) {
+        if (!file.isFile || (file.extension != "java" && file.extension != "kt")) return
+        if (oldName == newName) return
+
+        val content = try {
+            file.readText()
+        } catch (e: Exception) {
+            return
+        }
+
+        val newContent = if (file.extension == "java") {
+            // Java: match class, interface, enum, or @interface followed by oldName
+            content.replace(Regex("""\b(class|interface|enum|@interface)\s+$oldName\b"""), "$1 $newName")
+        } else {
+            // Kotlin: match class, interface, or object followed by oldName
+            // Note: data class and annotation class are handled by matching 'class'
+            content.replace(Regex("""\b(class|interface|object)\s+$oldName\b"""), "$1 $newName")
+        }
+
+        if (content != newContent) {
+            try {
+                file.writeText(newContent)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

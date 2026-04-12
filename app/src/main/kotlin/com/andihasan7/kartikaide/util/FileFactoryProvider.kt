@@ -57,7 +57,8 @@ object FileFactoryProvider {
                 CommonConfigurationKeys.MODULE_NAME,
                 JvmProtoBufUtil.DEFAULT_MODULE_NAME
             )
-            put(JVMConfigurationKeys.USE_PSI_CLASS_FILES_READING, false)
+            // Fix: Use PSI instead of binary reading to avoid KotlinBinaryClassCache NPE on Android
+            put(JVMConfigurationKeys.USE_PSI_CLASS_FILES_READING, true)
             val languageVersionSettings = LanguageVersionSettingsImpl(
                 LanguageVersion.fromVersionString(Prefs.kotlinVersion)!!,
                 ApiVersion.createByLanguageVersion(LanguageVersion.fromVersionString(Prefs.kotlinVersion)!!),

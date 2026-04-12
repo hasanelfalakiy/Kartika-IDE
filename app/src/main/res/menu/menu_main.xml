@@ -34,10 +34,27 @@
         app:showAsAction="always"
         tools:ignore="AlwaysShowAction" />
 
+    <item android:title="@string/advanced">
+        <menu>
+            <item
+                android:id="@+id/arguments"
+                android:title="@string/program_arguments" />
+        </menu>
+    </item>
 
     <item
-        android:id="@+id/action_settings"
-        android:title="@string/action_settings"
+        android:id="@+id/action_chat"
+        android:title="@string/action_chat"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/dependency_manager"
+        android:title="@string/dependency_manager"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_git"
+        android:title="@string/git"
         app:showAsAction="never" />
 
     <item
@@ -46,24 +63,8 @@
         app:showAsAction="never" />
 
     <item
-        android:id="@+id/dependency_manager"
-        android:title="@string/dependency_manager" />
-
-    <item
-        android:id="@+id/action_chat"
-        android:title="@string/action_chat" />
-
-    <item
-        android:id="@+id/action_git"
-        android:title="@string/git" />
-
-    <item android:title="@string/advanced">
-
-        <menu>
-            <item
-                android:id="@+id/arguments"
-                android:title="@string/program_arguments" />
-        </menu>
-    </item>
+        android:id="@+id/action_settings"
+        android:title="@string/action_settings"
+        app:showAsAction="never" />
 
 </menu>

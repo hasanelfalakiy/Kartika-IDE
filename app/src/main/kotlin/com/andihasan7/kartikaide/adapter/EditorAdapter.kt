@@ -51,14 +51,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
     init {
         fileViewModel.files.observe(fragment.viewLifecycleOwner) { files ->
             val project = ProjectHandler.getProject()
-            
-            // Update existing fragments paths BEFORE changing IDs
-            if (files.size == ids.size) {
-                ids.forEachIndexed { index, oldId ->
-                    fragments[oldId]?.updateFile(files[index])
-                }
-            }
-
+            val oldIds = ids
             val newIds = files.map { file ->
                 if (project != null && file.absolutePath.startsWith(project.root.absolutePath)) {
                     file.absolutePath.removePrefix(project.root.absolutePath).hashCode().toLong()
@@ -66,22 +59,39 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                     file.absolutePath.hashCode().toLong()
                 }
             }
-            
-            ids = newIds
-            
-            // Sinkronisasi ulang fragmen yang masih ada
-            fragments.forEach { (id, fragment) ->
-                val index = ids.indexOf(id)
-                if (index != -1) {
-                    val file = files[index]
-                    val oldPath = fragment.file.absolutePath
-                    fragment.updateFile(file)
-                    // Jika path berubah (karena rename), muat ulang teks untuk menampilkan package baru
-                    if (oldPath != file.absolutePath) {
-                        fragment.reloadText()
+
+            // Update fragments mapping and internal file references
+            val newFragments = mutableMapOf<Long, CodeEditorFragment>()
+            if (files.size == oldIds.size) {
+                // Probable rename or reorder: mapping by index
+                oldIds.forEachIndexed { index, oldId ->
+                    fragments[oldId]?.let { frag ->
+                        val newId = newIds[index]
+                        val newFile = files[index]
+                        val oldPath = frag.file.absolutePath
+                        
+                        frag.updateFile(newFile)
+                        newFragments[newId] = frag
+                        
+                        if (oldPath != newFile.absolutePath) {
+                            frag.reloadText()
+                        }
+                    }
+                }
+            } else {
+                // Size changed: mapping by stable ID
+                newIds.forEachIndexed { index, newId ->
+                    val frag = fragments[newId] ?: fragments.values.find { it.file.absolutePath == files[index].absolutePath }
+                    if (frag != null) {
+                        frag.updateFile(files[index])
+                        newFragments[newId] = frag
                     }
                 }
             }
+            
+            fragments.clear()
+            fragments.putAll(newFragments)
+            ids = newIds
         }
         System.loadLibrary("android-tree-sitter")
     }
@@ -90,6 +100,9 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
     override fun createFragment(position: Int): Fragment {
         val id = getItemId(position)
+        // If we already have a migrated fragment, it will be in the map but 
+        // ViewPager2 might still call createFragment if it was cleared from its internal state.
+        // However, FragmentStateAdapter expects a NEW fragment here.
         val fragment = CodeEditorFragment().apply {
             arguments = Bundle().apply {
                 putSerializable("file", fileViewModel.files.value!![position])
@@ -118,6 +131,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
     fun refreshSettings() {
         fragments.values.forEach { it.refreshSettings() }
+
     }
 
     fun reloadAll() {
@@ -167,10 +181,18 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                 }
                 symbolViewContainer.visibility = View.VISIBLE
                 symbolView.bindEditor(editor)
-                symbolView.addSymbols(
-                    arrayOf("→", "(", ")", "{", "}", "[", "]", ";", ",", "."),
-                    arrayOf("\t", "(", ")", "{", "}", "[", "]", ";", ",", ".")
-                )
+                
+                // Clear existing symbols to prevent accumulation/duplication
+                symbolView.removeSymbols()
+                
+                val rawSymbols = Prefs.customSymbols.split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                
+                val symbols = rawSymbols.map { if (it == "→") "\t" else it }.toTypedArray()
+                val displays = rawSymbols.toTypedArray()
+                
+                symbolView.addSymbols(displays, symbols)
             }
         }
 
@@ -179,10 +201,11 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             when (file.extension) {
                 "java" -> {
                     editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
+                    if (::eventReceiver.isInitialized) eventReceiver.unsubscribe()
                     eventReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
                 }
                 "kt", "kts" -> {
-                    if (editor.editorLanguage is KotlinLanguage) return
+                    // Re-set even if it's already KotlinLanguage to ensure theme is applied correctly
                     editor.setEditorLanguage(KotlinLanguage(editor, project, file))
                 }
                 "class" -> {
@@ -238,6 +261,8 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         fun refreshSettings() {
             if (::editor.isInitialized) {
                 editor.updateSettings()
+                // Force update language to refresh TreeSitter theme mapping
+                setEditorLanguage()
                 setupSymbols()
             }
         }
@@ -246,6 +271,8 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             super.onConfigurationChanged(newConfig)
             if (::editor.isInitialized) {
                 setColorScheme()
+                // Update language on config change as well
+                setEditorLanguage()
             }
         }
 

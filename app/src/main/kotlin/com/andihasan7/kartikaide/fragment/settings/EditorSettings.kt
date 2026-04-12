@@ -21,9 +21,11 @@ import de.Maxr1998.modernpreferences.helpers.editText
 import de.Maxr1998.modernpreferences.helpers.onCheckedChange
 import de.Maxr1998.modernpreferences.helpers.seekBar
 import de.Maxr1998.modernpreferences.helpers.switch
+import de.Maxr1998.modernpreferences.helpers.singleChoice
+import de.Maxr1998.modernpreferences.preferences.choice.SelectionItem
 import com.andihasan7.kartikaide.R
 import andihasan7.kartikaide.common.Analytics
-import com.andihasan7.kartikaide.util.PreferenceKeys
+import andihasan7.kartikaide.common.PreferenceKeys
 
 class EditorSettings(private val activity: FragmentActivity) : SettingsProvider {
 
@@ -49,6 +51,16 @@ class EditorSettings(private val activity: FragmentActivity) : SettingsProvider 
                 min = 2
                 default = 4
                 showTickMarks = true
+            }
+
+            singleChoice(PreferenceKeys.EDITOR_COLOR_SCHEME, listOf(
+                SelectionItem("darcula", "Default (Darcula)"),
+                SelectionItem("dracula_2", "Dracula 2"),
+                SelectionItem("onedark", "OneDark Pro")
+            )) {
+                title = "Color Scheme"
+                summary = "Choose the editor color scheme"
+                initialSelection = "darcula"
             }
 
             switch(PreferenceKeys.EDITOR_EXP_JAVA_COMPLETION) {
@@ -152,6 +164,12 @@ class EditorSettings(private val activity: FragmentActivity) : SettingsProvider 
                 title = "Disable symbols view"
                 summary = "If enabled, symbols view above will be disabled"
                 defaultValue = false
+            }
+
+            editText(PreferenceKeys.EDITOR_CUSTOM_SYMBOLS) {
+                title = "Custom symbols"
+                summary = "Comma separated list of symbols to show in symbols view"
+                defaultValue = "→,(,),{,},[,],;,.,"
             }
         }
     }
