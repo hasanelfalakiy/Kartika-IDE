@@ -10,6 +10,7 @@
  *
  *  CodeAssist is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
+ *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
@@ -28,17 +29,17 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.LightVirtualFile
 import org.jetbrains.kotlin.idea.KotlinFileType
-import org.jetbrains.kotlin.psi.KtExpression
+import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 
 class KotlinFile(val name: String, val kotlinFile: KtFile) {
 
     fun elementAt(line: Int, character: Int): PsiElement? =
-        kotlinFile.findElementAt(offsetFor(line, character))?.let { expressionFor(it) }
+        kotlinFile.findElementAt(offsetFor(line, character))?.let { elementFor(it) }
 
 
     fun elementAt(offset: Int): PsiElement? =
-        kotlinFile.findElementAt(offset)?.let { expressionFor(it) }
+        kotlinFile.findElementAt(offset)?.let { elementFor(it) }
 
     fun insert(content: String, atLine: Int, atCharacter: Int): KotlinFile {
         val caretPositionOffset = offsetFor(atLine, atCharacter)
@@ -55,8 +56,8 @@ class KotlinFile(val name: String, val kotlinFile: KtFile) {
     fun offsetFor(line: Int, character: Int) =
         (kotlinFile.viewProvider.document?.getLineStartOffset(line) ?: 0) + character
 
-    private tailrec fun expressionFor(element: PsiElement?): PsiElement? =
-        if (element == null || element is KtExpression) element else expressionFor(element.parent)
+    private tailrec fun elementFor(element: PsiElement?): PsiElement? =
+        if (element == null || element is KtElement) element else elementFor(element.parent)
 
     companion object {
         fun from(project: Project, name: String, content: String) =

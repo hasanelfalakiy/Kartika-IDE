@@ -7,11 +7,18 @@
 
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="app_name">Kartika IDE</string>
-    <string name="action_settings">Settings</string>
+    <string name="dev_maintener">Andi Hasan A</string>
+    <string name="sub_author">Android Developer</string>
+
+    <string name="copyright" translatable="false">Copyright \u24b8 2026–%1$s</string>
 
     <!-- Strings used for fragments for navigation -->
+    <string name="sub_title">Run Kotlin and Java program code on Android like in Intellij IDEA</string>
+    <string name="dev">Currently Developed &amp; Maintained by:</string>
     <string name="restore_project_zip">Restore Project .zip</string>
-    <string name="app_theme">App theme</string>
+    <string name="action_settings">Settings</string>
+    <string name="system_ui">System UI</string>
+    <string name="share_app">Share App</string>
 
     <string name="projects">Projects</string>
     <string name="new_project">New Project</string>
@@ -105,4 +112,11 @@
     <string name="gemini_3_flash_preview">Gemini 3 Flash Preview</string>
     <string name="terminal">Terminal</string>
     <string name="open_project">Open Project</string>
+    <string name="img_dev">Image of Developer/Maintener</string>
+    <string name="share_note">Share Kartika IDE with anyone</string>
+    <string name="about">About</string>
+    <string name="share_description">Kartika IDE helps you develop and run lightweight, fast Kotlin and Java code, just like Intellij IDEA, with a wide range of features and benefits. \n\n### Download it here:
+        https://github.com/hasanelfalakiy/Kartika-IDE/releases/latest</string>
+<!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
 </resources>

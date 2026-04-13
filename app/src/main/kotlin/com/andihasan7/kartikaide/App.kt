@@ -103,7 +103,7 @@ class App : Application() {
             }
 
             // Priority 3: Delayed Hook initialization
-            delay(1000) // Reduced delay for better feel
+            delay(1000) 
             try {
                 setupHooks()
                 loadPlugins()
@@ -150,7 +150,6 @@ class App : Application() {
     }
 
     fun extractFiles() {
-        // Optimized: Check version instead of calculating checksums on every startup
         val currentVersion = BuildConfig.VERSION_CODE
         val lastExtractedVersion = Prefs.lastExtractedVersion
         val forceUpdate = currentVersion != lastExtractedVersion
@@ -182,8 +181,6 @@ class App : Application() {
         }
     }
 
-    // Removed the heavy calculateChecksum function from the startup path
-
     fun disableModules() {
         JavacConfigProvider.disableModules()
     }
@@ -193,30 +190,25 @@ class App : Application() {
         FileProviderRegistry.getInstance().addFileProvider(fileProvider)
         GrammarRegistry.getInstance().loadGrammars("textmate/languages.json")
 
-        // MUAT TEMA SECARA EKSPLISIT
         val registry = ThemeRegistry.getInstance()
-        try {
-            registry.loadTheme(ThemeModel(
-                IThemeSource.fromInputStream(assets.open("textmate/darcula.json"), "darcula.json", null),
-                "darcula"
-            ))
-            registry.loadTheme(ThemeModel(
-                IThemeSource.fromInputStream(assets.open("textmate/dracula_2.json"), "dracula_2.json", null),
-                "dracula_2"
-            ))
-            registry.loadTheme(ThemeModel(
-                IThemeSource.fromInputStream(assets.open("textmate/onedark.json"), "onedark.json", null),
-                "onedark"
-            ))
-            // Tambahkan QuietLight jika ada
-            if (assets.list("textmate")?.contains("QuietLight.tmTheme.json") == true) {
+        
+        fun safeLoad(assetPath: String, themeName: String) {
+            try {
                 registry.loadTheme(ThemeModel(
-                    IThemeSource.fromInputStream(assets.open("textmate/QuietLight.tmTheme.json"), "QuietLight.tmTheme.json", null),
-                    "QuietLight"
+                    IThemeSource.fromInputStream(assets.open(assetPath), assetPath, null),
+                    themeName
                 ))
+            } catch (e: Throwable) {
+                Log.e("App", "Failed to load theme: $themeName from $assetPath. Crash prevented.", e)
             }
-        } catch (e: Exception) {
-            Log.e("App", "Failed to load themes", e)
+        }
+
+        safeLoad("textmate/darcula.json", "darcula")
+        safeLoad("textmate/dracula_2.json", "dracula_2")
+        safeLoad("textmate/onedark.json", "onedark")
+        
+        if (assets.list("textmate")?.contains("QuietLight.tmTheme.json") == true) {
+            safeLoad("textmate/QuietLight.tmTheme.json", "QuietLight")
         }
     }
 
@@ -271,7 +263,11 @@ class App : Application() {
                 }
             }
         }
-        ThemeRegistry.getInstance().setTheme(themeName)
+        try {
+            ThemeRegistry.getInstance().setTheme(themeName)
+        } catch (e: Exception) {
+            Log.e("App", "Failed to apply theme: $themeName", e)
+        }
     }
 
     fun loadPlugins() {

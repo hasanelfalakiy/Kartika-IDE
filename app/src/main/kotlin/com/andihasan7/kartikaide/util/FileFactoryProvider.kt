@@ -18,6 +18,7 @@ import android.util.Log
 import com.intellij.core.JavaCoreApplicationEnvironment
 import com.intellij.core.JavaCoreProjectEnvironment
 import com.intellij.lang.java.JavaLanguage
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiJavaFile
 import com.intellij.psi.PsiManager
@@ -34,6 +35,7 @@ import org.jetbrains.kotlin.config.JVMConfigurationKeys
 import org.jetbrains.kotlin.config.LanguageVersion
 import org.jetbrains.kotlin.config.LanguageVersionSettingsImpl
 import org.jetbrains.kotlin.idea.KotlinFileType
+import org.jetbrains.kotlin.load.kotlin.KotlinBinaryClassCache
 import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
 import org.jetbrains.kotlin.psi.KtFile
 
@@ -75,7 +77,23 @@ object FileFactoryProvider {
             )
         },
         EnvironmentConfigFiles.JVM_CONFIG_FILES
-    )
+    ).apply {
+        // Fix: Initialize KotlinBinaryClassCache manually if not already present in the application
+        val application = ApplicationManager.getApplication()
+        if (application != null) {
+            if (application.getService(KotlinBinaryClassCache::class.java) == null) {
+                try {
+                    val componentManagerClass = Class.forName("com.intellij.openapi.components.ComponentManager")
+                    val registerServiceMethod = componentManagerClass.getDeclaredMethod("registerService", Class::class.java, Class::class.java)
+                    registerServiceMethod.isAccessible = true
+                    registerServiceMethod.invoke(application, KotlinBinaryClassCache::class.java, KotlinBinaryClassCache::class.java)
+                    Log.i(TAG, "Registered KotlinBinaryClassCache application service")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to register KotlinBinaryClassCache service", e)
+                }
+            }
+        }
+    }
 
     val fileFactory by lazy {
         PsiFileFactory.getInstance(env.project)

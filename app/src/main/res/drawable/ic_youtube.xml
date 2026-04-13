@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ This file is part of Cosmic IDE.
+  ~ Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+  ~ Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+  ~ You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
+  -->
+
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:tint="?attr/colorPrimary"
+    android:viewportWidth="1024.000000"
+    android:viewportHeight="1024.000000">
+
+    <group
+        android:translateY="872.000000"
+        android:scaleX="0.100000"
+        android:scaleY="-0.100000">
+        <path
+            android:fillColor="@android:color/white"
+            android:strokeWidth="1"
+            android:pathData="M4340 7194 c-527 -10 -1130 -26 -1295 -34 -104 -5 -293 -14 -420 -20 -592 -28 -1110 -76 -1374 -129 -104 -21 -262 -71 -326 -103 -313 -157 -551 -424 -658 -738 -143 -417 -237 -1436 -237 -2560 0 -1124 94 -2143 237 -2560 107 -314 345 -581 658 -738 64 -32 222 -82 326 -103 264 -53 782 -101 1374 -129 127 -6 318 -15 425 -20 930 -46 3210 -46 4140 0 107 5 299 14 425 20 592 28 1110 76 1374 129 104 21 262 71 326 103 313 157 551 424 658 738 143 417 237 1436 237 2560 0 1124 -94 2143 -237 2560 -107 314 -345 581 -658 738 -65 32 -223 82 -327 103 -260 52 -778 101 -1368 129 -118 5 -314 14 -435 20 -536 25 -2235 45 -2845 34z m115 -2276 c198 -113 509 -290 690 -393 182 -103 443 -251 580 -330 138 -78 351 -200 475 -270 464 -264 540 -308 540 -315 0 -7 -49 -36 -540 -315 -118 -67 -325 -185 -460 -262 -135 -77 -450 -256 -700 -398 -250 -142 -567 -323 -704 -401 -138 -79 -253 -141 -258 -138 -9 6 -11 3018 -2 3027 4 4 10 5 13 3 3 -2 168 -96 366 -208z" />
+    </group>
+</vector>
