@@ -3,6 +3,7 @@
  *
  *  CodeAssist is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
+ *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
@@ -38,6 +39,10 @@ import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.editor.EditorCompletionItem
 import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.FileUtil
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.extensions.ExtensionPoint
+import com.intellij.openapi.extensions.Extensions
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.util.Disposer
 import org.jetbrains.kotlin.analyzer.AnalysisResult
 import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
@@ -78,6 +83,7 @@ import org.jetbrains.kotlin.idea.FrontendInternals
 import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.lexer.KtKeywordToken
 import org.jetbrains.kotlin.lexer.KtTokens
+import org.jetbrains.kotlin.load.kotlin.KotlinBinaryClassCache
 import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtExpression
@@ -153,7 +159,7 @@ data class KotlinEnvironment(
             location: CompilerMessageSourceLocation?
         ) {
             if (location == null) {
-                println(message)
+                Log.d("KotlinEnvironment", message)
                 return
             }
             if (severity.isError) {
@@ -161,7 +167,7 @@ data class KotlinEnvironment(
             }
             val kotlinFile = kotlinFiles[location.path.substring(1)]
             if (kotlinFile == null) {
-                println("no kotlin file for ${location.path}")
+                Log.d("KotlinEnvironment", "no kotlin file for ${location.path}")
                 return
             }
             val issue = CodeIssue(
@@ -175,10 +181,12 @@ data class KotlinEnvironment(
     }
 
     init {
-        kotlinEnvironment.configuration.put(
-            CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY,
-            messageCollector
-        )
+        kotlinEnvironment.configuration.get(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY) ?: run {
+            kotlinEnvironment.configuration.put(
+                CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY,
+                messageCollector
+            )
+        }
     }
 
     var analysis: TopDownAnalysisContext? = null
@@ -203,37 +211,40 @@ data class KotlinEnvironment(
 
     fun complete(file: KotlinFile, line: Int, character: Int): List<CompletionItem> {
         currentItemCount = 0
-        var list: List<CompletionItem>
         val originalFile = file.kotlinFile
-        analysisOf(kotlinFiles.values.map { it.kotlinFile }, file.kotlinFile)
+        val inserted = file.insert(COMPLETION_SUFFIX, line, character)
+        
+        val filesToAnalyze = kotlinFiles.values.map {
+            if (it.kotlinFile.name == originalFile.name) inserted.kotlinFile else it.kotlinFile
+        }
 
-        with(file.insert(COMPLETION_SUFFIX, line, character)) {
-            kotlinFiles[originalFile.name] = this
-            val position = elementAt(line, character)
-            val prefix = position?.let { getPrefix(it) } ?: ""
+        val position = inserted.elementAt(line, character)
+        val prefix = position?.let { getPrefix(it) } ?: ""
 
-            val reference = (position?.parent as? KtSimpleNameExpression)?.mainReference
-            println("reference: $reference")
-
-            list = try {
-                position?.let { element ->
-                    val descriptorInfo = descriptorsFrom(element, file.kotlinFile)
-                    val items = descriptorInfo.descriptors
-                        .sortedWith { a, b ->
-                            val x = a.name.toString()
-                            val y = b.name.toString()
-                            x.compareTo(y)
-                        }
-                        .mapNotNull { descriptor ->
-                            completionVariantFor(prefix, descriptor)
-                        }
-                    if (items.size > 50) items.subList(0, 50) else items +
-                            keywordsCompletionVariants(KtTokens.KEYWORDS, prefix)
-                } ?: emptyList()
-            } catch (e: Exception) {
-                Log.e("KotlinEnvironment", "Failed to get descriptors", e)
+        val list = try {
+            position?.let { element ->
+                Log.d("KotlinEnvironment", "Completing at element: ${element.text} of type ${element.javaClass.simpleName}, prefix: '$prefix'")
+                val descriptorInfo = descriptorsFrom(element, inserted.kotlinFile, filesToAnalyze)
+                Log.d("KotlinEnvironment", "Found ${descriptorInfo.descriptors.size} descriptors")
+                val items = descriptorInfo.descriptors
+                    .sortedWith { a, b ->
+                        val x = a.name.toString()
+                        val y = b.name.toString()
+                        x.compareTo(y)
+                    }
+                    .mapNotNull { descriptor ->
+                        completionVariantFor(prefix, descriptor)
+                    }
+                val keywords = keywordsCompletionVariants(KtTokens.KEYWORDS, prefix)
+                val totalItems = items + keywords
+                if (totalItems.size > 100) totalItems.subList(0, 100) else totalItems
+            } ?: run {
+                Log.d("KotlinEnvironment", "No element found at $line:$character")
                 emptyList()
             }
+        } catch (e: Exception) {
+            Log.e("KotlinEnvironment", "Failed to get descriptors", e)
+            emptyList()
         }
         return list
     }
@@ -263,7 +274,7 @@ data class KotlinEnvironment(
             tailName = tail.substring(spacePosition + 1)
         }
 
-        return if (name.startsWith(prefix)) {
+        return if (name.startsWith(prefix, ignoreCase = true)) {
             EditorCompletionItem(name, tailName, prefix.length, completionText).kind(
                 when (descriptor) {
                     is ClassDescriptor -> CompletionItemKind.Class
@@ -291,7 +302,7 @@ data class KotlinEnvironment(
 
         // Iterate over the keywords and add the ones that match the prefix to the result
         for (token in keywords.types) {
-            if (token is KtKeywordToken && token.value.startsWith(prefix)) {
+            if (token is KtKeywordToken && token.value.startsWith(prefix, ignoreCase = true)) {
                 result.add(
                     EditorCompletionItem(
                         token.value,
@@ -306,14 +317,9 @@ data class KotlinEnvironment(
         return result
     }
 
-    private fun descriptorsFrom(element: PsiElement, current: KtFile): DescriptorInfo {
-        val files = kotlinFiles.values.map { it.kotlinFile }.toList()
-        val analysis = try {
-            analysisOf(files, current)
-        } catch (e: KotlinFrontEndException) {
-            Log.e("KotlinEnvironment", "KotlinFrontEndException during analysisOf", e)
-            return DescriptorInfo(false, emptyList())
-        }
+    private fun descriptorsFrom(element: PsiElement, current: KtFile, files: List<KtFile>): DescriptorInfo {
+        val analysis = analysisOf(files, current) ?: return DescriptorInfo(false, emptyList())
+
         return with(analysis) {
             logTime("referenceVariants") {
                 (referenceVariantsFrom(element)
@@ -341,15 +347,15 @@ data class KotlinEnvironment(
                                     }?.toList() ?: emptyList()
                                 }
 
-                                else -> analysisResult.bindingContext.get(
-                                    BindingContext.LEXICAL_SCOPE,
-                                    element as KtExpression
-                                )
-                                    ?.getContributedDescriptors(
+                                else -> (element as? KtExpression)?.let { expr ->
+                                    analysisResult.bindingContext.get(
+                                        BindingContext.LEXICAL_SCOPE,
+                                        expr
+                                    )?.getContributedDescriptors(
                                         DescriptorKindFilter.ALL,
                                         MemberScope.ALL_NAME_FILTER
-                                    )
-                                    ?.toList() ?: emptyList()
+                                    )?.toList()
+                                } ?: emptyList()
                             }
                         } catch (e: Exception) {
                             Log.e("KotlinEnvironment", "Failed to get descriptors from lexical scope", e)
@@ -362,61 +368,81 @@ data class KotlinEnvironment(
         }
     }
 
-    private val analyzerWithCompilerReport =
+    private val analyzerWithCompilerReport by lazy {
         AnalyzerWithCompilerReport(kotlinEnvironment.configuration)
+    }
 
 
-    fun analysisOf(files: List<KtFile>, current: KtFile): Analysis = synchronized(analysisLock) {
+    fun analysisOf(files: List<KtFile>, current: KtFile): Analysis? = synchronized(analysisLock) {
+        if (files.isEmpty()) return null
+        
         val project = files.first().project
         val bindingTrace = CliBindingTrace(project)
         var componentProvider: ComponentProvider? = null
-        analyzerWithCompilerReport.analyzeAndReport(files) {
-            componentProvider = logTime("componentProvider") {
-                TopDownAnalyzerFacadeForJVM.createContainer(
-                    kotlinEnvironment.project,
-                    listOf(),
-                    bindingTrace,
-                    kotlinEnvironment.configuration,
-                    kotlinEnvironment::createPackagePartProvider,
-                    { storageManager, _ ->
-                        FileBasedDeclarationProviderFactory(
-                            storageManager,
-                            files
-                        )
-                    }
+        try {
+            analyzerWithCompilerReport.analyzeAndReport(files) {
+                componentProvider = logTime("componentProvider") {
+                    TopDownAnalyzerFacadeForJVM.createContainer(
+                        kotlinEnvironment.project,
+                        listOf(),
+                        bindingTrace,
+                        kotlinEnvironment.configuration,
+                        kotlinEnvironment::createPackagePartProvider,
+                        { storageManager, _ ->
+                            FileBasedDeclarationProviderFactory(
+                                storageManager,
+                                files
+                            )
+                        }
+                    )
+                }
+                logTime("analyzeDeclarations") {
+                    analysis = componentProvider!!
+                        .getService(LazyTopDownAnalyzer::class.java)
+                        .analyzeDeclarations(TopDownAnalysisMode.TopLevelDeclarations, files)
+                }
+
+                val moduleDescriptor = componentProvider!!.getService(ModuleDescriptor::class.java)
+                AnalysisHandlerExtension.getInstances(project).find {
+                    it.analysisCompleted(
+                        project,
+                        moduleDescriptor,
+                        bindingTrace,
+                        listOf(current)
+                    ) != null
+                }
+
+                return@analyzeAndReport AnalysisResult.success(
+                    bindingTrace.bindingContext,
+                    componentProvider!!.getService(ModuleDescriptor::class.java)
                 )
             }
-            logTime("analyzeDeclarations") {
-                analysis = componentProvider!!
-                    .getService(LazyTopDownAnalyzer::class.java)
-                    .analyzeDeclarations(TopDownAnalysisMode.TopLevelDeclarations, files)
+            
+            val cp = componentProvider ?: return null
+            if (analyzerWithCompilerReport.hasErrors()) {
+                Log.w("KotlinEnvironment", "Analysis reported errors, completion might be incomplete")
             }
-
-            val moduleDescriptor = componentProvider!!.getService(ModuleDescriptor::class.java)
-            AnalysisHandlerExtension.getInstances(project).find {
-                it.analysisCompleted(
-                    project,
-                    moduleDescriptor,
-                    bindingTrace,
-                    listOf(current)
-                ) != null
+            return Analysis(cp, analyzerWithCompilerReport.analysisResult)
+        } catch (e: Throwable) {
+            // Ignore expected cancellations
+            if (e is ProcessCanceledException || e is InterruptedException) {
+                return null
             }
-
-            return@analyzeAndReport AnalysisResult.success(
-                bindingTrace.bindingContext,
-                componentProvider!!.getService(ModuleDescriptor::class.java)
-            )
+            
+            // KotlinFrontEndException can be common with invalid/incomplete code, log as warning
+            if (e is KotlinFrontEndException || e.toString().contains("KotlinFrontEndException")) {
+                Log.w("KotlinEnvironment", "Kotlin analysis failed (FrontEndException): ${e.message}")
+            } else {
+                Log.e("KotlinEnvironment", "Exception during analysisOf", e)
+            }
+            return null
         }
-        return Analysis(
-            componentProvider!!,
-            analyzerWithCompilerReport.analysisResult
-        )
     }
 
     @OptIn(FrontendInternals::class)
     private fun Analysis.referenceVariantsFrom(element: PsiElement): List<DeclarationDescriptor>? {
         val prefix = getPrefix(element)
-        val elementKt = element as? KtElement ?: return emptyList()
+        val elementKt = element as? KtElement ?: return null
         val bindingContext = analysisResult.bindingContext
         val resolutionFacade =
             KotlinResolutionFacade(
@@ -450,7 +476,7 @@ data class KotlinEnvironment(
                             DescriptorKindFilter.ALL,
                             nameFilter = { name ->
                                 if (prefix.isNotEmpty()) {
-                                    name.asString().startsWith(prefix)
+                                    name.asString().startsWith(prefix, ignoreCase = true)
                                 } else {
                                     true
                                 }
@@ -550,75 +576,131 @@ data class KotlinEnvironment(
             
             val disposable = Disposer.newDisposable()
 
-            return KotlinEnvironment(
-                KotlinCoreEnvironment.createForProduction(
-                    disposable,
-                    configuration =
-                    CompilerConfiguration().apply {
-                        logTime("compilerConfig") {
-                            put(JVMConfigurationKeys.NO_JDK, true)
-                            put(JVMConfigurationKeys.NO_REFLECT, true)
-                            put(
-                                CLIConfigurationKeys.PERF_MANAGER,
-                                object : CommonCompilerPerformanceManager("Profiling") {
-                                    override fun notifyAnalysisStarted() {
-                                        Log.i("Profiling", "Analysis started")
-                                    }
-
-                                    override fun notifyAnalysisFinished() {
-                                        Log.i("Profiling", "Analysis started")
-                                    }
-                                })
-                            put(
-                                CommonConfigurationKeys.MODULE_NAME,
-                                JvmProtoBufUtil.DEFAULT_MODULE_NAME
-                            )
-                            // Fix: Use PSI instead of binary reading to avoid KotlinBinaryClassCache NPE on Android
-                            put(JVMConfigurationKeys.USE_PSI_CLASS_FILES_READING, true)
-                            put(JVMConfigurationKeys.VALIDATE_IR, false)
-                            put(JVMConfigurationKeys.DISABLE_CALL_ASSERTIONS, true)
-                            put(JVMConfigurationKeys.DISABLE_PARAM_ASSERTIONS, true)
-                            put(JVMConfigurationKeys.DISABLE_RECEIVER_ASSERTIONS, true)
-                            put(CommonConfigurationKeys.INCREMENTAL_COMPILATION, false)
-                            put(JVMConfigurationKeys.USE_FAST_JAR_FILE_SYSTEM, Prefs.useFastJarFs)
-                            // Disable FIR for now as we are using FE1.0 APIs (BindingContext, etc.)
-                            put(CommonConfigurationKeys.USE_FIR, false)
-                            put(CommonConfigurationKeys.USE_LIGHT_TREE, false)
-                            put(CommonConfigurationKeys.PARALLEL_BACKEND_THREADS, 10)
-                            put(CommonConfigurationKeys.USE_FIR_EXTENDED_CHECKERS, false)
-
-                            // enable all language features
-                            val langFeatures =
-                                mutableMapOf<LanguageFeature, LanguageFeature.State>()
-                            for (langFeature in LanguageFeature.entries) {
-                                langFeatures[langFeature] = LanguageFeature.State.ENABLED
+            val config = CompilerConfiguration().apply {
+                logTime("compilerConfig") {
+                    put(JVMConfigurationKeys.NO_JDK, true)
+                    put(JVMConfigurationKeys.NO_REFLECT, true)
+                    put(
+                        CLIConfigurationKeys.PERF_MANAGER,
+                        object : CommonCompilerPerformanceManager("Profiling") {
+                            override fun notifyAnalysisStarted() {
+                                Log.i("Profiling", "Analysis started")
                             }
 
-                            val languageVersion =
-                                LanguageVersion.fromVersionString(Prefs.kotlinVersion)!!
-                            val languageVersionSettings = LanguageVersionSettingsImpl(
-                                languageVersion,
-                                ApiVersion.createByLanguageVersion(languageVersion),
-                                mapOf(
-                                    AnalysisFlags.extendedCompilerChecks to false,
-                                    AnalysisFlags.ideMode to true,
-                                    AnalysisFlags.skipMetadataVersionCheck to true,
-                                    AnalysisFlags.skipPrereleaseCheck to true,
-                                ),
-                                langFeatures
-                            )
-                            put(
-                                CommonConfigurationKeys.LANGUAGE_VERSION_SETTINGS,
-                                languageVersionSettings
-                            )
-                            addJvmClasspathRoots(
-                                classpath
-                            )
-                        }
-                    },
-                    configFiles = EnvironmentConfigFiles.JVM_CONFIG_FILES
-                )
+                            override fun notifyAnalysisFinished() {
+                                Log.i("Profiling", "Analysis finished")
+                            }
+                        })
+                    put(
+                        CommonConfigurationKeys.MODULE_NAME,
+                        JvmProtoBufUtil.DEFAULT_MODULE_NAME
+                    )
+                    // Use binary reading to avoid decompiler issues on Android.
+                    put(JVMConfigurationKeys.USE_PSI_CLASS_FILES_READING, false)
+                    put(JVMConfigurationKeys.VALIDATE_IR, false)
+                    put(JVMConfigurationKeys.DISABLE_CALL_ASSERTIONS, true)
+                    put(JVMConfigurationKeys.DISABLE_PARAM_ASSERTIONS, true)
+                    put(JVMConfigurationKeys.DISABLE_RECEIVER_ASSERTIONS, true)
+                    put(CommonConfigurationKeys.INCREMENTAL_COMPILATION, false)
+                    put(JVMConfigurationKeys.USE_FAST_JAR_FILE_SYSTEM, Prefs.useFastJarFs)
+                    // Disable FIR for now as we are using FE1.0 APIs (BindingContext, etc.)
+                    put(CommonConfigurationKeys.USE_FIR, false)
+                    put(CommonConfigurationKeys.USE_LIGHT_TREE, false)
+                    put(CommonConfigurationKeys.PARALLEL_BACKEND_THREADS, 10)
+                    put(CommonConfigurationKeys.USE_FIR_EXTENDED_CHECKERS, false)
+
+                    // enable all language features
+                    val langFeatures =
+                        mutableMapOf<LanguageFeature, LanguageFeature.State>()
+                    for (langFeature in LanguageFeature.entries) {
+                        langFeatures[langFeature] = LanguageFeature.State.ENABLED
+                    }
+
+                    val languageVersion =
+                        LanguageVersion.fromVersionString(Prefs.kotlinVersion)!!
+                    val languageVersionSettings = LanguageVersionSettingsImpl(
+                        languageVersion,
+                        ApiVersion.createByLanguageVersion(languageVersion),
+                        mapOf(
+                            AnalysisFlags.extendedCompilerChecks to false,
+                            AnalysisFlags.ideMode to true,
+                            AnalysisFlags.skipMetadataVersionCheck to true,
+                            AnalysisFlags.skipPrereleaseCheck to true,
+                        ),
+                        langFeatures
+                    )
+                    put(
+                        CommonConfigurationKeys.LANGUAGE_VERSION_SETTINGS,
+                        languageVersionSettings
+                    )
+                    addJvmClasspathRoots(
+                        classpath
+                    )
+                }
+            }
+
+            val kotlinCoreEnv = KotlinCoreEnvironment.createForProduction(
+                disposable,
+                config,
+                configFiles = EnvironmentConfigFiles.JVM_CONFIG_FILES
             )
+
+            // Fix: Initialize KotlinBinaryClassCache manually if not already present in the application
+            // We do this after creating the environment to ensure ApplicationManager.getApplication() is initialized
+            val application = ApplicationManager.getApplication()
+            if (application != null) {
+                if (application.getService(KotlinBinaryClassCache::class.java) == null) {
+                    try {
+                        val componentManagerClass = Class.forName("com.intellij.openapi.components.ComponentManager")
+                        val registerServiceMethod = try {
+                            componentManagerClass.getDeclaredMethod("registerService", Class::class.java, Class::class.java)
+                        } catch (e: Exception) {
+                            null
+                        }
+                        
+                        if (registerServiceMethod != null) {
+                            registerServiceMethod.isAccessible = true
+                            registerServiceMethod.invoke(application, KotlinBinaryClassCache::class.java, KotlinBinaryClassCache::class.java)
+                            Log.i("KotlinEnvironment", "Registered KotlinBinaryClassCache application service")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("KotlinEnvironment", "Failed to register KotlinBinaryClassCache service", e)
+                    }
+                }
+                
+                // Fix: Register com.intellij.psi.classFileDecompiler extension point if it doesn't exist
+                // Use dynamic registration to try and allow listeners/iteration without errors
+                val rootArea = Extensions.getRootArea()
+                val epName = "com.intellij.psi.classFileDecompiler"
+                if (!rootArea.hasExtensionPoint(epName)) {
+                    try {
+                        val rootAreaClass = rootArea.javaClass
+                        val registerMethod = try {
+                            rootAreaClass.getDeclaredMethod(
+                                "registerExtensionPoint",
+                                String::class.java,
+                                String::class.java,
+                                ExtensionPoint.Kind::class.java,
+                                Boolean::class.javaPrimitiveType
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+
+                        if (registerMethod != null) {
+                            registerMethod.invoke(rootArea, epName, "com.intellij.psi.ClassFileDecompiler", ExtensionPoint.Kind.INTERFACE, true)
+                            Log.i("KotlinEnvironment", "Registered $epName extension point (dynamic)")
+                        } else {
+                            rootArea.registerExtensionPoint(epName, "com.intellij.psi.ClassFileDecompiler", ExtensionPoint.Kind.INTERFACE)
+                            Log.i("KotlinEnvironment", "Registered $epName extension point (legacy)")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("KotlinEnvironment", "Failed to register $epName extension point", e)
+                    }
+                }
+            }
+
+            return KotlinEnvironment(kotlinCoreEnv)
         }
 
         private val cachedEnvironments = ConcurrentHashMap<Project, KotlinEnvironment>()
