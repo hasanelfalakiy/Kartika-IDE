@@ -238,7 +238,7 @@ data class KotlinEnvironment(
         }
 
         val position = inserted.elementAt(line, character)
-        val prefix = getPrefix(position, file, line, character)
+        val prefix = getPrefix(position, inserted, line, character)
         
         Log.d("KotlinEnvironment", "Completing at element: ${position?.text} of type ${position?.javaClass?.simpleName}, detected prefix: '$prefix'")
 
@@ -263,27 +263,37 @@ data class KotlinEnvironment(
                 val labelA = a.label.toString()
                 val labelB = b.label.toString()
                 
-                // Priority 1: Exact prefix match (case-sensitive)
                 val aExact = labelA.startsWith(prefix)
                 val bExact = labelB.startsWith(prefix)
-                if (aExact && !bExact) return@sortedWith -1
-                if (!aExact && bExact) return@sortedWith 1
                 
-                // Priority 2: Case-insensitive prefix match
                 val aStartsNoCase = labelA.startsWith(prefix, ignoreCase = true)
                 val bStartsNoCase = labelB.startsWith(prefix, ignoreCase = true)
+
+                // 1. Exact case match at the start
+                if (aExact && !bExact) return@sortedWith -1
+                if (!aExact && bExact) return@sortedWith 1
+
+                // 2. Case-insensitive match at the start
                 if (aStartsNoCase && !bStartsNoCase) return@sortedWith -1
                 if (!aStartsNoCase && bStartsNoCase) return@sortedWith 1
+                
+                // 3. Lowercase first if prefix is lowercase
+                if (prefix.isNotEmpty() && prefix[0].isLowerCase()) {
+                    val aFirstLower = labelA.isNotEmpty() && labelA[0].isLowerCase()
+                    val bFirstLower = labelB.isNotEmpty() && labelB[0].isLowerCase()
+                    if (aFirstLower && !bFirstLower) return@sortedWith -1
+                    if (!aFirstLower && bFirstLower) return@sortedWith 1
+                }
 
-                // Priority 3: Item Kind (Keywords first)
+                // 4. Kind priority
                 val priorityA = getKindPriority(a.kind)
                 val priorityB = getKindPriority(b.kind)
                 if (priorityA != priorityB) return@sortedWith priorityA - priorityB
                 
-                // Priority 4: Shorter labels first
+                // 5. Shorter labels first
                 if (labelA.length != labelB.length) return@sortedWith labelA.length - labelB.length
 
-                // Priority 5: Alphabetical
+                // 6. Alphabetical
                 labelA.compareTo(labelB, ignoreCase = true)
             }
 
@@ -384,46 +394,71 @@ data class KotlinEnvironment(
         return with(analysis) {
             logTime("referenceVariants") {
                 val parent = element.parent
-                (referenceVariantsFrom(element)
-                    ?: parent?.let { referenceVariantsFrom(it) })?.let { descriptors ->
-                    DescriptorInfo(true, descriptors)
-                } ?: DescriptorInfo(
+                val descriptors = (referenceVariantsFrom(element)
+                    ?: parent?.let { referenceVariantsFrom(it) })
+                
+                if (descriptors != null) {
+                    return@logTime DescriptorInfo(true, descriptors)
+                }
+
+                // Fallback to top-level descriptors if outside class or no variants found
+                val bindingContext = analysisResult.bindingContext
+                val resolutionFacade = KotlinResolutionFacade(
+                    project = element.project,
+                    componentProvider = componentProvider,
+                    moduleDescriptor = analysisResult.moduleDescriptor
+                )
+                
+                val scope = try {
+                    element.getResolutionScope(bindingContext, resolutionFacade)
+                } catch (e: Exception) {
+                    null
+                }
+
+                val contributedDescriptors = scope?.getContributedDescriptors(
+                    DescriptorKindFilter.ALL,
+                    MemberScope.ALL_NAME_FILTER
+                )?.toList() ?: emptyList()
+
+                DescriptorInfo(
                     isTipsManagerCompletion = false,
-                    descriptors = try {
-                        when (parent) {
-                            is KtQualifiedExpression -> {
-                                analysisResult.bindingContext.get(
-                                    BindingContext.EXPRESSION_TYPE_INFO,
-                                    parent.receiverExpression
-                                )?.type?.let { expressionType ->
+                    descriptors = contributedDescriptors.ifEmpty {
+                        try {
+                            when (parent) {
+                                is KtQualifiedExpression -> {
+                                    analysisResult.bindingContext.get(
+                                        BindingContext.EXPRESSION_TYPE_INFO,
+                                        parent.receiverExpression
+                                    )?.type?.let { expressionType ->
+                                        analysisResult.bindingContext.get(
+                                            BindingContext.LEXICAL_SCOPE,
+                                            parent.receiverExpression
+                                        )?.let {
+                                            expressionType.memberScope.getContributedDescriptors(
+                                                DescriptorKindFilter.ALL,
+                                                MemberScope.ALL_NAME_FILTER
+                                            )
+                                        }
+                                    }?.toList() ?: emptyList()
+                                }
+
+                                else -> (element as? KtExpression)?.let { expr ->
                                     analysisResult.bindingContext.get(
                                         BindingContext.LEXICAL_SCOPE,
-                                        parent.receiverExpression
-                                    )?.let {
-                                        expressionType.memberScope.getContributedDescriptors(
-                                            DescriptorKindFilter.ALL,
-                                            MemberScope.ALL_NAME_FILTER
-                                        )
-                                    }
-                                }?.toList() ?: emptyList()
+                                        expr
+                                    )?.getContributedDescriptors(
+                                        DescriptorKindFilter.ALL,
+                                        MemberScope.ALL_NAME_FILTER
+                                    )?.toList()
+                                } ?: emptyList()
                             }
-
-                            else -> (element as? KtExpression)?.let { expr ->
-                                analysisResult.bindingContext.get(
-                                    BindingContext.LEXICAL_SCOPE,
-                                    expr
-                                )?.getContributedDescriptors(
-                                    DescriptorKindFilter.ALL,
-                                    MemberScope.ALL_NAME_FILTER
-                                )?.toList()
-                            } ?: emptyList()
-                        }
-                    } catch (e: Exception) {
-                        if (e is ProcessCanceledException || e is InterruptedException) {
-                            emptyList()
-                        } else {
-                            Log.e("KotlinEnvironment", "Failed to get descriptors from lexical scope", e)
-                            emptyList()
+                        } catch (e: Exception) {
+                            if (e is ProcessCanceledException || e is InterruptedException) {
+                                emptyList()
+                            } else {
+                                Log.e("KotlinEnvironment", "Failed to get descriptors from lexical scope", e)
+                                emptyList()
+                            }
                         }
                     }
                 )
