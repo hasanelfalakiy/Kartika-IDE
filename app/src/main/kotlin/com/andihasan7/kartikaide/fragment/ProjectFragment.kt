@@ -165,6 +165,14 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                     }
                     true
                 }
+                
+                R.id.action_about -> {
+                    parentFragmentManager.commit {
+                        replace(R.id.fragment_container, AboutFragment())
+                        addToBackStack(null)
+                    }
+                    true
+                }
 
                 else -> false
             }

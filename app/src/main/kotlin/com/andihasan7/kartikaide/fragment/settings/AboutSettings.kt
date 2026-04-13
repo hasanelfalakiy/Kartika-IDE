@@ -142,18 +142,6 @@ class AboutSettings(private val activity: FragmentActivity) : SettingsProvider {
                 }
             }
 
-            pref("source") {
-                title = "Source code"
-                onClick {
-                    activity.startActivity(
-                        Intent(
-                            Intent.ACTION_VIEW,
-                            "https://github.com/hasanelfalakiy/Kartika-IDE.git".toUri()
-                        )
-                    )
-                    true
-                }
-            }
 
             pref("manage_storage_permission") {
                 title = "Manage storage permission"

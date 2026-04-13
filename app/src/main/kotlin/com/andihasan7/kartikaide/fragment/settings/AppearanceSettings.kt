@@ -54,7 +54,7 @@ class AppearanceSettings(private val activity: MainActivity) : SettingsProvider 
             singleChoice(PreferenceKeys.APP_THEME, themeItems) {
                 initialSelection = activity.resources.getStringArray(R.array.app_theme_entry_values)
                     .first() // auto
-                title = activity.getString(R.string.app_theme)
+                title = activity.getString(R.string.system_ui)
                 icon = ResourcesCompat.getDrawable(
                     activity.resources,
                     R.drawable.outline_dark_mode_24,

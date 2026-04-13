@@ -10,7 +10,7 @@
     <string name="action_settings">Настройки</string>
     <!-- Строки, используемые для фрагментов для навигации -->
     <string name="restore_project_zip">Импортировать проект</string>
-    <string name="app_theme">Тема приложения</string>
+    <string name="system_ui">Тема приложения</string>
 
     <string name="projects">Проекты</string>
     <string name="new_project">Новый проект</string>
