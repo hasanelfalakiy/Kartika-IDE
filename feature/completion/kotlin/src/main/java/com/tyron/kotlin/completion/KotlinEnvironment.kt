@@ -191,20 +191,39 @@ data class KotlinEnvironment(
 
     var analysis: TopDownAnalysisContext? = null
 
-    private fun getPrefix(element: PsiElement): String {
-        var text = (element as? KtSimpleNameExpression)?.text
-        if (text == null) {
-            val type = PsiUtils.findParent(element)
-            if (type != null) {
-                text = type.text
+    /**
+     * Tries to get the prefix based on PSI element, falls back to text-based prefix if PSI fails.
+     */
+    private fun getPrefix(element: PsiElement?, file: KotlinFile, line: Int, character: Int): String {
+        // Method 1: PSI-based
+        var prefix = ""
+        if (element != null) {
+            val text = (element as? KtSimpleNameExpression)?.text
+                ?: PsiUtils.findParent(element)?.text
+                ?: element.text
+            prefix = (text ?: "").substringBefore(COMPLETION_SUFFIX)
+            if (prefix.endsWith(".")) prefix = ""
+        }
+
+        // Method 2: Text-based fallback if PSI prefix is empty but we know there's text before cursor
+        if (prefix.isEmpty()) {
+            val fullText = file.kotlinFile.text
+            val offset = file.offsetFor(line, character)
+            var i = offset - 1
+            val sb = StringBuilder()
+            while (i >= 0 && i < fullText.length) {
+                val c = fullText[i]
+                if (Character.isJavaIdentifierPart(c)) {
+                    sb.insert(0, c)
+                    i--
+                } else {
+                    break
+                }
             }
+            prefix = sb.toString()
         }
-        if (text == null) {
-            text = element.text
-        }
-        return (text ?: "").substringBefore(COMPLETION_SUFFIX).let {
-            if (it.endsWith(".")) "" else it
-        }
+        
+        return prefix
     }
 
     var currentItemCount = 0
@@ -219,34 +238,76 @@ data class KotlinEnvironment(
         }
 
         val position = inserted.elementAt(line, character)
-        val prefix = position?.let { getPrefix(it) } ?: ""
+        val prefix = getPrefix(position, file, line, character)
+        
+        Log.d("KotlinEnvironment", "Completing at element: ${position?.text} of type ${position?.javaClass?.simpleName}, detected prefix: '$prefix'")
 
         val list = try {
+            val items = mutableListOf<CompletionItem>()
+            
             position?.let { element ->
-                Log.d("KotlinEnvironment", "Completing at element: ${element.text} of type ${element.javaClass.simpleName}, prefix: '$prefix'")
                 val descriptorInfo = descriptorsFrom(element, inserted.kotlinFile, filesToAnalyze)
                 Log.d("KotlinEnvironment", "Found ${descriptorInfo.descriptors.size} descriptors")
-                val items = descriptorInfo.descriptors
-                    .sortedWith { a, b ->
-                        val x = a.name.toString()
-                        val y = b.name.toString()
-                        x.compareTo(y)
-                    }
-                    .mapNotNull { descriptor ->
-                        completionVariantFor(prefix, descriptor)
-                    }
-                val keywords = keywordsCompletionVariants(KtTokens.KEYWORDS, prefix)
-                val totalItems = items + keywords
-                if (totalItems.size > 100) totalItems.subList(0, 100) else totalItems
+                
+                items.addAll(descriptorInfo.descriptors.mapNotNull { descriptor ->
+                    completionVariantFor(prefix, descriptor)
+                })
             } ?: run {
                 Log.d("KotlinEnvironment", "No element found at $line:$character")
+            }
+
+            val keywords = keywordsCompletionVariants(KtTokens.KEYWORDS, prefix)
+            items.addAll(keywords)
+            
+            val totalItems = items.sortedWith { a, b ->
+                val labelA = a.label.toString()
+                val labelB = b.label.toString()
+                
+                // Priority 1: Exact prefix match (case-sensitive)
+                val aExact = labelA.startsWith(prefix)
+                val bExact = labelB.startsWith(prefix)
+                if (aExact && !bExact) return@sortedWith -1
+                if (!aExact && bExact) return@sortedWith 1
+                
+                // Priority 2: Case-insensitive prefix match
+                val aStartsNoCase = labelA.startsWith(prefix, ignoreCase = true)
+                val bStartsNoCase = labelB.startsWith(prefix, ignoreCase = true)
+                if (aStartsNoCase && !bStartsNoCase) return@sortedWith -1
+                if (!aStartsNoCase && bStartsNoCase) return@sortedWith 1
+
+                // Priority 3: Item Kind (Keywords first)
+                val priorityA = getKindPriority(a.kind)
+                val priorityB = getKindPriority(b.kind)
+                if (priorityA != priorityB) return@sortedWith priorityA - priorityB
+                
+                // Priority 4: Shorter labels first
+                if (labelA.length != labelB.length) return@sortedWith labelA.length - labelB.length
+
+                // Priority 5: Alphabetical
+                labelA.compareTo(labelB, ignoreCase = true)
+            }
+
+            if (totalItems.size > 100) totalItems.subList(0, 100) else totalItems
+
+        } catch (e: Exception) {
+            if (e is ProcessCanceledException || e is InterruptedException) {
+                emptyList()
+            } else {
+                Log.e("KotlinEnvironment", "Failed to get descriptors", e)
                 emptyList()
             }
-        } catch (e: Exception) {
-            Log.e("KotlinEnvironment", "Failed to get descriptors", e)
-            emptyList()
         }
         return list
+    }
+
+    private fun getKindPriority(kind: CompletionItemKind?): Int {
+        return when (kind) {
+            CompletionItemKind.Keyword -> 0
+            CompletionItemKind.Variable, CompletionItemKind.Field, CompletionItemKind.Property -> 1
+            CompletionItemKind.Method, CompletionItemKind.Function -> 2
+            CompletionItemKind.Class, CompletionItemKind.Interface, CompletionItemKind.Enum -> 3
+            else -> 4
+        }
     }
 
     private fun completionVariantFor(
@@ -322,48 +383,50 @@ data class KotlinEnvironment(
 
         return with(analysis) {
             logTime("referenceVariants") {
+                val parent = element.parent
                 (referenceVariantsFrom(element)
-                    ?: referenceVariantsFrom(element.parent))?.let { descriptors ->
+                    ?: parent?.let { referenceVariantsFrom(it) })?.let { descriptors ->
                     DescriptorInfo(true, descriptors)
-                } ?: element.parent.let { parent ->
-                    DescriptorInfo(
-                        isTipsManagerCompletion = false,
-                        descriptors = try {
-                            when (parent) {
-                                is KtQualifiedExpression -> {
-                                    analysisResult.bindingContext.get(
-                                        BindingContext.EXPRESSION_TYPE_INFO,
-                                        parent.receiverExpression
-                                    )?.type?.let { expressionType ->
-                                        analysisResult.bindingContext.get(
-                                            BindingContext.LEXICAL_SCOPE,
-                                            parent.receiverExpression
-                                        )?.let {
-                                            expressionType.memberScope.getContributedDescriptors(
-                                                DescriptorKindFilter.ALL,
-                                                MemberScope.ALL_NAME_FILTER
-                                            )
-                                        }
-                                    }?.toList() ?: emptyList()
-                                }
-
-                                else -> (element as? KtExpression)?.let { expr ->
+                } ?: DescriptorInfo(
+                    isTipsManagerCompletion = false,
+                    descriptors = try {
+                        when (parent) {
+                            is KtQualifiedExpression -> {
+                                analysisResult.bindingContext.get(
+                                    BindingContext.EXPRESSION_TYPE_INFO,
+                                    parent.receiverExpression
+                                )?.type?.let { expressionType ->
                                     analysisResult.bindingContext.get(
                                         BindingContext.LEXICAL_SCOPE,
-                                        expr
-                                    )?.getContributedDescriptors(
-                                        DescriptorKindFilter.ALL,
-                                        MemberScope.ALL_NAME_FILTER
-                                    )?.toList()
-                                } ?: emptyList()
+                                        parent.receiverExpression
+                                    )?.let {
+                                        expressionType.memberScope.getContributedDescriptors(
+                                            DescriptorKindFilter.ALL,
+                                            MemberScope.ALL_NAME_FILTER
+                                        )
+                                    }
+                                }?.toList() ?: emptyList()
                             }
-                        } catch (e: Exception) {
+
+                            else -> (element as? KtExpression)?.let { expr ->
+                                analysisResult.bindingContext.get(
+                                    BindingContext.LEXICAL_SCOPE,
+                                    expr
+                                )?.getContributedDescriptors(
+                                    DescriptorKindFilter.ALL,
+                                    MemberScope.ALL_NAME_FILTER
+                                )?.toList()
+                            } ?: emptyList()
+                        }
+                    } catch (e: Exception) {
+                        if (e is ProcessCanceledException || e is InterruptedException) {
+                            emptyList()
+                        } else {
                             Log.e("KotlinEnvironment", "Failed to get descriptors from lexical scope", e)
                             emptyList()
                         }
-                    )
-                }
-
+                    }
+                )
             }
         }
     }
@@ -441,7 +504,7 @@ data class KotlinEnvironment(
 
     @OptIn(FrontendInternals::class)
     private fun Analysis.referenceVariantsFrom(element: PsiElement): List<DeclarationDescriptor>? {
-        val prefix = getPrefix(element)
+        val prefix = getPrefix(element, KotlinFile("", element.containingFile as KtFile), 0, 0) // Placeholder
         val elementKt = element as? KtElement ?: return null
         val bindingContext = analysisResult.bindingContext
         val resolutionFacade =
@@ -453,6 +516,9 @@ data class KotlinEnvironment(
         val inDescriptor = try {
             elementKt.getResolutionScope(bindingContext, resolutionFacade).ownerDescriptor
         } catch (e: Exception) {
+            if (e is ProcessCanceledException || e is InterruptedException) {
+                return null
+            }
             Log.e("KotlinEnvironment", "Failed to get resolution scope", e)
             return null
         }
@@ -488,6 +554,9 @@ data class KotlinEnvironment(
                         )
                         .toList()
                 } catch (e: Exception) {
+                    if (e is ProcessCanceledException || e is InterruptedException) {
+                        return null
+                    }
                     Log.e("KotlinEnvironment", "Failed to get reference variants", e)
                     null
                 }
