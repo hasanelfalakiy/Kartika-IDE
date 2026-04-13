@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ This file is part of Cosmic IDE.
+  ~ Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+  ~ Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+  ~ You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
+  -->
+
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:tint="?attr/colorPrimary"
+    android:viewportWidth="512.000000"
+    android:viewportHeight="512.000000">
+
+    <group
+        android:translateY="512.000000"
+        android:scaleX="0.100000"
+        android:scaleY="-0.100000">
+        <path
+            android:fillColor="@android:color/white"
+            android:strokeWidth="1"
+            android:pathData="M4770 4666 c-340 -125 -4535 -1736 -4597 -1766 -205 -97 -229 -225 -58 -312 17 -9 300 -99 631 -202 l601 -187 1364 854 c751 469 1380 859 1398 865 47 16 87 15 105 -4 13 -13 14 -19 3 -38 -6 -13 -505 -466 -1107 -1006 -602 -541 -1097 -987 -1099 -992 -2 -5 -22 -275 -45 -600 l-42 -590 46 6 c25 3 64 16 87 29 24 12 180 154 349 315 168 161 312 296 319 298 7 3 275 -187 596 -422 320 -235 607 -438 638 -452 81 -38 171 -41 230 -10 53 28 104 98 126 171 8 28 192 875 407 1882 359 1676 392 1838 392 1925 0 82 -3 102 -25 145 -15 31 -42 62 -68 80 -59 41 -157 46 -251 11z" />
+    </group>
+</vector>
