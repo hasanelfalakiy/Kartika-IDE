@@ -115,7 +115,7 @@
     <string name="img_dev">Image of Developer/Maintener</string>
     <string name="share_note">Share Kartika IDE with anyone</string>
     <string name="about">About</string>
-    <string name="share_description">Kartika IDE membantu anda dalam pengembangan program kode Kotlin dan Java yang ringan dan cepat seperti di Intellij IDEA dengan berbagai banyak fitur dan keuntungan. \n\n### Unduh dari sini :
+    <string name="share_description">Kartika IDE helps you develop and run lightweight, fast Kotlin and Java code, just like Intellij IDEA, with a wide range of features and benefits. \n\n### Download it here:
         https://github.com/hasanelfalakiy/Kartika-IDE/releases/latest</string>
 <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
