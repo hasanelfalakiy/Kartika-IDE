@@ -44,12 +44,13 @@ class CompileInfoFragment : DialogFragment() {
             if (report.message.isEmpty()) return@BuildReporter
 
             lifecycleScope.launch {
-                val text = binding.logEditor.text
-                text.insert(
-                    text.lineCount - 1,
-                    0,
-                    "${report.kind}: ${report.message}\n"
-                )
+                _binding?.logEditor?.text?.let { text ->
+                    text.insert(
+                        text.lineCount - 1,
+                        0,
+                        "${report.kind}: ${report.message}\n"
+                    )
+                }
             }
         }
     }
@@ -82,25 +83,29 @@ class CompileInfoFragment : DialogFragment() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) {
-                binding.progressBar.visibility = View.VISIBLE
+                _binding?.progressBar?.visibility = View.VISIBLE
             }
             try {
                 compiler.compile()
                 withContext(Dispatchers.Main) {
-                    binding.progressBar.visibility = View.GONE
-                    if (reporter.buildSuccess) {
-                        navigateToProjectOutputFragment()
+                    _binding?.let { b ->
+                        b.progressBar.visibility = View.GONE
+                        if (reporter.buildSuccess) {
+                            navigateToProjectOutputFragment()
+                        }
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    binding.progressBar.visibility = View.GONE
-                    val text = binding.logEditor.text
-                    text.insert(
-                        text.lineCount - 1,
-                        0,
-                        "Build failed: ${e.message}\n"
-                    )
+                    _binding?.let { b ->
+                        b.progressBar.visibility = View.GONE
+                        val text = b.logEditor.text
+                        text.insert(
+                            text.lineCount - 1,
+                            0,
+                            "Build failed: ${e.message}\n"
+                        )
+                    }
                 }
             }
         }
@@ -118,12 +123,13 @@ class CompileInfoFragment : DialogFragment() {
     }
 
     override fun onDestroyView() {
-        binding.logEditor.release()
+        _binding?.logEditor?.release()
         super.onDestroyView()
         _binding = null
     }
 
     private fun navigateToProjectOutputFragment() {
+        if (!isAdded) return
         dismiss()
         parentFragmentManager.commit {
             add(R.id.fragment_container, ProjectOutputFragment())
