@@ -11,7 +11,7 @@ import android.app.Activity
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.text.method.ScrollingMovementMethod
+import android.text.method.LinkMovementMethod
 import android.util.Log
 import android.view.View
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -62,7 +62,7 @@ object CommonUtils {
     fun getMarkwon() = Markwon
         .builder(App.instance.get()!!.applicationContext)
         .usePlugin(CorePlugin.create())
-        .usePlugin(MovementMethodPlugin.create(ScrollingMovementMethod.getInstance()))
+        .usePlugin(MovementMethodPlugin.create(LinkMovementMethod.getInstance()))
         .usePlugin(LinkifyPlugin.create())
         .usePlugin(HtmlPlugin.create())
         .build()
