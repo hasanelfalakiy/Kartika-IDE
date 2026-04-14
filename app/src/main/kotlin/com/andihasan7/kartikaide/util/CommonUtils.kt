@@ -21,12 +21,20 @@ import io.noties.markwon.core.CorePlugin
 import io.noties.markwon.html.HtmlPlugin
 import io.noties.markwon.linkify.LinkifyPlugin
 import io.noties.markwon.movement.MovementMethodPlugin
+import io.noties.markwon.syntax.Prism4jThemeDarkula
+import io.noties.markwon.syntax.SyntaxHighlightPlugin
+import io.noties.prism4j.Prism4j
+import io.noties.prism4j.annotations.PrismBundle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.andihasan7.kartikaide.App
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuProvider
 
+@PrismBundle(
+    include = ["kotlin", "java", "clike", "json", "markup", "python", "yaml"],
+    grammarLocatorClassName = "com.andihasan7.kartikaide.util.MyGrammarLocator"
+)
 object CommonUtils {
     suspend fun showSnackbarError(view: View, text: String, error: Throwable) =
         withContext(Dispatchers.Main) {
@@ -59,13 +67,20 @@ object CommonUtils {
         Snackbar.make(view, text, Snackbar.LENGTH_LONG).show()
     }
 
-    fun getMarkwon() = Markwon
-        .builder(App.instance.get()!!.applicationContext)
-        .usePlugin(CorePlugin.create())
-        .usePlugin(MovementMethodPlugin.create(LinkMovementMethod.getInstance()))
-        .usePlugin(LinkifyPlugin.create())
-        .usePlugin(HtmlPlugin.create())
-        .build()
+    fun getMarkwon(): Markwon {
+        // MyGrammarLocator akan di-generate otomatis oleh kapt setelah proses Build
+        // Jika masih merah, silakan lakukan Build > Make Project
+        val prism4j = Prism4j(MyGrammarLocator())
+
+        return Markwon
+            .builder(App.instance.get()!!.applicationContext)
+            .usePlugin(CorePlugin.create())
+            .usePlugin(MovementMethodPlugin.create(LinkMovementMethod.getInstance()))
+            .usePlugin(LinkifyPlugin.create())
+            .usePlugin(HtmlPlugin.create())
+            .usePlugin(SyntaxHighlightPlugin.create(prism4j, Prism4jThemeDarkula.create()))
+            .build()
+    }
 
     fun Activity.isShizukuGranted(): Boolean {
         if (Shizuku.pingBinder().not()) {
