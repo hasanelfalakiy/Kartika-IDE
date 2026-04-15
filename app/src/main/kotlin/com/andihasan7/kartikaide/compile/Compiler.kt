@@ -7,6 +7,7 @@
 
 package com.andihasan7.kartikaide.compile
 
+import android.util.Log
 import com.andihasan7.kartikaide.App
 import com.andihasan7.kartikaide.R
 import andihasan7.kartikaide.build.BuildReporter
@@ -17,6 +18,8 @@ import andihasan7.kartikaide.build.java.JavaCompileTask
 import andihasan7.kartikaide.build.kotlin.KotlinCompiler
 import com.andihasan7.kartikaide.util.CommonUtils
 import andihasan7.kartikaide.project.Project
+import com.intellij.openapi.application.ApplicationManager
+import org.jetbrains.kotlin.load.kotlin.KotlinBinaryClassCache
 import java.io.File
 
 /**
@@ -30,6 +33,7 @@ class Compiler(
     private val reporter: BuildReporter
 ) {
     companion object {
+        private const val TAG = "Compiler"
 
         /**
          * A listener to be called when a compiler starts or finishes compiling.
@@ -42,15 +46,44 @@ class Compiler(
          */
         @JvmStatic
         fun initializeCache(project: Project) {
+            ensureKotlinServicesRegistered()
             CompilerCache.saveCache(JavaCompileTask(project))
             CompilerCache.saveCache(KotlinCompiler(project))
             CompilerCache.saveCache(D8Task(project))
             CompilerCache.saveCache(JarTask(project))
         }
+
+        /**
+         * Memastikan service Kotlin terdaftar untuk menghindari NullPointerException
+         * pada KotlinBinaryClassCache di Android.
+         */
+        private fun ensureKotlinServicesRegistered() {
+            try {
+                val application = ApplicationManager.getApplication()
+                if (application != null) {
+                    if (application.getService(KotlinBinaryClassCache::class.java) == null) {
+                        val componentManagerClass = Class.forName("com.intellij.openapi.components.ComponentManager")
+                        val registerServiceMethod = componentManagerClass.getDeclaredMethod(
+                            "registerService", 
+                            Class::class.java, 
+                            Class::class.java
+                        )
+                        registerServiceMethod.isAccessible = true
+                        registerServiceMethod.invoke(
+                            application, 
+                            KotlinBinaryClassCache::class.java, 
+                            KotlinBinaryClassCache::class.java
+                        )
+                        Log.i(TAG, "Successfully registered KotlinBinaryClassCache via reflection")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to register KotlinBinaryClassCache: ${e.message}")
+            }
+        }
     }
 
     private val context = App.instance.get()!!
-
 
     init {
         initializeCache(project)
@@ -60,6 +93,7 @@ class Compiler(
      * Compiles Kotlin and Java code and converts class files to dex format.
      */
     fun compile(release: Boolean = false) {
+        ensureKotlinServicesRegistered() // Pastikan lagi sebelum kompilasi dimulai
         compileKotlinCode()
         compileJavaCode()
         convertClassFilesToDexFormat()
@@ -94,7 +128,7 @@ class Compiler(
                     
                     reportInfo("Incremental compilation failed or compiler state corrupted, performing clean build...")
                     
-                    // Membersihkan seluruh folder build untuk memastikan tidak ada metadata lama yang tersisa
+                    // Membersihkan seluruh folder build
                     try {
                         project.buildDir.deleteRecursively()
                         project.buildDir.mkdirs()
@@ -104,11 +138,13 @@ class Compiler(
                         reportError("Failed to clean build directory: ${ioe.message}")
                     }
                     
-                    // Re-inisialisasi task dengan instance baru untuk mereset state internal compiler
+                    // Paksa registrasi ulang service sebelum mencoba lagi
+                    ensureKotlinServicesRegistered()
+                    
+                    // Re-inisialisasi task dengan instance baru
                     val newTask = KotlinCompiler(project)
                     CompilerCache.saveCache(newTask)
                     
-                    // Coba lagi dengan instance baru (Clean Build)
                     try {
                         newTask.execute(this)
                     } catch (e2: Exception) {
@@ -128,30 +164,18 @@ class Compiler(
         }
     }
 
-    /**
-     * Compiles Java code.
-     */
     private fun compileJavaCode() {
         compileTask<JavaCompileTask>(context.getString(R.string.compiling_java))
     }
 
-    /**
-     * Compiles the classes directory to `classes.jar`.
-     */
     private fun compileJar() {
         compileTask<JarTask>(context.getString(R.string.assembling_jar))
     }
 
-    /**
-     * Compiles Kotlin code.
-     */
     private fun compileKotlinCode() {
         compileTask<KotlinCompiler>(context.getString(R.string.compiling_kotlin))
     }
 
-    /**
-     * Converts class files to dex format.
-     */
     private fun convertClassFilesToDexFormat() {
         compileTask<D8Task>(context.getString(R.string.compiling_class_files_to_dex))
     }
