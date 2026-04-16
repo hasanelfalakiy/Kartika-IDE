@@ -8,6 +8,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.kapt")
     id("com.google.gms.google-services") apply false
 }
 
@@ -209,6 +210,14 @@ dependencies {
     implementation("io.noties.markwon:core:$markwonVersion")
     implementation("io.noties.markwon:html:$markwonVersion")
     implementation("io.noties.markwon:linkify:$markwonVersion")
+    implementation("io.noties.markwon:syntax-highlight:$markwonVersion")
+    
+    // prism4j
+    val prismVersion = "2.0.0"
+    implementation("io.noties:prism4j:$prismVersion")
+    kapt("io.noties:prism4j-bundler:$prismVersion")
+    implementation("ca.blarg:prism4j-languages:1.0.0")
+    kapt("ca.blarg:prism4j-languages:1.0.0")
 
     implementation(projects.feature.aliuhook)
     implementation("de.maxr1998:modernandroidpreferences:2.4.0-beta2")
