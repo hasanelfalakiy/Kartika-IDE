@@ -20,11 +20,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -62,13 +66,62 @@ fun SettingsScreen(
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item { PreferenceCategory(title = "General") }
-            item { PreferenceItem(title = "Appearance", summary = "Theme and UI customization", onClick = { onNavigate("appearance") }) }
-            item { PreferenceItem(title = "Code Editor", summary = "Font, indentation, and behavior", onClick = { onNavigate("editor") }) }
-            item { PreferenceItem(title = "Compiler", summary = "Java/Kotlin versions and build flags", onClick = { onNavigate("compiler") }) }
-            item { PreferenceItem(title = "Formatter", summary = "Code formatting styles and rules", onClick = { onNavigate("formatter") }) }
-            item { PreferenceItem(title = "Plugins", summary = "Extend functionality with plugins", onClick = { onNavigate("plugins") }) }
-            item { PreferenceItem(title = "Git", summary = "Username, email, and API key", onClick = { onNavigate("git") }) }
-            item { PreferenceItem(title = "Gemini AI", summary = "API key and model configuration", onClick = { onNavigate("gemini") }) }
+            item {
+                PreferenceItem(
+                    title = "Appearance",
+                    summary = "Theme and UI customization",
+                    icon = painterResource(R.drawable.baseline_color_lens_24),
+                    onClick = { onNavigate("appearance") }
+                )
+            }
+            item {
+                PreferenceItem(
+                    title = "Code Editor",
+                    summary = "Font, indentation, and behavior",
+                    icon = painterResource(R.drawable.baseline_mode_edit_24),
+                    onClick = { onNavigate("editor") }
+                )
+            }
+            item {
+                PreferenceItem(
+                    title = "Compiler",
+                    summary = "Java/Kotlin versions and build flags",
+                    icon = painterResource(R.drawable.outline_build_24),
+                    onClick = { onNavigate("compiler") }
+                )
+            }
+            item {
+                PreferenceItem(
+                    title = "Formatter",
+                    summary = "Code formatting styles and rules",
+                    icon = painterResource(R.drawable.outline_edit_note_24),
+                    onClick = { onNavigate("formatter") }
+                )
+            }
+            item {
+                PreferenceItem(
+                    title = "Plugins",
+                    summary = "Extend functionality with plugins",
+                    icon = painterResource(R.drawable.outline_extension_24),
+                    onClick = { onNavigate("plugins") }
+                )
+            }
+            item {
+                PreferenceItem(
+                    title = "Git",
+                    summary = "Username, email, and API key",
+                    icon = painterResource(R.drawable.github),
+                    onClick = { onNavigate("git") }
+                )
+            }
+            item {
+                PreferenceItem(
+                    title = "Gemini AI",
+                    summary = "API key and model configuration",
+                    icon = painterResource(R.drawable.outline_forum_24),
+                    onClick = { onNavigate("gemini") }
+                )
+            }
 
             item { PreferenceCategory(title = "System") }
             item {
@@ -76,6 +129,7 @@ fun SettingsScreen(
                 PreferenceItem(
                     title = "App version",
                     summary = BuildConfig.VERSION_NAME + if (BuildConfig.DEBUG) " (${BuildConfig.GIT_COMMIT})" else "",
+                    iconVector = Icons.Default.Android,
                     onClick = {
                         clickCount++
                         if (clickCount == 1) context.copyToClipboard(BuildConfig.VERSION_NAME)
@@ -88,10 +142,24 @@ fun SettingsScreen(
                     }
                 )
             }
-            item { PreferenceItem(title = "Manage storage permission", summary = "Grant access to all files", onClick = { openStorageSettings(context) }) }
+            item {
+                PreferenceItem(
+                    title = "Manage storage permission",
+                    summary = "Grant access to all files",
+                    iconVector = Icons.Default.Storage,
+                    onClick = { openStorageSettings(context) }
+                )
+            }
 
             item { PreferenceCategory(title = "Support") }
-            item { PreferenceItem(title = "About Kartika IDE", summary = "Version, license, and social links", onClick = onAboutClick) }
+            item {
+                PreferenceItem(
+                    title = "About Kartika IDE",
+                    summary = "Version, license, and social links",
+                    icon = painterResource(R.drawable.round_info_outline_24),
+                    onClick = onAboutClick
+                )
+            }
         }
     }
 }
@@ -124,8 +192,7 @@ fun AppearanceSettingsScreen(onBackClick: () -> Unit) {
                     selectedKey = theme,
                     onSelected = { newValue ->
                         theme = newValue
-                        prefs.edit { putString(PreferenceKeys.APP_THEME, newValue) }
-                        // updateTheme is handled by MainActivity through PreferenceListener
+                        prefs.edit().putString(PreferenceKeys.APP_THEME, newValue).apply()
                     }
                 )
             }
@@ -154,6 +221,10 @@ fun EditorSettingsScreen(onBackClick: () -> Unit) {
     var doubleClickClose by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.EDITOR_DOUBLE_CLICK_CLOSE, false)) }
     var disableSymbols by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.DISABLE_SYMBOLS_VIEW, false)) }
     var customSymbols by remember { mutableStateOf(prefs.getString(PreferenceKeys.EDITOR_CUSTOM_SYMBOLS, "→,(,),{,},[,],;,.,") ?: "") }
+    var expJavaComp by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.EDITOR_EXP_JAVA_COMPLETION, false)) }
+    var ktRealtimeErrors by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.KOTLIN_REALTIME_ERRORS, false)) }
+    var editorFont by remember { mutableStateOf(prefs.getString(PreferenceKeys.EDITOR_FONT, "") ?: "") }
+    var colorScheme by remember { mutableStateOf(prefs.getString(PreferenceKeys.EDITOR_COLOR_SCHEME, "darcula") ?: "darcula") }
 
     Scaffold(
         topBar = {
@@ -171,6 +242,8 @@ fun EditorSettingsScreen(onBackClick: () -> Unit) {
             item { PreferenceCategory("Appearance") }
             item { SliderPreferenceItem(title = "Font Size", value = fontSize, valueRange = 12f..32f, steps = 20, onValueChange = { fontSize = it; prefs.edit { putInt(PreferenceKeys.EDITOR_FONT_SIZE, it.toInt()) } }) }
             item { SliderPreferenceItem(title = "Tab Size", value = tabSize, valueRange = 2f..8f, steps = 6, onValueChange = { tabSize = it; prefs.edit { putInt(PreferenceKeys.EDITOR_TAB_SIZE, it.toInt()) } }) }
+            item { ListPreferenceItem(title = "Color Scheme", summary = colorScheme, items = listOf("darcula" to "Darcula", "dracula_2" to "Dracula 2", "onedark" to "OneDark Pro"), selectedKey = colorScheme, onSelected = { colorScheme = it; prefs.edit { putString(PreferenceKeys.EDITOR_COLOR_SCHEME, it) } }) }
+            item { EditTextPreferenceItem(title = "Editor Font Path", value = editorFont, onValueChange = { editorFont = it; prefs.edit { putString(PreferenceKeys.EDITOR_FONT, it) } }) }
             item { SwitchPreferenceItem(title = "Font ligatures", checked = ligatures, onCheckedChange = { ligatures = it; prefs.edit { putBoolean(PreferenceKeys.EDITOR_LIGATURES_ENABLE, it) } }) }
             item { SwitchPreferenceItem(title = "Show line numbers", checked = lineNumbers, onCheckedChange = { lineNumbers = it; prefs.edit { putBoolean(PreferenceKeys.EDITOR_LINE_NUMBERS_SHOW, it) } }) }
             item { SwitchPreferenceItem(title = "Show scrollbar", checked = scrollbar, onCheckedChange = { scrollbar = it; prefs.edit { putBoolean(PreferenceKeys.EDITOR_SCROLLBAR_SHOW, it) } }) }
@@ -185,6 +258,10 @@ fun EditorSettingsScreen(onBackClick: () -> Unit) {
             item { SwitchPreferenceItem(title = "Double click to close tab", checked = doubleClickClose, onCheckedChange = { doubleClickClose = it; prefs.edit { putBoolean(PreferenceKeys.EDITOR_DOUBLE_CLICK_CLOSE, it) } }) }
             item { SwitchPreferenceItem(title = "Disable symbols view", checked = disableSymbols, onCheckedChange = { disableSymbols = it; prefs.edit { putBoolean(PreferenceKeys.DISABLE_SYMBOLS_VIEW, it) } }) }
             item { EditTextPreferenceItem(title = "Custom symbols", value = customSymbols, onValueChange = { customSymbols = it; prefs.edit { putString(PreferenceKeys.EDITOR_CUSTOM_SYMBOLS, it) } }) }
+            
+            item { PreferenceCategory("Experimental") }
+            item { SwitchPreferenceItem(title = "Experimental Java completion", checked = expJavaComp, onCheckedChange = { expJavaComp = it; prefs.edit { putBoolean(PreferenceKeys.EDITOR_EXP_JAVA_COMPLETION, it) } }) }
+            item { SwitchPreferenceItem(title = "Kotlin real-time errors", summary = "Checking errors while typing (may cause lag)", checked = ktRealtimeErrors, onCheckedChange = { ktRealtimeErrors = it; prefs.edit { putBoolean(PreferenceKeys.KOTLIN_REALTIME_ERRORS, it) } }) }
             
             item { PreferenceCategory("Performance") }
             item { SwitchPreferenceItem(title = "Hardware acceleration", summary = "Speed up rendering (may use more memory)", checked = hwAccel, onCheckedChange = { hwAccel = it; prefs.edit { putBoolean(PreferenceKeys.EDITOR_HW_ENABLE, it) } }) }
@@ -204,7 +281,7 @@ fun CompilerSettingsScreen(onBackClick: () -> Unit) {
     var useFJFS by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.COMPILER_USE_FJFS, false)) }
     var useSSVM by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.COMPILER_USE_SSVM, false)) }
     var javacFlags by remember { mutableStateOf(prefs.getString(PreferenceKeys.COMPILER_JAVAC_FLAGS, "") ?: "") }
-    var mavenRepos by remember { mutableStateOf(prefs.getString("repos", "Maven Central:https://repo1.maven.org/maven2\nGoogle Maven:https://maven.google.com\nJitpack:https://jitpack.io") ?: "") }
+    var mavenRepos by remember { mutableStateOf(prefs.getString("repos", Prefs.repositories) ?: Prefs.repositories) }
 
     val kotlinVersions = listOf("1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "2.0", "2.1")
 
@@ -231,7 +308,7 @@ fun CompilerSettingsScreen(onBackClick: () -> Unit) {
             item { ListPreferenceItem(title = "Kotlin Version", summary = "Kotlin $kotlinVersion", items = kotlinVersions.map { it to "Kotlin $it" }, selectedKey = kotlinVersion, onSelected = { kotlinVersion = it; prefs.edit { putString(PreferenceKeys.COMPILER_KOTLIN_VERSION, it) } }) }
             
             item { PreferenceCategory("Library Manager") }
-            item { EditTextPreferenceItem(title = "Repositories", summary = "Custom Maven repositories", value = mavenRepos, onValueChange = { mavenRepos = it; prefs.edit { putString("repos", it) } }) }
+            item { EditTextPreferenceItem(title = "Repositories", summary = "Current repositories list", value = mavenRepos, onValueChange = { mavenRepos = it; prefs.edit { putString("repos", it) } }) }
             
             item { PreferenceCategory("Advanced") }
             item { EditTextPreferenceItem(title = "Javac Flags", summary = "Additional flags for Java compiler", value = javacFlags, onValueChange = { javacFlags = it; prefs.edit { putString(PreferenceKeys.COMPILER_JAVAC_FLAGS, it) } }) }
@@ -290,7 +367,7 @@ fun PluginsSettingsScreen(
 ) {
     val context = LocalContext.current
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
-    var repo by remember { mutableStateOf(prefs.getString(PreferenceKeys.PLUGIN_REPOSITORY, Prefs.pluginRepository) ?: "") }
+    var repo by remember { mutableStateOf(prefs.getString(PreferenceKeys.PLUGIN_REPOSITORY, "https://raw.githubusercontent.com/hasanelfalakiy/plugins-repo/main/plugins.json") ?: "https://raw.githubusercontent.com/hasanelfalakiy/plugins-repo/main/plugins.json") }
 
     Scaffold(
         topBar = {
@@ -310,7 +387,7 @@ fun PluginsSettingsScreen(
             item { PreferenceItem(title = "Installed plugins", summary = "Manage your installed extensions", onClick = onInstalledPluginsClick) }
             
             item { PreferenceCategory("Configuration") }
-            item { EditTextPreferenceItem(title = "Repository", summary = "Custom plugin repository URL", value = repo, onValueChange = { repo = it; prefs.edit { putString(PreferenceKeys.PLUGIN_REPOSITORY, it) } }) }
+            item { EditTextPreferenceItem(title = "Repository", summary = "Primary plugin source", value = repo, onValueChange = { repo = it; prefs.edit { putString(PreferenceKeys.PLUGIN_REPOSITORY, it) } }) }
         }
     }
 }
@@ -393,12 +470,41 @@ fun PreferenceCategory(title: String) {
 }
 
 @Composable
-fun PreferenceItem(title: String, summary: String? = null, onClick: () -> Unit) {
+fun PreferenceItem(
+    title: String,
+    summary: String? = null,
+    icon: Painter? = null,
+    iconVector: ImageVector? = null,
+    onClick: () -> Unit
+) {
     Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(text = title, style = MaterialTheme.typography.bodyLarge)
-            if (summary != null) {
-                Text(text = summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (icon != null || iconVector != null) {
+                if (icon != null) {
+                    Icon(
+                        painter = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                } else if (iconVector != null) {
+                    Icon(
+                        imageVector = iconVector,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = MaterialTheme.typography.bodyLarge)
+                if (summary != null) {
+                    Text(text = summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
@@ -465,7 +571,7 @@ fun EditTextPreferenceItem(title: String, summary: String? = null, value: String
             onDismissRequest = { showDialog = false },
             title = { Text(title) },
             text = {
-                OutlinedTextField(value = tempValue, onValueChange = { tempValue = it }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = tempValue, onValueChange = { tempValue = it }, modifier = Modifier.fillMaxWidth(), minLines = if (title == "Repositories") 5 else 1)
             },
             confirmButton = {
                 TextButton(onClick = { onValueChange(tempValue); showDialog = false }) { Text("OK") }
