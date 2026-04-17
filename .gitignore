@@ -87,3 +87,8 @@ lint/tmp/
 # lint/reports/
 /.idea/sonarlint/
 /.kotlin/
+# Heap dump
+*.hprof
+
+# JVM crash logs
+hs_err_pid*.log

@@ -10,32 +10,33 @@ package com.andihasan7.kartikaide.model
 import android.app.Application
 import android.os.Environment
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.FileUtil
 import andihasan7.kartikaide.rewrite.util.PermissionUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
 class ProjectViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _internalProjects = MutableLiveData<List<Project>>()
-    val internalProjects: LiveData<List<Project>> = _internalProjects
+    private val _internalProjects = MutableStateFlow<List<Project>>(emptyList())
+    val internalProjects: StateFlow<List<Project>> = _internalProjects.asStateFlow()
 
-    private val _externalProjects = MutableLiveData<List<Project>>()
-    val externalProjects: LiveData<List<Project>> = _externalProjects
+    private val _externalProjects = MutableStateFlow<List<Project>>(emptyList())
+    val externalProjects: StateFlow<List<Project>> = _externalProjects.asStateFlow()
 
-    // For compatibility with parts that still use the combined list
-    private val _projects = MutableLiveData<List<Project>>()
-    val projects: LiveData<List<Project>> = _projects
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     fun loadProjects() {
         viewModelScope.launch(Dispatchers.IO) {
+            _isLoading.value = true
             val internal = loadFromDir(FileUtil.projectDir)
             
             var external = emptyList<Project>()
@@ -56,7 +57,7 @@ class ProjectViewModel(application: Application) : AndroidViewModel(application)
             withContext(Dispatchers.Main) {
                 _internalProjects.value = internal
                 _externalProjects.value = external
-                _projects.value = internal + external
+                _isLoading.value = false
             }
         }
     }

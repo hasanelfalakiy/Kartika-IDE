@@ -5,142 +5,194 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide
 
-import android.content.pm.PackageManager
 import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.fragment.app.commit
-import androidx.lifecycle.lifecycleScope
-import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
-import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
-import kotlinx.coroutines.launch
-import com.andihasan7.kartikaide.databinding.ActivityMainBinding
-import com.andihasan7.kartikaide.fragment.InstallResourcesFragment
-import com.andihasan7.kartikaide.fragment.ProjectFragment
-import com.andihasan7.kartikaide.util.CommonUtils
-import com.andihasan7.kartikaide.util.MaterialEditorTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.preference.PreferenceManager
+import com.andihasan7.kartikaide.fragment.InstallResourcesViewModel
+import com.andihasan7.kartikaide.model.ProjectViewModel
+import com.andihasan7.kartikaide.ui.screens.*
+import com.andihasan7.kartikaide.ui.theme.KartikaTheme
+import com.andihasan7.kartikaide.util.PreferenceKeys
 import com.andihasan7.kartikaide.util.ResourceUtil
-import com.andihasan7.kartikaide.util.awaitBinderReceived
-import com.andihasan7.kartikaide.util.isShizukuInstalled
-import org.eclipse.tm4e.core.registry.IThemeSource
-import rikka.shizuku.Shizuku
-import rikka.shizuku.Shizuku.OnRequestPermissionResultListener
-import rikka.shizuku.ShizukuProvider
 
-class MainActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityMainBinding
-    val shizukuPermissionCode = 1
+class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
-
         super.onCreate(savedInstanceState)
-
-        binding = ActivityMainBinding.inflate(layoutInflater)
-
         enableEdgeToEdge()
-        loadEditorThemes()
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
-            val imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
-            val systemBarInsets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-
-            view.setPadding(
-                systemBarInsets.left,
-                systemBarInsets.top,
-                systemBarInsets.right,
-                imeInsets.bottom.coerceAtLeast(systemBarInsets.bottom)
-            )
-
-            windowInsets
-        }
-
-        setContentView(binding.root)
-
-        if (ResourceUtil.missingResources().isNotEmpty()) {
-            supportFragmentManager.commit {
-                replace(binding.fragmentContainer.id, InstallResourcesFragment())
+        setContent {
+            val context = LocalContext.current
+            val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
+            
+            // Listen for theme changes in SharedPreferences
+            var themePref by remember { 
+                mutableStateOf(prefs.getString(PreferenceKeys.APP_THEME, "auto") ?: "auto") 
             }
-        } else {
-            supportFragmentManager.commit {
-                replace(binding.fragmentContainer.id, ProjectFragment())
-            }
-        }
 
-        Shizuku.addRequestPermissionResultListener(listener)
-
-        lifecycleScope.launch {
-            awaitBinderReceived()
-            if (isShizukuInstalled() && Shizuku.shouldShowRequestPermissionRationale()) {
-                requestPermission()
-            }
-        }
-    }
-
-    private val listener =
-        OnRequestPermissionResultListener { _, grantResult ->
-            val granted = grantResult == PackageManager.PERMISSION_GRANTED
-            // Do stuff based on the result and the request code
-            if (granted) {
-                CommonUtils.showSnackBar(binding.root, "Permission Granted")
-            } else {
-                CommonUtils.showSnackBar(binding.root, "Permission Denied")
-                if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-                    lifecycleScope.launch {
-                        awaitBinderReceived()
+            DisposableEffect(prefs) {
+                val listener = { p: android.content.SharedPreferences, key: String? ->
+                    if (key == PreferenceKeys.APP_THEME) {
+                        themePref = p.getString(key, "auto") ?: "auto"
                     }
                 }
+                prefs.registerOnSharedPreferenceChangeListener(listener)
+                onDispose {
+                    prefs.unregisterOnSharedPreferenceChangeListener(listener)
+                }
+            }
+
+            val darkTheme = when (themePref) {
+                "light" -> false
+                "dark" -> true
+                else -> isSystemInDarkTheme()
+            }
+
+            KartikaTheme(darkTheme = darkTheme) {
+                KartikaApp()
+            }
+        }
+    }
+}
+
+@Composable
+fun KartikaApp() {
+    val navController = rememberNavController()
+    
+    val startDestination = if (ResourceUtil.missingResources().isNotEmpty()) {
+        "install_resources"
+    } else {
+        "project_list"
+    }
+
+    NavHost(navController = navController, startDestination = startDestination) {
+        composable("install_resources") {
+            val viewModel: InstallResourcesViewModel = viewModel()
+            InstallResourcesScreen(
+                viewModel = viewModel,
+                onFinished = {
+                    navController.navigate("project_list") {
+                        popUpTo("install_resources") { inclusive = true }
+                    }
+                }
+            )
+        }
+        
+        composable("project_list") {
+            val viewModel: ProjectViewModel = viewModel()
+            ProjectListScreen(
+                viewModel = viewModel,
+                onProjectClick = { project ->
+                    // Handle navigation to Editor
+                },
+                onSettingsClick = {
+                    navController.navigate("settings_main")
+                },
+                onAboutClick = {
+                    navController.navigate("about")
+                },
+                onNewProjectClick = {
+                    navController.navigate("new_project")
+                },
+                onImportClick = {
+                    // Import logic
+                },
+                onGitCloneClick = {
+                    // Git Clone logic
+                },
+                onOpenExternalClick = {
+                    // Open External logic
+                }
+            )
+        }
+
+        // Sub-screens of Settings in NavHost to manage backstack properly
+        composable("settings_main") {
+            SettingsScreen(
+                onBackClick = { navController.popBackStack() },
+                onAboutClick = { navController.navigate("about") },
+                onNavigate = { screen -> navController.navigate("settings_$screen") }
+            )
+        }
+
+        composable("settings_appearance") {
+            AppearanceSettingsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable("settings_editor") {
+            EditorSettingsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable("settings_compiler") {
+            CompilerSettingsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable("settings_formatter") {
+            FormatterSettingsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable("settings_git") {
+            GitSettingsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable("settings_gemini") {
+            GeminiSettingsScreen(onBackClick = { navController.popBackStack() })
+        }
+        
+        composable("settings_plugins") {
+            PluginsSettingsScreen(
+                onBackClick = { navController.popBackStack() },
+                onAvailablePluginsClick = { navController.navigate("available_plugins") },
+                onInstalledPluginsClick = { navController.navigate("installed_plugins") }
+            )
+        }
+
+        composable("about") {
+            AboutScreen(
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable("new_project") {
+            val viewModel: ProjectViewModel = viewModel()
+            NewProjectScreen(
+                viewModel = viewModel,
+                onBackClick = { navController.popBackStack() },
+                onProjectCreated = { project ->
+                    navController.popBackStack()
+                    // Handle navigation to Editor
+                }
+            )
+        }
+
+        composable("available_plugins") {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Available Plugins Screen")
             }
         }
 
-    private fun requestPermission() {
-        if (Shizuku.isPreV11()) {
-            requestPermissions(arrayOf(ShizukuProvider.PERMISSION), shizukuPermissionCode)
-        } else {
-            Shizuku.requestPermission(shizukuPermissionCode)
+        composable("installed_plugins") {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Installed Plugins Screen")
+            }
         }
-    }
-
-    private fun loadEditorThemes() {
-        val themeRegistry = ThemeRegistry.getInstance()
-        themeRegistry.loadTheme(loadTheme("darcula.json", "darcula"))
-        themeRegistry.loadTheme(loadTheme("QuietLight.tmTheme.json", "QuietLight"))
-        themeRegistry.loadTheme(loadTheme("dracula_2.json", "dracula_2"))
-        themeRegistry.loadTheme(loadTheme("onedark.json", "onedark"))
-
-        App.instance.get()!!.applyThemeBasedOnConfiguration()
-    }
-
-
-    private fun loadTheme(fileName: String, themeName: String): ThemeModel {
-        val inputStream =
-            MaterialEditorTheme.resolveTheme(this, fileName)
-        val source = IThemeSource.fromInputStream(inputStream, fileName, null)
-        return ThemeModel(source, themeName)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        Shizuku.removeRequestPermissionResultListener(listener)
     }
 }

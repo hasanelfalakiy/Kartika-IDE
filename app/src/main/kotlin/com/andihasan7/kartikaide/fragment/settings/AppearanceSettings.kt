@@ -41,7 +41,7 @@ class AppearanceSettings(private val activity: MainActivity) : SettingsProvider 
         get() = activity.resources.getStringArray(R.array.app_theme_entry_values)
     private val themeOptions: Array<String>
         get() = activity.resources.getStringArray(R.array.app_theme_entries)
-    private val themeItems: List<SelectionItem<String>>
+    private val themeItems: List<SelectionItem>
         get() = themeValues.zip(themeOptions).map { SelectionItem(it.first, it.second, null) }
 
     override fun provideSettings(builder: PreferenceScreen.Builder) {

@@ -7,7 +7,9 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import io.appwrite.services.KeepAliveService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.collections.component1
 import kotlin.collections.component2
 import kotlin.collections.forEach
@@ -56,10 +58,10 @@ internal class WebAuthComponent {
 
             intent.intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
             intent.intent.putExtra("android.support.customtabs.extra.KEEP_ALIVE", keepAliveIntent)
-            intent.launchUrl(activity, url)
-
-            activity.runOnUiThread {
-                activity.lifecycle.addObserver(this)
+            
+            withContext(Dispatchers.Main) {
+                intent.launchUrl(activity, url)
+                activity.lifecycle.addObserver(this@Companion)
             }
 
             // Need to dirty poll block so execution doesn't continue at the callsite of this function
@@ -67,6 +69,11 @@ internal class WebAuthComponent {
             while (suspended) {
                 delay(200)
             }
+            
+            withContext(Dispatchers.Main) {
+                activity.lifecycle.removeObserver(this@Companion)
+            }
+
             cleanUp()
         }
 

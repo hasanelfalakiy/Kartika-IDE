@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.fragment.settings
 
 import androidx.core.content.res.ResourcesCompat
@@ -41,11 +34,11 @@ class CompilerSettings(private val activity: FragmentActivity) : SettingsProvide
         LanguageVersion.KOTLIN_2_0,
         LanguageVersion.KOTLIN_2_1
     )
-    private val javaVersionItems: List<SelectionItem<String>>
+    private val javaVersionItems: List<SelectionItem>
         get() = javaVersionValues.zip(javaVersionValues)
             .map { SelectionItem(it.first, it.second, null) }
 
-    private val kotlinVersionItems: List<SelectionItem<String>>
+    private val kotlinVersionItems: List<SelectionItem>
         get() = kotlinVersionValues.map { SelectionItem(it.versionString, it.versionString, null) }
 
     override fun provideSettings(builder: PreferenceScreen.Builder) {

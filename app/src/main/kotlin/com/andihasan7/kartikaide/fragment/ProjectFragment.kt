@@ -32,7 +32,9 @@ import androidx.core.view.isVisible
 import androidx.documentfile.provider.DocumentFile
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.commit
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.preference.PreferenceManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -350,15 +352,23 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     }
 
     private fun observeViewModelProjects() {
-        viewModel.internalProjects.observe(viewLifecycleOwner) { internal ->
-            val external = viewModel.externalProjects.value ?: emptyList()
-            projectAdapter.submitProjects(internal, external)
-            updateUI(internal.isEmpty() && external.isEmpty())
-        }
-        viewModel.externalProjects.observe(viewLifecycleOwner) { external ->
-            val internal = viewModel.internalProjects.value ?: emptyList()
-            projectAdapter.submitProjects(internal, external)
-            updateUI(internal.isEmpty() && external.isEmpty())
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.internalProjects.collect { internal ->
+                        val external = viewModel.externalProjects.value
+                        projectAdapter.submitProjects(internal, external)
+                        updateUI(internal.isEmpty() && external.isEmpty())
+                    }
+                }
+                launch {
+                    viewModel.externalProjects.collect { external ->
+                        val internal = viewModel.internalProjects.value
+                        projectAdapter.submitProjects(internal, external)
+                        updateUI(internal.isEmpty() && external.isEmpty())
+                    }
+                }
+            }
         }
     }
 
