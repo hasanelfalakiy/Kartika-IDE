@@ -117,6 +117,11 @@ android {
     }
     buildFeatures {
         buildConfig = true
+        compose = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.11"
     }
 
     flavorDimensions += "environment"
@@ -161,6 +166,16 @@ configurations.all {
 }
 
 dependencies {
+    val composeBom = platform("androidx.compose:compose-bom:2024.02.02")
+    implementation(composeBom)
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose")
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+
     implementation("com.android.tools:r8:8.9.35")
     implementation("com.android.tools.smali:smali-dexlib2:3.0.9")
 
@@ -220,7 +235,6 @@ dependencies {
     kapt("ca.blarg:prism4j-languages:1.0.0")
 
     implementation(projects.feature.aliuhook)
-    implementation("de.maxr1998:modernandroidpreferences:2.4.0-beta2")
 
     implementation("com.github.Cosmic-Ide.kotlinc-android:kotlinc-android:fce2462f00")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
