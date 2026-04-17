@@ -10,6 +10,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
     id("com.google.gms.google-services") apply false
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 if (file("google-services.json").exists()) {
@@ -120,10 +121,6 @@ android {
         compose = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.11"
-    }
-
     flavorDimensions += "environment"
 
     productFlavors {
@@ -175,6 +172,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose")
     implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("io.coil-kt:coil-compose:2.6.0")
 
     implementation("com.android.tools:r8:8.9.35")
     implementation("com.android.tools.smali:smali-dexlib2:3.0.9")
@@ -205,8 +204,11 @@ dependencies {
     //noinspection GradleDependency
     implementation("io.github.rosemoe:language-treesitter:$editorVersion")
     implementation("io.github.rosemoe:language-textmate:$editorVersion")
+    //noinspection GradleDependency
     implementation("com.itsaky.androidide.treesitter:android-tree-sitter:4.3.1")
+    //noinspection GradleDependency
     implementation("com.itsaky.androidide.treesitter:tree-sitter-java:4.3.1")
+    //noinspection GradleDependency
     implementation("com.itsaky.androidide.treesitter:tree-sitter-kotlin:4.3.1")
 
     implementation("io.github.itsaky:nb-javac-android:17.0.0.3")
@@ -251,6 +253,8 @@ dependencies {
 
     // Glide
     implementation("com.github.bumptech.glide:glide:4.16.0")
+
+    implementation("de.maxr1998:modernandroidpreferences:2.3.2")
 
     implementation(projects.buildTools)
     implementation(projects.common)
