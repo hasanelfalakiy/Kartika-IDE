@@ -90,15 +90,9 @@ fun KartikaApp() {
                 onNewProjectClick = {
                     navController.navigate("new_project")
                 },
-                onImportClick = {
-                    // Import logic
-                },
-                onGitCloneClick = {
+                /*onGitCloneClick = {
                     // Git Clone logic
-                },
-                onOpenExternalClick = {
-                    // Open External logic
-                }
+                }*/
             )
         }
 
