@@ -41,6 +41,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
+        // Load native library for TreeSitter
+        try {
+            System.loadLibrary("android-tree-sitter")
+        } catch (e: UnsatisfiedLinkError) {
+            android.util.Log.e("MainActivity", "Failed to load android-tree-sitter", e)
+        }
+        
         ThemeUtils.init(this)
         initJGit()
 

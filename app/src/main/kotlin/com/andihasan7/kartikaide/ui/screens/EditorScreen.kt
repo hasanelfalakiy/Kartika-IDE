@@ -34,6 +34,10 @@ import com.andihasan7.kartikaide.editor.language.KotlinLanguage
 import com.andihasan7.kartikaide.editor.language.TsLanguageJava
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.ContentIO
+import io.github.rosemoe.sora.lang.EmptyLanguage
+import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
+import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
+import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,8 +54,10 @@ fun EditorScreen(
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    
     val openFiles = viewModel.openFiles
-    val selectedTabIndex by viewModel.selectedTabIndex
+    val selectedFile = viewModel.selectedFile
+    val selectedTabIndex = viewModel.selectedTabIndex
     
     // Track current active editor for global actions
     var activeEditor by remember { mutableStateOf<IdeEditor?>(null) }
@@ -82,9 +88,9 @@ fun EditorScreen(
                     title = {
                         Column {
                             Text(project.name, style = MaterialTheme.typography.titleMedium)
-                            if (openFiles.isNotEmpty() && selectedTabIndex in openFiles.indices) {
+                            selectedFile?.let { file ->
                                 Text(
-                                    openFiles[selectedTabIndex].name,
+                                    file.name,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -112,14 +118,14 @@ fun EditorScreen(
                     EditorTabs(
                         files = openFiles,
                         selectedIndex = selectedTabIndex,
-                        onTabSelected = { viewModel.selectedTabIndex.intValue = it },
-                        onCloseTab = { viewModel.closeFile(it) }
+                        onTabSelected = { viewModel.selectedFile = openFiles.getOrNull(it) },
+                        onCloseTab = { viewModel.closeFileAt(it) }
                     )
                     
                     EditorPager(
                         files = openFiles,
                         selectedIndex = selectedTabIndex,
-                        onPageChanged = { viewModel.selectedTabIndex.intValue = it },
+                        onPageChanged = { viewModel.selectedFile = openFiles.getOrNull(it) },
                         onEditorActive = { activeEditor = it }
                     )
                 } else {
@@ -137,14 +143,18 @@ fun EditorTabs(
     onTabSelected: (Int) -> Unit,
     onCloseTab: (Int) -> Unit
 ) {
+    if (files.isEmpty()) return
+
+    val safeSelectedIndex = selectedIndex.coerceIn(0, files.lastIndex)
+
     ScrollableTabRow(
-        selectedTabIndex = selectedIndex.coerceAtLeast(0),
+        selectedTabIndex = safeSelectedIndex,
         edgePadding = 0.dp,
         divider = {}
     ) {
         files.forEachIndexed { index, file ->
             Tab(
-                selected = selectedIndex == index,
+                selected = safeSelectedIndex == index,
                 onClick = { onTabSelected(index) },
                 text = {
                     Row(
@@ -155,7 +165,7 @@ fun EditorTabs(
                             imageVector = Icons.Default.Description,
                             contentDescription = null,
                             modifier = Modifier.size(16.dp).padding(end = 4.dp),
-                            tint = if (selectedIndex == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (safeSelectedIndex == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             file.name,
@@ -192,20 +202,25 @@ fun EditorPager(
     }
     
     LaunchedEffect(pagerState.currentPage) {
-        onPageChanged(pagerState.currentPage)
+        if (pagerState.currentPage < files.size) {
+            onPageChanged(pagerState.currentPage)
+        }
     }
 
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
-        userScrollEnabled = false
+        userScrollEnabled = false,
+        key = { page -> if (page < files.size) files[page].absolutePath else page }
     ) { page ->
-        val file = files[page]
-        CodeEditorView(
-            file = file,
-            isActive = page == pagerState.currentPage,
-            onEditorCreated = { if (page == pagerState.currentPage) onEditorActive(it) }
-        )
+        if (page < files.size) {
+            val file = files[page]
+            CodeEditorView(
+                file = file,
+                isActive = page == pagerState.currentPage,
+                onEditorCreated = { if (page == pagerState.currentPage) onEditorActive(it) }
+            )
+        }
     }
 }
 
@@ -220,7 +235,7 @@ fun CodeEditorView(
     
     // When this specific page becomes active, report its editor to the parent
     LaunchedEffect(isActive, editorInstance) {
-        if (isActive) {
+        if (isActive && editorInstance != null) {
             onEditorCreated(editorInstance)
         }
     }
@@ -232,8 +247,9 @@ fun CodeEditorView(
                 val content = editor.text.toString()
                 scope.launch(Dispatchers.IO) {
                     try {
-                        file.writeText(content)
-                        Log.d("CodeEditorView", "Auto-saved: ${file.name}")
+                        if (file.exists() && file.canWrite()) {
+                            file.writeText(content)
+                        }
                     } catch (e: Exception) {
                         Log.e("CodeEditorView", "Failed auto-save: ${file.name}", e)
                     }
@@ -251,25 +267,51 @@ fun CodeEditorView(
                 // Initialize language
                 val project = ProjectHandler.getProject()
                 if (project != null) {
-                    when (file.extension) {
-                        "java" -> setEditorLanguage(TsLanguageJava.getInstance(this, project, file))
-                        "kt" -> setEditorLanguage(KotlinLanguage(this, project, file))
+                    try {
+                        val extension = file.extension.lowercase()
+                        when (extension) {
+                            "java" -> setEditorLanguage(TsLanguageJava.getInstance(this, project, file))
+                            "kt", "kts" -> setEditorLanguage(KotlinLanguage(this, project, file))
+                            else -> {
+                                val scopeName = when (extension) {
+                                    "smali" -> "source.smali"
+                                    "gradle" -> "source.groovy.gradle"
+                                    "xml" -> "text.xml"
+                                    "json" -> "source.json"
+                                    "md" -> "text.html.markdown"
+                                    else -> null
+                                }
+                                
+                                if (scopeName != null) {
+                                    val grammarRegistry = GrammarRegistry.getInstance()
+                                    val themeRegistry = ThemeRegistry.getInstance()
+                                    // Based on library candidates, using the String overload with autoCompleteEnabled
+                                    setEditorLanguage(TextMateLanguage.create(scopeName, grammarRegistry, themeRegistry, true))
+                                } else {
+                                    setEditorLanguage(EmptyLanguage())
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("CodeEditorView", "Failed to set language for ${file.name}", e)
+                        setEditorLanguage(EmptyLanguage())
                     }
                 }
                 
                 // Load content
                 scope.launch(Dispatchers.IO) {
-                    val content = try {
-                        if (file.exists()) {
-                            ContentIO.createFrom(FileInputStream(file))
-                        } else {
-                            Content()
+                    try {
+                        if (file.exists() && file.isFile) {
+                            val content = ContentIO.createFrom(FileInputStream(file))
+                            withContext(Dispatchers.Main) {
+                                setText(content)
+                            }
                         }
                     } catch (e: Exception) {
-                        Content()
-                    }
-                    withContext(Dispatchers.Main) {
-                        setText(content)
+                        Log.e("CodeEditorView", "Failed to load ${file.name}", e)
+                        withContext(Dispatchers.Main) {
+                            setText(Content())
+                        }
                     }
                 }
             }
@@ -413,16 +455,16 @@ fun FileTreeItem(
             .padding(start = (level * 16).dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = if (file.isDirectory) {
-                if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight
-            } else {
-                Icons.Default.Description
-            },
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        if (file.isDirectory) {
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        } else {
+            Spacer(modifier = Modifier.size(20.dp))
+        }
         
         Spacer(Modifier.width(8.dp))
         
