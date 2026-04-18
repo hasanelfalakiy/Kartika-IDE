@@ -38,6 +38,7 @@ import com.andihasan7.kartikaide.R
 import com.andihasan7.kartikaide.extension.copyToClipboard
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.common.PreferenceKeys
+import com.andihasan7.kartikaide.util.ThemeUtils
 import org.jetbrains.kotlin.config.LanguageVersion
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -167,8 +168,7 @@ fun SettingsScreen(
 @Composable
 fun AppearanceSettingsScreen(onBackClick: () -> Unit) {
     val context = LocalContext.current
-    val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
-    var theme by remember { mutableStateOf(prefs.getString(PreferenceKeys.APP_THEME, "auto") ?: "auto") }
+    val themeMode by ThemeUtils.themeState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -186,12 +186,11 @@ fun AppearanceSettingsScreen(onBackClick: () -> Unit) {
             item {
                 ListPreferenceItem(
                     title = "App Theme",
-                    summary = theme.replaceFirstChar { it.uppercase() },
+                    summary = themeMode.replaceFirstChar { it.uppercase() },
                     options = listOf("auto" to "System Default", "light" to "Light", "dark" to "Dark"),
-                    selectedKey = theme,
+                    selectedKey = themeMode,
                     onSelected = { newValue ->
-                        theme = newValue
-                        prefs.edit().putString(PreferenceKeys.APP_THEME, newValue).apply()
+                        ThemeUtils.setTheme(context, newValue)
                     }
                 )
             }

@@ -58,22 +58,24 @@ class App : Application() {
         lateinit var instance: WeakReference<App>
     }
 
-    private val themeListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
-        if (key == PreferenceKeys.APP_THEME) {
-            updateNightMode()
-            if (Prefs.isInitialized) {
-                applyThemeBasedOnConfiguration()
-            }
-        }
-    }
+    private var themeListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     override fun onCreate() {
         super.onCreate()
 
-        if (FileUtil.isInitialized.not()) return
+        instance = WeakReference(this)
+        
+        // Ensure Prefs and FileUtil are initialized immediately
+        Prefs.init(this)
+        if (FileUtil.isInitialized.not()) {
+            try {
+                FileUtil.init(getExternalFilesDir(null)!!)
+            } catch (e: Exception) {
+                Log.e("App", "Failed to initialize FileUtil", e)
+            }
+        }
 
         Analytics.init(this@App)
-        instance = WeakReference(this)
         HookManager.context = WeakReference(this)
 
         // 1. Immediate UI/System setup
@@ -85,7 +87,15 @@ class App : Application() {
         disableModules()
         updateNightMode()
 
-        // Register listener for theme changes
+        // Register listener for theme changes with a strong reference
+        themeListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            if (key == PreferenceKeys.APP_THEME) {
+                updateNightMode()
+                if (Prefs.isInitialized) {
+                    applyThemeBasedOnConfiguration()
+                }
+            }
+        }
         PreferenceManager.getDefaultSharedPreferences(this)
             .registerOnSharedPreferenceChangeListener(themeListener)
 
@@ -100,7 +110,7 @@ class App : Application() {
         val appStartTime = ZonedDateTime.now().toString()
 
         CoroutineScope(Dispatchers.Main).launch {
-            // Priority 1: Apply Theme immediately
+            // Apply Theme immediately
             if (Prefs.isInitialized) {
                 applyThemeBasedOnConfiguration()
             }
@@ -114,7 +124,9 @@ class App : Application() {
                     Analytics.logEvent("app_start", "time" to appStartTime)
                 }
 
-                extractFiles()
+                if (FileUtil.isInitialized) {
+                    extractFiles()
+                }
                 loadTextmateTheme()
             }
 
@@ -145,10 +157,12 @@ class App : Application() {
 
     private fun updateNightMode() {
         val theme = getTheme(Prefs.appTheme)
-        val uiModeManager = getSystemService(UiModeManager::class.java)
-        if (uiModeManager != null) {
+        
+        // Use a small delay or launch on main to ensure stability
+        CoroutineScope(Dispatchers.Main).launch {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                uiModeManager.setApplicationNightMode(theme)
+                val uiModeManager = getSystemService(UiModeManager::class.java)
+                uiModeManager?.setApplicationNightMode(theme)
             } else {
                 val mode = when (theme) {
                     UiModeManager.MODE_NIGHT_NO -> AppCompatDelegate.MODE_NIGHT_NO
@@ -302,8 +316,10 @@ class App : Application() {
     }
 
     override fun onTerminate() {
-        PreferenceManager.getDefaultSharedPreferences(this)
-            .unregisterOnSharedPreferenceChangeListener(themeListener)
+        themeListener?.let {
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .unregisterOnSharedPreferenceChangeListener(it)
+        }
         super.onTerminate()
     }
 }

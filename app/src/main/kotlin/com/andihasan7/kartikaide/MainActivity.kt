@@ -19,12 +19,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.preference.PreferenceManager
 import com.andihasan7.kartikaide.fragment.InstallResourcesViewModel
 import com.andihasan7.kartikaide.model.ProjectViewModel
 import com.andihasan7.kartikaide.ui.screens.*
 import com.andihasan7.kartikaide.ui.theme.KartikaTheme
-import com.andihasan7.kartikaide.util.PreferenceKeys
+import com.andihasan7.kartikaide.util.ThemeUtils
 import com.andihasan7.kartikaide.util.ResourceUtil
 
 class MainActivity : ComponentActivity() {
@@ -33,29 +32,13 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        ThemeUtils.init(this)
 
         setContent {
-            val context = LocalContext.current
-            val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
+            val themeMode by ThemeUtils.themeState.collectAsState()
             
-            // Listen for theme changes in SharedPreferences
-            var themePref by remember { 
-                mutableStateOf(prefs.getString(PreferenceKeys.APP_THEME, "auto") ?: "auto") 
-            }
-
-            DisposableEffect(prefs) {
-                val listener = { p: android.content.SharedPreferences, key: String? ->
-                    if (key == PreferenceKeys.APP_THEME) {
-                        themePref = p.getString(key, "auto") ?: "auto"
-                    }
-                }
-                prefs.registerOnSharedPreferenceChangeListener(listener)
-                onDispose {
-                    prefs.unregisterOnSharedPreferenceChangeListener(listener)
-                }
-            }
-
-            val darkTheme = when (themePref) {
+            val darkTheme = when (themeMode) {
                 "light" -> false
                 "dark" -> true
                 else -> isSystemInDarkTheme()

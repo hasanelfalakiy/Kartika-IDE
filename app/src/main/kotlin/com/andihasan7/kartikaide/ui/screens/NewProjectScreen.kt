@@ -7,7 +7,14 @@
 
 package com.andihasan7.kartikaide.ui.screens
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Environment
+import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -23,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.FileUtil
@@ -45,10 +53,36 @@ fun NewProjectScreen(
     var packageName by remember { mutableStateOf("") }
     var selectedPath by remember { mutableStateOf("") }
     var useKotlin by remember { mutableStateOf(true) }
-    var locationType by remember { mutableIntStateOf(1) } // 0: Internal, 1: External, 2: Custom
+    var locationType by remember { mutableIntStateOf(0) } // Default to 0: Internal
 
     var projectNameError by remember { mutableStateOf<String?>(null) }
     var packageNameError by remember { mutableStateOf<String?>(null) }
+
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions.all { it.value }) {
+            val kartikaDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
+            if (!kartikaDir.exists()) kartikaDir.mkdirs()
+            selectedPath = kartikaDir.absolutePath
+            locationType = 1
+        } else {
+            Toast.makeText(context, "Storage permission is required to save projects externally", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val manageStorageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
+            val kartikaDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
+            if (!kartikaDir.exists()) kartikaDir.mkdirs()
+            selectedPath = kartikaDir.absolutePath
+            locationType = 1
+        } else {
+            Toast.makeText(context, "All files access is required to save projects externally", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val directoryPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -62,7 +96,7 @@ fun NewProjectScreen(
         }
     }
 
-    // Initial path setup
+    // Initial path setup: Default to Storage if permission is already granted
     LaunchedEffect(Unit) {
         if (PermissionUtils.hasStoragePermission(context)) {
             val kartikaDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
@@ -72,6 +106,36 @@ fun NewProjectScreen(
         } else {
             selectedPath = FileUtil.projectDir.absolutePath
             locationType = 0
+        }
+    }
+
+    fun requestStoragePermission(onSuccess: () -> Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                    intent.data = Uri.parse("package:${context.packageName}")
+                    manageStorageLauncher.launch(intent)
+                } catch (e: Exception) {
+                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    manageStorageLauncher.launch(intent)
+                }
+            } else {
+                onSuccess()
+            }
+        } else {
+            val permissions = arrayOf(
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            )
+            val missing = permissions.filter {
+                ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+            }
+            if (missing.isNotEmpty()) {
+                storagePermissionLauncher.launch(missing.toTypedArray())
+            } else {
+                onSuccess()
+            }
         }
     }
 
@@ -129,6 +193,7 @@ fun NewProjectScreen(
             onProjectCreated(project)
         } catch (e: Exception) {
             e.printStackTrace()
+            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -188,9 +253,12 @@ fun NewProjectScreen(
                 SegmentedButton(
                     selected = locationType == 1,
                     onClick = { 
-                        val kartikaDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
-                        selectedPath = kartikaDir.absolutePath
-                        locationType = 1
+                        requestStoragePermission {
+                            val kartikaDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
+                            if (!kartikaDir.exists()) kartikaDir.mkdirs()
+                            selectedPath = kartikaDir.absolutePath
+                            locationType = 1
+                        }
                     },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
                 ) {
@@ -199,7 +267,9 @@ fun NewProjectScreen(
                 SegmentedButton(
                     selected = locationType == 2,
                     onClick = { 
-                        directoryPickerLauncher.launch(null)
+                        requestStoragePermission {
+                            directoryPickerLauncher.launch(null)
+                        }
                     },
                     shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
                 ) {
@@ -214,7 +284,11 @@ fun NewProjectScreen(
                 label = { Text("Selected Path") },
                 modifier = Modifier.fillMaxWidth(),
                 trailingIcon = {
-                    IconButton(onClick = { directoryPickerLauncher.launch(null) }) {
+                    IconButton(onClick = { 
+                        requestStoragePermission {
+                            directoryPickerLauncher.launch(null)
+                        }
+                    }) {
                         Icon(Icons.Default.CreateNewFolder, contentDescription = "Select Folder")
                     }
                 }
