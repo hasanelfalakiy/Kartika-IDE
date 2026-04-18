@@ -373,7 +373,7 @@ fun FormatterSettingsScreen(onBackClick: () -> Unit) {
             item { ListPreferenceItem(title = "Style", summary = gjfStyle.uppercase(), options = listOf("aosp" to "AOSP", "google" to "Google"), selectedKey = gjfStyle, onSelected = { gjfStyle = it; prefs.edit { putString(PreferenceKeys.FORMATTER_GJF_STYLE, it) } }) }
             item {
                 MultiChoicePreferenceItem(
-                    title = "GJF Options",
+                    title = "Options",
                     summary = if (gjfOptions.isEmpty()) "None" else gjfOptions.joinToString(", "),
                     options = gjfOptionList,
                     selectedKeys = gjfOptions,
