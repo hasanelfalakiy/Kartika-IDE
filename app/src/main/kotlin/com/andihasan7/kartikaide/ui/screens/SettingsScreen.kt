@@ -7,14 +7,12 @@
 
 package com.andihasan7.kartikaide.ui.screens
 
-import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,8 +28,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import com.andihasan7.kartikaide.BuildConfig
@@ -188,7 +187,7 @@ fun AppearanceSettingsScreen(onBackClick: () -> Unit) {
                 ListPreferenceItem(
                     title = "App Theme",
                     summary = theme.replaceFirstChar { it.uppercase() },
-                    items = listOf("auto" to "System Default", "light" to "Light", "dark" to "Dark"),
+                    options = listOf("auto" to "System Default", "light" to "Light", "dark" to "Dark"),
                     selectedKey = theme,
                     onSelected = { newValue ->
                         theme = newValue
@@ -220,7 +219,7 @@ fun EditorSettingsScreen(onBackClick: () -> Unit) {
     var nonPrintable by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.EDITOR_NON_PRINTABLE_SYMBOLS_SHOW, false)) }
     var doubleClickClose by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.EDITOR_DOUBLE_CLICK_CLOSE, false)) }
     var disableSymbols by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.DISABLE_SYMBOLS_VIEW, false)) }
-    var customSymbols by remember { mutableStateOf(prefs.getString(PreferenceKeys.EDITOR_CUSTOM_SYMBOLS, "→,(,),{,},[,],;,.,") ?: "") }
+    var customSymbols by remember { mutableStateOf(prefs.getString(PreferenceKeys.EDITOR_CUSTOM_SYMBOLS, "→,(,),{,},[,],;,.,,") ?: "") }
     var expJavaComp by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.EDITOR_EXP_JAVA_COMPLETION, false)) }
     var ktRealtimeErrors by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.KOTLIN_REALTIME_ERRORS, false)) }
     var editorFont by remember { mutableStateOf(prefs.getString(PreferenceKeys.EDITOR_FONT, "") ?: "") }
@@ -242,7 +241,7 @@ fun EditorSettingsScreen(onBackClick: () -> Unit) {
             item { PreferenceCategory("Appearance") }
             item { SliderPreferenceItem(title = "Font Size", value = fontSize, valueRange = 12f..32f, steps = 20, onValueChange = { fontSize = it; prefs.edit { putInt(PreferenceKeys.EDITOR_FONT_SIZE, it.toInt()) } }) }
             item { SliderPreferenceItem(title = "Tab Size", value = tabSize, valueRange = 2f..8f, steps = 6, onValueChange = { tabSize = it; prefs.edit { putInt(PreferenceKeys.EDITOR_TAB_SIZE, it.toInt()) } }) }
-            item { ListPreferenceItem(title = "Color Scheme", summary = colorScheme, items = listOf("darcula" to "Darcula", "dracula_2" to "Dracula 2", "onedark" to "OneDark Pro"), selectedKey = colorScheme, onSelected = { colorScheme = it; prefs.edit { putString(PreferenceKeys.EDITOR_COLOR_SCHEME, it) } }) }
+            item { ListPreferenceItem(title = "Color Scheme", summary = colorScheme, options = listOf("darcula" to "Darcula", "dracula_2" to "Dracula 2", "onedark" to "OneDark Pro"), selectedKey = colorScheme, onSelected = { colorScheme = it; prefs.edit { putString(PreferenceKeys.EDITOR_COLOR_SCHEME, it) } }) }
             item { EditTextPreferenceItem(title = "Editor Font Path", value = editorFont, onValueChange = { editorFont = it; prefs.edit { putString(PreferenceKeys.EDITOR_FONT, it) } }) }
             item { SwitchPreferenceItem(title = "Font ligatures", checked = ligatures, onCheckedChange = { ligatures = it; prefs.edit { putBoolean(PreferenceKeys.EDITOR_LIGATURES_ENABLE, it) } }) }
             item { SwitchPreferenceItem(title = "Show line numbers", checked = lineNumbers, onCheckedChange = { lineNumbers = it; prefs.edit { putBoolean(PreferenceKeys.EDITOR_LINE_NUMBERS_SHOW, it) } }) }
@@ -281,7 +280,16 @@ fun CompilerSettingsScreen(onBackClick: () -> Unit) {
     var useFJFS by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.COMPILER_USE_FJFS, false)) }
     var useSSVM by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.COMPILER_USE_SSVM, false)) }
     var javacFlags by remember { mutableStateOf(prefs.getString(PreferenceKeys.COMPILER_JAVAC_FLAGS, "") ?: "") }
-    var mavenRepos by remember { mutableStateOf(prefs.getString("repos", Prefs.repositories) ?: Prefs.repositories) }
+    
+    val defaultRepos = """
+        Maven Central: https://repo1.maven.org/maven2
+        Google Maven: https://maven.google.com
+        Jitpack: https://jitpack.io
+        Sonatype Snapshots: https://s01.oss.sonatype.org/content/repositories/snapshots
+        JCenter: https://jcenter.bintray.com
+    """.trimIndent()
+    
+    var mavenRepos by remember { mutableStateOf(prefs.getString("repos", defaultRepos) ?: defaultRepos) }
 
     val kotlinVersions = listOf("1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "2.0", "2.1")
 
@@ -304,8 +312,8 @@ fun CompilerSettingsScreen(onBackClick: () -> Unit) {
             item { SwitchPreferenceItem(title = "Use SSVM", summary = "Experimental: Use Simple Static Virtual Machine", checked = useSSVM, onCheckedChange = { useSSVM = it; prefs.edit { putBoolean(PreferenceKeys.COMPILER_USE_SSVM, it) } }) }
             
             item { PreferenceCategory("Versions") }
-            item { ListPreferenceItem(title = "Java Version", summary = "Java $javaVersion", items = listOf("8" to "Java 8", "11" to "Java 11", "17" to "Java 17", "21" to "Java 21"), selectedKey = javaVersion, onSelected = { javaVersion = it; prefs.edit { putString(PreferenceKeys.COMPILER_JAVA_VERSIONS, it) } }) }
-            item { ListPreferenceItem(title = "Kotlin Version", summary = "Kotlin $kotlinVersion", items = kotlinVersions.map { it to "Kotlin $it" }, selectedKey = kotlinVersion, onSelected = { kotlinVersion = it; prefs.edit { putString(PreferenceKeys.COMPILER_KOTLIN_VERSION, it) } }) }
+            item { ListPreferenceItem(title = "Java Version", summary = "Java $javaVersion", options = listOf("8" to "Java 8", "11" to "Java 11", "17" to "Java 17", "21" to "Java 21"), selectedKey = javaVersion, onSelected = { javaVersion = it; prefs.edit { putString(PreferenceKeys.COMPILER_JAVA_VERSIONS, it) } }) }
+            item { ListPreferenceItem(title = "Kotlin Version", summary = "Kotlin $kotlinVersion", options = kotlinVersions.map { it to "Kotlin $it" }, selectedKey = kotlinVersion, onSelected = { kotlinVersion = it; prefs.edit { putString(PreferenceKeys.COMPILER_KOTLIN_VERSION, it) } }) }
             
             item { PreferenceCategory("Library Manager") }
             item { EditTextPreferenceItem(title = "Repositories", summary = "Current repositories list", value = mavenRepos, onValueChange = { mavenRepos = it; prefs.edit { putString("repos", it) } }) }
@@ -330,6 +338,16 @@ fun FormatterSettingsScreen(onBackClick: () -> Unit) {
     var manageCommas by remember { mutableStateOf(prefs.getBoolean(PreferenceKeys.KTFMT_MANAGE_TRAILING_COMMAS, false)) }
     
     var gjfStyle by remember { mutableStateOf(prefs.getString(PreferenceKeys.FORMATTER_GJF_STYLE, "aosp") ?: "aosp") }
+    var gjfOptions by remember { mutableStateOf(prefs.getStringSet(PreferenceKeys.FORMATTER_GJF_OPTIONS, setOf("--skip-javadoc-formatting")) ?: setOf("--skip-javadoc-formatting")) }
+
+    val ktfmtStyles = listOf("google" to "Google", "kotlinlang" to "Kotlinlang", "dropbox" to "Dropbox", "ktlint" to "Ktlint", "custom" to "Custom")
+    val gjfOptionList = listOf(
+        "--fix-imports-only" to "Fix imports only",
+        "--skip-sorting-imports" to "Skip sorting imports",
+        "--skip-removing-unused-imports" to "Skip removing unused imports",
+        "--skip-reflowing-long-strings" to "Skip reflowing long strings",
+        "--skip-javadoc-formatting" to "Skip javadoc formatting"
+    )
 
     Scaffold(
         topBar = {
@@ -345,7 +363,7 @@ fun FormatterSettingsScreen(onBackClick: () -> Unit) {
     ) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item { PreferenceCategory("Kotlin Formatter (ktfmt)") }
-            item { ListPreferenceItem(title = "Style", summary = ktfmtStyle.replaceFirstChar { it.uppercase() }, items = listOf("google" to "Google", "kotlinlang" to "Kotlinlang", "dropbox" to "Dropbox"), selectedKey = ktfmtStyle, onSelected = { ktfmtStyle = it; prefs.edit { putString(PreferenceKeys.FORMATTER_KTFMT_STYLE, it) } }) }
+            item { ListPreferenceItem(title = "Style", summary = ktfmtStyle.replaceFirstChar { it.uppercase() }, options = ktfmtStyles, selectedKey = ktfmtStyle, onSelected = { ktfmtStyle = it; prefs.edit { putString(PreferenceKeys.FORMATTER_KTFMT_STYLE, it) } }) }
             item { SliderPreferenceItem(title = "Max Width", value = maxWidth, valueRange = 40f..200f, steps = 160, onValueChange = { maxWidth = it; prefs.edit { putInt(PreferenceKeys.KTFMT_MAX_WIDTH, it.toInt()) } }) }
             item { SliderPreferenceItem(title = "Block Indent", value = blockIndent, valueRange = 2f..8f, steps = 6, onValueChange = { blockIndent = it; prefs.edit { putInt(PreferenceKeys.KTFMT_BLOCK_INDENT, it.toInt()) } }) }
             item { SliderPreferenceItem(title = "Continuation Indent", value = continuationIndent, valueRange = 2f..8f, steps = 6, onValueChange = { continuationIndent = it; prefs.edit { putInt(PreferenceKeys.KTFMT_CONTINUATION_INDENT, it.toInt()) } }) }
@@ -353,7 +371,19 @@ fun FormatterSettingsScreen(onBackClick: () -> Unit) {
             item { SwitchPreferenceItem(title = "Manage trailing commas", checked = manageCommas, onCheckedChange = { manageCommas = it; prefs.edit { putBoolean(PreferenceKeys.KTFMT_MANAGE_TRAILING_COMMAS, it) } }) }
             
             item { PreferenceCategory("Java Formatter (GJF)") }
-            item { ListPreferenceItem(title = "Style", summary = gjfStyle.uppercase(), items = listOf("aosp" to "AOSP", "google" to "Google"), selectedKey = gjfStyle, onSelected = { gjfStyle = it; prefs.edit { putString(PreferenceKeys.FORMATTER_GJF_STYLE, it) } }) }
+            item { ListPreferenceItem(title = "Style", summary = gjfStyle.uppercase(), options = listOf("aosp" to "AOSP", "google" to "Google"), selectedKey = gjfStyle, onSelected = { gjfStyle = it; prefs.edit { putString(PreferenceKeys.FORMATTER_GJF_STYLE, it) } }) }
+            item {
+                MultiChoicePreferenceItem(
+                    title = "GJF Options",
+                    summary = if (gjfOptions.isEmpty()) "None" else gjfOptions.joinToString(", "),
+                    options = gjfOptionList,
+                    selectedKeys = gjfOptions,
+                    onSelected = { newSet ->
+                        gjfOptions = newSet
+                        prefs.edit { putStringSet(PreferenceKeys.FORMATTER_GJF_OPTIONS, newSet) }
+                    }
+                )
+            }
         }
     }
 }
@@ -417,7 +447,7 @@ fun GitSettingsScreen(onBackClick: () -> Unit) {
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item { EditTextPreferenceItem(title = "Username", value = username, onValueChange = { username = it; prefs.edit { putString(PreferenceKeys.GIT_USERNAME, it) } }) }
             item { EditTextPreferenceItem(title = "Email", value = email, onValueChange = { email = it; prefs.edit { putString(PreferenceKeys.GIT_EMAIL, it) } }) }
-            item { EditTextPreferenceItem(title = "Personal Access Token", value = token, onValueChange = { token = it; prefs.edit { putString(PreferenceKeys.GIT_API_KEY, it) } }) }
+            item { EditTextPreferenceItem(title = "Personal Access Token", value = token, isPassword = true, onValueChange = { token = it; prefs.edit { putString(PreferenceKeys.GIT_API_KEY, it) } }) }
         }
     }
 }
@@ -451,12 +481,12 @@ fun GeminiSettingsScreen(onBackClick: () -> Unit) {
     ) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item { PreferenceCategory("API") }
-            item { EditTextPreferenceItem(title = "API Key", value = apiKey, onValueChange = { apiKey = it; prefs.edit { putString(PreferenceKeys.GEMINI_API_KEY, it) } }) }
+            item { EditTextPreferenceItem(title = "API Key", value = apiKey, isPassword = true, onValueChange = { apiKey = it; prefs.edit { putString(PreferenceKeys.GEMINI_API_KEY, it) } }) }
             item { EditTextPreferenceItem(title = "Model", value = model, onValueChange = { model = it; prefs.edit { putString(PreferenceKeys.GEMINI_MODEL, it) } }) }
             
             item { PreferenceCategory("Model Parameters") }
-            item { ListPreferenceItem(title = "Temperature", summary = temperature, items = tempValues.map { it to it }, selectedKey = temperature, onSelected = { temperature = it; prefs.edit { putString(PreferenceKeys.TEMPERATURE, it) } }) }
-            item { ListPreferenceItem(title = "Top P", summary = topP, items = tempValues.map { it to it }, selectedKey = topP, onSelected = { topP = it; prefs.edit { putString(PreferenceKeys.TOP_P, it) } }) }
+            item { ListPreferenceItem(title = "Temperature", summary = temperature, options = tempValues.map { it to it }, selectedKey = temperature, onSelected = { temperature = it; prefs.edit { putString(PreferenceKeys.TEMPERATURE, it) } }) }
+            item { ListPreferenceItem(title = "Top P", summary = topP, options = tempValues.map { it to it }, selectedKey = topP, onSelected = { topP = it; prefs.edit { putString(PreferenceKeys.TOP_P, it) } }) }
             item { SliderPreferenceItem(title = "Top K", value = topK, valueRange = 1f..60f, steps = 60, onValueChange = { topK = it; prefs.edit { putInt(PreferenceKeys.TOP_K, it.toInt()) } }) }
             item { SliderPreferenceItem(title = "Max Tokens", value = maxTokens, valueRange = 60f..2048f, steps = 100, onValueChange = { maxTokens = it; prefs.edit { putInt(PreferenceKeys.MAX_TOKENS, it.toInt()) } }) }
         }
@@ -534,7 +564,7 @@ fun SliderPreferenceItem(title: String, value: Float, valueRange: ClosedFloating
 }
 
 @Composable
-fun ListPreferenceItem(title: String, summary: String, items: List<Pair<String, String>>, selectedKey: String, onSelected: (String) -> Unit) {
+fun ListPreferenceItem(title: String, summary: String, options: List<Pair<String, String>>, selectedKey: String, onSelected: (String) -> Unit) {
     var showDialog by remember { mutableStateOf(false) }
     PreferenceItem(title = title, summary = summary, onClick = { showDialog = true })
     if (showDialog) {
@@ -543,7 +573,7 @@ fun ListPreferenceItem(title: String, summary: String, items: List<Pair<String, 
             title = { Text(title) },
             text = {
                 Column {
-                    items.forEach { (key, label) ->
+                    options.forEach { (key, label) ->
                         Row(Modifier.fillMaxWidth().clickable { onSelected(key); showDialog = false }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = (key == selectedKey), onClick = null)
                             Spacer(Modifier.width(8.dp))
@@ -558,11 +588,62 @@ fun ListPreferenceItem(title: String, summary: String, items: List<Pair<String, 
 }
 
 @Composable
-fun EditTextPreferenceItem(title: String, summary: String? = null, value: String, onValueChange: (String) -> Unit) {
+fun MultiChoicePreferenceItem(
+    title: String,
+    summary: String,
+    options: List<Pair<String, String>>,
+    selectedKeys: Set<String>,
+    onSelected: (Set<String>) -> Unit
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    var tempKeys by remember { mutableStateOf(selectedKeys) }
+
+    PreferenceItem(title = title, summary = summary, onClick = {
+        tempKeys = selectedKeys
+        showDialog = true
+    })
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text(title) },
+            text = {
+                LazyColumn {
+                    items(count = options.size) { index ->
+                        val (key, label) = options[index]
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                tempKeys = if (tempKeys.contains(key)) tempKeys - key else tempKeys + key
+                            }.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(checked = tempKeys.contains(key), onCheckedChange = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(label)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onSelected(tempKeys)
+                    showDialog = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+fun EditTextPreferenceItem(title: String, summary: String? = null, value: String, isPassword: Boolean = false, onValueChange: (String) -> Unit) {
     var showDialog by remember { mutableStateOf(false) }
     var tempValue by remember { mutableStateOf(value) }
-    
-    val currentSummary = summary ?: if (value.isEmpty()) "Not set" else if (title.contains("Key") || title.contains("Token")) "••••••••" else value
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    val currentSummary = summary ?: if (value.isEmpty()) "Not set" else if (isPassword) "••••••••" else value
     
     PreferenceItem(title = title, summary = currentSummary, onClick = { tempValue = value; showDialog = true })
     
@@ -571,7 +652,21 @@ fun EditTextPreferenceItem(title: String, summary: String? = null, value: String
             onDismissRequest = { showDialog = false },
             title = { Text(title) },
             text = {
-                OutlinedTextField(value = tempValue, onValueChange = { tempValue = it }, modifier = Modifier.fillMaxWidth(), minLines = if (title == "Repositories") 5 else 1)
+                OutlinedTextField(
+                    value = tempValue,
+                    onValueChange = { tempValue = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = if (title == "Repositories") 5 else 1,
+                    visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+                    trailingIcon = if (isPassword) {
+                        {
+                            val icon = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(icon, contentDescription = "Toggle password visibility")
+                            }
+                        }
+                    } else null
+                )
             },
             confirmButton = {
                 TextButton(onClick = { onValueChange(tempValue); showDialog = false }) { Text("OK") }

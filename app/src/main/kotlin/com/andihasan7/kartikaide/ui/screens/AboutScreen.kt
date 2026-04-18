@@ -139,7 +139,11 @@ fun AboutScreen(
                     }
                     context.startActivity(intent)
                 }) {
-                    Icon(Icons.Default.Email, contentDescription = "Email")
+                    Icon(
+                        imageVector = Icons.Default.Email,
+                        contentDescription = "Email",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
 

@@ -56,10 +56,18 @@ fun ProjectListScreen(
                 title = { Text("Kartika IDE") },
                 actions = {
                     IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                     IconButton(onClick = onAboutClick) {
-                        Icon(Icons.Default.Info, contentDescription = "About")
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "About",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             )

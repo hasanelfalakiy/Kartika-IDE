@@ -8,6 +8,7 @@
 package com.andihasan7.kartikaide
 
 import andihasan7.kartikaide.common.Analytics
+import andihasan7.kartikaide.common.PreferenceKeys
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.rewrite.plugin.api.Hook
 import andihasan7.kartikaide.rewrite.plugin.api.HookManager
@@ -16,6 +17,7 @@ import andihasan7.kartikaide.rewrite.util.FileUtil
 import android.app.Activity
 import android.app.Application
 import android.app.UiModeManager
+import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -23,6 +25,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.andihasan7.kartikaide.fragment.PluginsFragment
@@ -55,6 +58,15 @@ class App : Application() {
         lateinit var instance: WeakReference<App>
     }
 
+    private val themeListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+        if (key == PreferenceKeys.APP_THEME) {
+            updateNightMode()
+            if (Prefs.isInitialized) {
+                applyThemeBasedOnConfiguration()
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
 
@@ -71,7 +83,11 @@ class App : Application() {
         }
         DynamicColors.applyToActivitiesIfAvailable(this)
         disableModules()
-        setupNightMode()
+        updateNightMode()
+
+        // Register listener for theme changes
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .registerOnSharedPreferenceChangeListener(themeListener)
 
         // 2. Launch background tasks
         val clientName = Prefs.clientName
@@ -127,16 +143,19 @@ class App : Application() {
         Analytics.setAnalyticsCollectionEnabled(Prefs.analyticsEnabled)
     }
 
-    private fun setupNightMode() {
+    private fun updateNightMode() {
         val theme = getTheme(Prefs.appTheme)
         val uiModeManager = getSystemService(UiModeManager::class.java)
         if (uiModeManager != null) {
-            if (uiModeManager.nightMode != theme) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    uiModeManager.setApplicationNightMode(theme)
-                } else {
-                    AppCompatDelegate.setDefaultNightMode(if (theme == UiModeManager.MODE_NIGHT_AUTO) AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM else theme)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                uiModeManager.setApplicationNightMode(theme)
+            } else {
+                val mode = when (theme) {
+                    UiModeManager.MODE_NIGHT_NO -> AppCompatDelegate.MODE_NIGHT_NO
+                    UiModeManager.MODE_NIGHT_YES -> AppCompatDelegate.MODE_NIGHT_YES
+                    else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
                 }
+                AppCompatDelegate.setDefaultNightMode(mode)
             }
         }
     }
@@ -256,8 +275,8 @@ class App : Application() {
             Prefs.editorColorScheme
         } else {
             when (getTheme(Prefs.appTheme)) {
-                AppCompatDelegate.MODE_NIGHT_YES -> "darcula"
-                AppCompatDelegate.MODE_NIGHT_NO -> "QuietLight"
+                UiModeManager.MODE_NIGHT_YES -> "darcula"
+                UiModeManager.MODE_NIGHT_NO -> "QuietLight"
                 else -> {
                     if ((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES) "darcula" else "QuietLight"
                 }
@@ -280,5 +299,11 @@ class App : Application() {
         } catch (e: Exception) {
             Log.e("App", "Failed to load plugins", e)
         }
+    }
+
+    override fun onTerminate() {
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .unregisterOnSharedPreferenceChangeListener(themeListener)
+        super.onTerminate()
     }
 }

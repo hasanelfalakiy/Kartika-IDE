@@ -12,12 +12,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -124,7 +119,6 @@ fun KartikaApp() {
             )
         }
 
-        // Sub-screens of Settings in NavHost to manage backstack properly
         composable("settings_main") {
             SettingsScreen(
                 onBackClick = { navController.popBackStack() },
@@ -184,15 +178,11 @@ fun KartikaApp() {
         }
 
         composable("available_plugins") {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Available Plugins Screen")
-            }
+            AvailablePluginsScreen(onBackClick = { navController.popBackStack() })
         }
 
         composable("installed_plugins") {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Installed Plugins Screen")
-            }
+            InstalledPluginsScreen(onBackClick = { navController.popBackStack() })
         }
     }
 }
