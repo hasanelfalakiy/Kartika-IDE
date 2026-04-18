@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
@@ -57,7 +58,9 @@ fun EditorScreen(
     
     val openFiles = viewModel.openFiles
     val selectedFile = viewModel.selectedFile
-    val selectedTabIndex = viewModel.selectedTabIndex
+    
+    // Shared PagerState for Tabs and Pager, similar to ViewPager + TabLayout setup in XML
+    val pagerState = rememberPagerState(pageCount = { openFiles.size })
     
     // Track current active editor for global actions
     var activeEditor by remember { mutableStateOf<IdeEditor?>(null) }
@@ -66,6 +69,24 @@ fun EditorScreen(
     LaunchedEffect(project) {
         viewModel.setProject(project)
         ProjectHandler.setProject(project)
+    }
+
+    // Sync Pager position when selectedFile changes in ViewModel
+    LaunchedEffect(selectedFile) {
+        val index = openFiles.indexOfFirst { it.absolutePath == selectedFile?.absolutePath }
+        if (index != -1 && index != pagerState.currentPage) {
+            pagerState.scrollToPage(index)
+        }
+    }
+    
+    // Sync ViewModel when Pager position changes (swipe/scroll)
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage < openFiles.size) {
+            val fileAtPage = openFiles[pagerState.currentPage]
+            if (viewModel.selectedFile?.absolutePath != fileAtPage.absolutePath) {
+                viewModel.selectedFile = fileAtPage
+            }
+        }
     }
 
     ModalNavigationDrawer(
@@ -117,15 +138,18 @@ fun EditorScreen(
                 if (openFiles.isNotEmpty()) {
                     EditorTabs(
                         files = openFiles,
-                        selectedIndex = selectedTabIndex,
-                        onTabSelected = { viewModel.selectedFile = openFiles.getOrNull(it) },
-                        onCloseTab = { viewModel.closeFileAt(it) }
+                        selectedIndex = pagerState.currentPage,
+                        onTabSelected = { index ->
+                            scope.launch { pagerState.animateScrollToPage(index) }
+                        },
+                        onCloseTab = { index ->
+                            viewModel.closeFileAt(index)
+                        }
                     )
                     
                     EditorPager(
                         files = openFiles,
-                        selectedIndex = selectedTabIndex,
-                        onPageChanged = { viewModel.selectedFile = openFiles.getOrNull(it) },
+                        pagerState = pagerState,
                         onEditorActive = { activeEditor = it }
                     )
                 } else {
@@ -143,16 +167,19 @@ fun EditorTabs(
     onTabSelected: (Int) -> Unit,
     onCloseTab: (Int) -> Unit
 ) {
-    if (files.isEmpty()) return
+    // Take a snapshot of the list to ensure consistency during this composition pass
+    val currentFiles = remember(files.size) { files.toList() }
+    if (currentFiles.isEmpty()) return
 
-    val safeSelectedIndex = selectedIndex.coerceIn(0, files.lastIndex)
+    // Defensive check: ensure selectedIndex is always within current list bounds
+    val safeSelectedIndex = selectedIndex.coerceIn(0, currentFiles.lastIndex.coerceAtLeast(0))
 
     ScrollableTabRow(
         selectedTabIndex = safeSelectedIndex,
         edgePadding = 0.dp,
         divider = {}
     ) {
-        files.forEachIndexed { index, file ->
+        currentFiles.forEachIndexed { index, file ->
             Tab(
                 selected = safeSelectedIndex == index,
                 onClick = { onTabSelected(index) },
@@ -189,24 +216,9 @@ fun EditorTabs(
 @Composable
 fun EditorPager(
     files: List<File>,
-    selectedIndex: Int,
-    onPageChanged: (Int) -> Unit,
+    pagerState: PagerState,
     onEditorActive: (IdeEditor?) -> Unit
 ) {
-    val pagerState = rememberPagerState(pageCount = { files.size })
-    
-    LaunchedEffect(selectedIndex) {
-        if (selectedIndex != -1 && selectedIndex < files.size) {
-            pagerState.animateScrollToPage(selectedIndex)
-        }
-    }
-    
-    LaunchedEffect(pagerState.currentPage) {
-        if (pagerState.currentPage < files.size) {
-            onPageChanged(pagerState.currentPage)
-        }
-    }
-
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
