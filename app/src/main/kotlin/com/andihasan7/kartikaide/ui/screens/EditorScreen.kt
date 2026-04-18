@@ -25,6 +25,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,28 +59,29 @@ fun EditorScreen(
     
     val openFiles = viewModel.openFiles
     val selectedFile = viewModel.selectedFile
+    val selectedTabIndex = viewModel.selectedTabIndex
     
-    // Shared PagerState for Tabs and Pager, similar to ViewPager + TabLayout setup in XML
+    // PagerState for visual transitions
     val pagerState = rememberPagerState(pageCount = { openFiles.size })
     
     // Track current active editor for global actions
     var activeEditor by remember { mutableStateOf<IdeEditor?>(null) }
 
-    // Initialize project in ViewModel and global ProjectHandler
+    // Initialize project
     LaunchedEffect(project) {
         viewModel.setProject(project)
         ProjectHandler.setProject(project)
     }
 
-    // Sync Pager position when selectedFile changes in ViewModel
-    LaunchedEffect(selectedFile) {
+    // Sync Pager position when selectedFile changes
+    LaunchedEffect(selectedFile, openFiles.size) {
         val index = openFiles.indexOfFirst { it.absolutePath == selectedFile?.absolutePath }
         if (index != -1 && index != pagerState.currentPage) {
             pagerState.scrollToPage(index)
         }
     }
     
-    // Sync ViewModel when Pager position changes (swipe/scroll)
+    // Sync back to ViewModel if pager is scrolled
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage < openFiles.size) {
             val fileAtPage = openFiles[pagerState.currentPage]
@@ -107,15 +109,13 @@ fun EditorScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Column {
-                            Text(project.name, style = MaterialTheme.typography.titleMedium)
-                            selectedFile?.let { file ->
-                                Text(
-                                    file.name,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                        selectedFile?.let { file ->
+                            Text(
+                                file.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     },
                     navigationIcon = {
@@ -127,8 +127,14 @@ fun EditorScreen(
                         EditorActionButtons(
                             onUndo = { activeEditor?.undo() },
                             onRedo = { activeEditor?.redo() },
-                            onCompile = { /* TODO: Implement Compile Logic */ },
-                            onSettings = { /* TODO: Open Settings */ }
+                            onCompile = { /* TODO: Implement Run Logic */ },
+                            onAction = { action ->
+                                when(action) {
+                                    "Settings" -> { /* TODO: Navigate to Settings */ }
+                                    "Git" -> { /* TODO: Open Git */ }
+                                    // Handle other menu actions here
+                                }
+                            }
                         )
                     }
                 )
@@ -138,9 +144,9 @@ fun EditorScreen(
                 if (openFiles.isNotEmpty()) {
                     EditorTabs(
                         files = openFiles,
-                        selectedIndex = pagerState.currentPage,
+                        selectedIndex = selectedTabIndex,
                         onTabSelected = { index ->
-                            scope.launch { pagerState.animateScrollToPage(index) }
+                            viewModel.selectedFile = openFiles.getOrNull(index)
                         },
                         onCloseTab = { index ->
                             viewModel.closeFileAt(index)
@@ -167,19 +173,16 @@ fun EditorTabs(
     onTabSelected: (Int) -> Unit,
     onCloseTab: (Int) -> Unit
 ) {
-    // Take a snapshot of the list to ensure consistency during this composition pass
-    val currentFiles = remember(files.size) { files.toList() }
-    if (currentFiles.isEmpty()) return
+    if (files.isEmpty()) return
 
-    // Defensive check: ensure selectedIndex is always within current list bounds
-    val safeSelectedIndex = selectedIndex.coerceIn(0, currentFiles.lastIndex.coerceAtLeast(0))
+    val safeSelectedIndex = selectedIndex.coerceIn(0, (files.size - 1).coerceAtLeast(0))
 
     ScrollableTabRow(
         selectedTabIndex = safeSelectedIndex,
         edgePadding = 0.dp,
         divider = {}
     ) {
-        currentFiles.forEachIndexed { index, file ->
+        files.forEachIndexed { index, file ->
             Tab(
                 selected = safeSelectedIndex == index,
                 onClick = { onTabSelected(index) },
@@ -245,14 +248,12 @@ fun CodeEditorView(
     val scope = rememberCoroutineScope()
     var editorInstance by remember { mutableStateOf<IdeEditor?>(null) }
     
-    // When this specific page becomes active, report its editor to the parent
     LaunchedEffect(isActive, editorInstance) {
         if (isActive && editorInstance != null) {
             onEditorCreated(editorInstance)
         }
     }
 
-    // Auto-save logic when tab is disposed (closed or scrolled away)
     DisposableEffect(file.absolutePath) {
         onDispose {
             editorInstance?.let { editor ->
@@ -276,7 +277,6 @@ fun CodeEditorView(
             IdeEditor(ctx).apply {
                 editorInstance = this
                 
-                // Initialize language
                 val project = ProjectHandler.getProject()
                 if (project != null) {
                     try {
@@ -297,7 +297,6 @@ fun CodeEditorView(
                                 if (scopeName != null) {
                                     val grammarRegistry = GrammarRegistry.getInstance()
                                     val themeRegistry = ThemeRegistry.getInstance()
-                                    // Based on library candidates, using the String overload with autoCompleteEnabled
                                     setEditorLanguage(TextMateLanguage.create(scopeName, grammarRegistry, themeRegistry, true))
                                 } else {
                                     setEditorLanguage(EmptyLanguage())
@@ -310,7 +309,6 @@ fun CodeEditorView(
                     }
                 }
                 
-                // Load content
                 scope.launch(Dispatchers.IO) {
                     try {
                         if (file.exists() && file.isFile) {
@@ -339,12 +337,77 @@ fun EditorActionButtons(
     onUndo: () -> Unit,
     onRedo: () -> Unit,
     onCompile: () -> Unit,
-    onSettings: () -> Unit
+    onAction: (String) -> Unit
 ) {
-    IconButton(onClick = onUndo) { Icon(Icons.AutoMirrored.Filled.Undo, "Undo") }
-    IconButton(onClick = onRedo) { Icon(Icons.AutoMirrored.Filled.Redo, "Redo") }
-    IconButton(onClick = onCompile) { Icon(Icons.Default.PlayArrow, "Run", tint = MaterialTheme.colorScheme.primary) }
-    IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings") }
+    var expanded by remember { mutableStateOf(false) }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onUndo) { Icon(Icons.AutoMirrored.Filled.Undo, "Undo") }
+        IconButton(onClick = onRedo) { Icon(Icons.AutoMirrored.Filled.Redo, "Redo") }
+        
+        IconButton(onClick = onCompile) { 
+            Icon(
+                imageVector = Icons.Default.PlayArrow, 
+                contentDescription = "Run", 
+                tint = Color(0xFF4CAF50) // Green color
+            ) 
+        }
+
+        Box {
+            IconButton(onClick = { expanded = true }) {
+                Icon(Icons.Default.MoreVert, contentDescription = "More options")
+            }
+            
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                // Advanced Menu Item
+                DropdownMenuItem(
+                    text = { Text("Advanced") },
+                    onClick = { 
+                        expanded = false
+                        onAction("Advanced")
+                    },
+                    trailingIcon = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, modifier = Modifier.size(18.dp)) }
+                )
+                
+                DropdownMenuItem(
+                    text = { Text("Navigation Element") },
+                    onClick = { expanded = false; onAction("Navigation") }
+                )
+                
+                DropdownMenuItem(
+                    text = { Text("Chat with AI") },
+                    onClick = { expanded = false; onAction("AI") },
+                    leadingIcon = { Icon(Icons.Default.AutoAwesome, null, modifier = Modifier.size(18.dp)) }
+                )
+                
+                DropdownMenuItem(
+                    text = { Text("Dependency Manager") },
+                    onClick = { expanded = false; onAction("Dependencies") }
+                )
+                
+                DropdownMenuItem(
+                    text = { Text("Git") },
+                    onClick = { expanded = false; onAction("Git") }
+                )
+                
+                DropdownMenuItem(
+                    text = { Text("Format") },
+                    onClick = { expanded = false; onAction("Format") }
+                )
+                
+                HorizontalDivider()
+                
+                DropdownMenuItem(
+                    text = { Text("Settings") },
+                    onClick = { expanded = false; onAction("Settings") },
+                    leadingIcon = { Icon(Icons.Default.Settings, null, modifier = Modifier.size(18.dp)) }
+                )
+            }
+        }
+    }
 }
 
 @Composable
