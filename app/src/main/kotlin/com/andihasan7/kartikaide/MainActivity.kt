@@ -20,6 +20,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.andihasan7.kartikaide.fragment.InstallResourcesViewModel
 import com.andihasan7.kartikaide.model.ProjectViewModel
+import andihasan7.kartikaide.project.Project
+import andihasan7.kartikaide.project.Language
 import com.andihasan7.kartikaide.ui.screens.*
 import com.andihasan7.kartikaide.ui.theme.KartikaTheme
 import com.andihasan7.kartikaide.util.ThemeUtils
@@ -27,6 +29,10 @@ import com.andihasan7.kartikaide.util.ResourceUtil
 import org.eclipse.jgit.util.FS
 import org.eclipse.jgit.util.SystemReader
 import java.io.File
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import java.net.URLDecoder
+import java.net.URLEncoder
 
 class MainActivity : ComponentActivity() {
 
@@ -65,8 +71,8 @@ class MainActivity : ComponentActivity() {
         val current = SystemReader.getInstance()
         SystemReader.setInstance(object : SystemReader() {
             override fun getHostname() = current.hostname
-            override fun getenv(variable: String): String? = System.getenv(variable)
-            override fun getProperty(key: String): String? = System.getProperty(key)
+            override fun getenv(variable: String?): String? = System.getenv(variable)
+            override fun getProperty(key: String?): String? = System.getProperty(key)
             override fun openSystemConfig(parent: org.eclipse.jgit.lib.Config?, fs: FS?) = current.openSystemConfig(parent, fs)
             override fun openUserConfig(parent: org.eclipse.jgit.lib.Config?, fs: FS?) = current.openUserConfig(parent, fs)
             override fun openJGitConfig(parent: org.eclipse.jgit.lib.Config?, fs: FS?) = current.openJGitConfig(parent, fs)
@@ -104,7 +110,8 @@ fun KartikaApp() {
             ProjectListScreen(
                 viewModel = viewModel,
                 onProjectClick = { project ->
-                    // Handle navigation to Editor
+                    val encodedPath = URLEncoder.encode(project.root.absolutePath, "UTF-8")
+                    navController.navigate("editor/$encodedPath")
                 },
                 onSettingsClick = {
                     navController.navigate("settings_main")
@@ -115,6 +122,26 @@ fun KartikaApp() {
                 onNewProjectClick = {
                     navController.navigate("new_project")
                 }
+            )
+        }
+
+        composable(
+            route = "editor/{projectPath}",
+            arguments = listOf(navArgument("projectPath") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val encodedPath = backStackEntry.arguments?.getString("projectPath") ?: ""
+            val projectPath = URLDecoder.decode(encodedPath, "UTF-8")
+            val projectFile = File(projectPath)
+            
+            // Logic to determine language (Simplified for now)
+            val hasJava = projectFile.walkTopDown().maxDepth(5).any { it.path.contains("src${File.separator}main${File.separator}java") }
+            val language = if (hasJava) Language.Java else Language.Kotlin
+            
+            val project = Project(projectFile, language)
+            
+            EditorScreen(
+                project = project,
+                onBackClick = { navController.popBackStack() }
             )
         }
 
@@ -171,7 +198,8 @@ fun KartikaApp() {
                 onBackClick = { navController.popBackStack() },
                 onProjectCreated = { project ->
                     navController.popBackStack()
-                    // Handle navigation to Editor
+                    val encodedPath = URLEncoder.encode(project.root.absolutePath, "UTF-8")
+                    navController.navigate("editor/$encodedPath")
                 }
             )
         }
