@@ -163,17 +163,17 @@ configurations.all {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.02.02")
+    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
-    implementation("androidx.activity:activity-compose:1.8.2")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose")
-    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("androidx.activity:activity-compose:1.10.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.navigation:navigation-compose:2.8.5")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
 
     implementation("com.android.tools:r8:8.9.35")
     implementation("com.android.tools.smali:smali-dexlib2:3.0.9")
