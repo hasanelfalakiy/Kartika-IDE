@@ -13,7 +13,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -25,6 +24,9 @@ import com.andihasan7.kartikaide.ui.screens.*
 import com.andihasan7.kartikaide.ui.theme.KartikaTheme
 import com.andihasan7.kartikaide.util.ThemeUtils
 import com.andihasan7.kartikaide.util.ResourceUtil
+import org.eclipse.jgit.util.FS
+import org.eclipse.jgit.util.SystemReader
+import java.io.File
 
 class MainActivity : ComponentActivity() {
 
@@ -34,6 +36,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         ThemeUtils.init(this)
+        initJGit()
 
         setContent {
             val themeMode by ThemeUtils.themeState.collectAsState()
@@ -48,6 +51,28 @@ class MainActivity : ComponentActivity() {
                 KartikaApp()
             }
         }
+    }
+
+    private fun initJGit() {
+        // Fix for JGit looking for config in read-only / directory on Android
+        val jgitDir = File(filesDir, "jgit")
+        if (!jgitDir.exists()) jgitDir.mkdirs()
+        
+        // Mock a home directory for JGit to find .gitconfig
+        System.setProperty("user.home", jgitDir.absolutePath)
+        
+        // Use a SystemReader that doesn't try to access system-wide git configs in /etc
+        val current = SystemReader.getInstance()
+        SystemReader.setInstance(object : SystemReader() {
+            override fun getHostname() = current.hostname
+            override fun getenv(variable: String): String? = System.getenv(variable)
+            override fun getProperty(key: String): String? = System.getProperty(key)
+            override fun openSystemConfig(parent: org.eclipse.jgit.lib.Config?, fs: FS?) = current.openSystemConfig(parent, fs)
+            override fun openUserConfig(parent: org.eclipse.jgit.lib.Config?, fs: FS?) = current.openUserConfig(parent, fs)
+            override fun openJGitConfig(parent: org.eclipse.jgit.lib.Config?, fs: FS?) = current.openJGitConfig(parent, fs)
+            override fun getCurrentTime() = System.currentTimeMillis()
+            override fun getTimezone(whenMillis: Long) = current.getTimezone(whenMillis)
+        })
     }
 }
 
@@ -89,8 +114,7 @@ fun KartikaApp() {
                 },
                 onNewProjectClick = {
                     navController.navigate("new_project")
-                },
-
+                }
             )
         }
 
