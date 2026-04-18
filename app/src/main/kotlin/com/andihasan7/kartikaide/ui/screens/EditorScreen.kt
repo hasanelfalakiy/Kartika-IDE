@@ -12,12 +12,14 @@ import com.andihasan7.kartikaide.model.EditorViewModel
 import com.andihasan7.kartikaide.util.ProjectHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -108,16 +110,7 @@ fun EditorScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = {
-                        selectedFile?.let { file ->
-                            Text(
-                                file.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    },
+                    title = { /* Teks file dihapus sesuai permintaan */ },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
                             Icon(Icons.Default.Menu, contentDescription = "Menu")
@@ -132,7 +125,6 @@ fun EditorScreen(
                                 when(action) {
                                     "Settings" -> { /* TODO: Navigate to Settings */ }
                                     "Git" -> { /* TODO: Open Git */ }
-                                    // Handle other menu actions here
                                 }
                             }
                         )
@@ -379,8 +371,8 @@ fun EditorActionButtons(
                 
                 DropdownMenuItem(
                     text = { Text("Chat with AI") },
-                    onClick = { expanded = false; onAction("AI") },
-                    leadingIcon = { Icon(Icons.Default.AutoAwesome, null, modifier = Modifier.size(18.dp)) }
+                    onClick = { expanded = false; onAction("AI") }
+                    // Leading icon removed as requested
                 )
                 
                 DropdownMenuItem(
@@ -431,7 +423,24 @@ fun FileTreeView(
     project: Project,
     onFileClick: (File) -> Unit
 ) {
-    var expandedDirs by remember { mutableStateOf(setOf(project.root.absolutePath)) }
+    // Auto-expand logic
+    fun getInitialExpandedDirs(root: File): Set<String> {
+        val expanded = mutableSetOf<String>()
+        var current: File? = root
+        while (current != null && current.isDirectory) {
+            expanded.add(current.absolutePath)
+            val children = current.listFiles()?.filter { !it.name.startsWith(".") } ?: emptyList()
+            // Stop if more than 1 item (folder/file) or if it contains files
+            if (children.size == 1 && children[0].isDirectory) {
+                current = children[0]
+            } else {
+                current = null
+            }
+        }
+        return expanded
+    }
+
+    var expandedDirs by remember { mutableStateOf(getInitialExpandedDirs(project.root)) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Box(
@@ -448,29 +457,34 @@ fun FileTreeView(
         
         HorizontalDivider()
 
-        LazyColumn(modifier = Modifier.fillMaxHeight().fillMaxWidth()) {
-            item {
-                FileTreeItem(
-                    file = project.root,
-                    level = 0,
-                    isExpanded = expandedDirs.contains(project.root.absolutePath),
-                    onToggle = {
-                        expandedDirs = if (expandedDirs.contains(it)) expandedDirs - it else expandedDirs + it
-                    },
-                    onFileClick = onFileClick
-                )
-            }
-            
-            if (expandedDirs.contains(project.root.absolutePath)) {
-                renderDirectoryContent(
-                    directory = project.root,
-                    level = 1,
-                    expandedDirs = expandedDirs,
-                    onToggle = {
-                        expandedDirs = if (expandedDirs.contains(it)) expandedDirs - it else expandedDirs + it
-                    },
-                    onFileClick = onFileClick
-                )
+        // Vertical Scroll support (Horizontal scroll with LazyColumn and Intrinsics is not supported)
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item {
+                    FileTreeItem(
+                        file = project.root,
+                        level = 0,
+                        isExpanded = expandedDirs.contains(project.root.absolutePath),
+                        onToggle = {
+                            expandedDirs = if (expandedDirs.contains(it)) expandedDirs - it else expandedDirs + it
+                        },
+                        onFileClick = onFileClick
+                    )
+                }
+                
+                if (expandedDirs.contains(project.root.absolutePath)) {
+                    renderDirectoryContent(
+                        directory = project.root,
+                        level = 1,
+                        expandedDirs = expandedDirs,
+                        onToggle = {
+                            expandedDirs = if (expandedDirs.contains(it)) expandedDirs - it else expandedDirs + it
+                        },
+                        onFileClick = onFileClick
+                    )
+                }
             }
         }
     }
@@ -519,6 +533,7 @@ fun FileTreeItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min) // Critical for VerticalDivider to fill height
             .clickable {
                 if (file.isDirectory) {
                     onToggle(file.absolutePath)
@@ -526,10 +541,24 @@ fun FileTreeItem(
                     onFileClick(file)
                 }
             }
-            .padding(vertical = 4.dp, horizontal = 16.dp)
-            .padding(start = (level * 16).dp),
+            .padding(vertical = 4.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Scope lines
+        repeat(level) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                VerticalDivider(
+                    modifier = Modifier.fillMaxHeight().width(1.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+            }
+        }
+
         if (file.isDirectory) {
             Icon(
                 imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
