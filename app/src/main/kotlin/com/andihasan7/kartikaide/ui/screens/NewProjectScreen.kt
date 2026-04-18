@@ -144,7 +144,7 @@ fun NewProjectScreen(
         if (projectName.isEmpty()) {
             projectNameError = "Project name cannot be empty"
             isValid = false
-        } else if (!projectName.matches(Regex("^[a-zA-Z0-9]+$"))) {
+        } else if (!projectName.matches(Regex("^[a-zA-Z0-9.]+$"))) {
             projectNameError = "Invalid characters in project name"
             isValid = false
         } else {
@@ -160,6 +160,20 @@ fun NewProjectScreen(
         } else {
             packageNameError = null
         }
+
+        // Check for duplicate project name (case-insensitive)
+        if (isValid) {
+            val finalProjectName = projectName.replace(".", "")
+            val targetDir = File(selectedPath)
+            if (targetDir.exists()) {
+                val existingFiles = targetDir.list()
+                if (existingFiles != null && existingFiles.any { it.equals(finalProjectName, ignoreCase = true) }) {
+                    projectNameError = "A project with this name already exists in this location"
+                    isValid = false
+                }
+            }
+        }
+
         return isValid
     }
 
