@@ -11,6 +11,7 @@ import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,6 +23,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -32,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -83,6 +87,7 @@ fun ProjectListScreen(
     var gitUrl by remember { mutableStateOf("") }
     var isCloning by remember { mutableStateOf(false) }
     var cloneLog by remember { mutableStateOf("") }
+    var cloneLocation by remember { mutableStateOf(0) } // 0: Internal, 1: External
 
     val storagePermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -117,7 +122,7 @@ fun ProjectListScreen(
         AlertDialog(
             onDismissRequest = { showPermissionDialog = false },
             title = { Text("Permission Required") },
-            text = { Text("KartikaIDE needs access to all files to manage projects. Please grant the permission.") },
+            text = { Text("KartikaIDE needs access to all files to manage projects in external storage. Please grant the permission.") },
             confirmButton = {
                 TextButton(onClick = {
                     showPermissionDialog = false
@@ -291,6 +296,34 @@ fun ProjectListScreen(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
+                        Spacer(Modifier.height(16.dp))
+                        Text("Save location", style = MaterialTheme.typography.labelLarge)
+                        Column(Modifier.selectableGroup()) {
+                            Row(
+                                Modifier.fillMaxWidth().height(48.dp)
+                                    .selectable(
+                                        selected = cloneLocation == 0,
+                                        onClick = { cloneLocation = 0 },
+                                        role = Role.RadioButton
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = cloneLocation == 0, onClick = null)
+                                Text("Internal Storage", modifier = Modifier.padding(start = 16.dp))
+                            }
+                            Row(
+                                Modifier.fillMaxWidth().height(48.dp)
+                                    .selectable(
+                                        selected = cloneLocation == 1,
+                                        onClick = { cloneLocation = 1 },
+                                        role = Role.RadioButton
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = cloneLocation == 1, onClick = null)
+                                Text("External Storage (KartikaIDE)", modifier = Modifier.padding(start = 16.dp))
+                            }
+                        }
                     }
                 }
             },
@@ -302,46 +335,60 @@ fun ProjectListScreen(
                             return@TextButton
                         }
                         
-                        val repoName = gitUrl.substringAfterLast("/").removeSuffix(".git")
-                        val folder = FileUtil.projectDir.resolve(repoName)
-                        
-                        if (folder.exists()) {
-                            Toast.makeText(context, "Project directory already exists", Toast.LENGTH_SHORT).show()
-                            return@TextButton
-                        }
-                        
-                        isCloning = true
-                        cloneLog = "Starting clone..."
-                        scope.launch(Dispatchers.IO) {
-                            try {
-                                folder.cloneRepository(
-                                    gitUrl,
-                                    PrintWriter(object : OutputStream() {
-                                        override fun write(b: Int) {
-                                            scope.launch(Dispatchers.Main) {
-                                                cloneLog += b.toChar()
-                                            }
+                        val startClone: () -> Unit = {
+                            val repoName = gitUrl.substringAfterLast("/").removeSuffix(".git")
+                            val parentDir = if (cloneLocation == 0) {
+                                FileUtil.projectDir
+                            } else {
+                                File(Environment.getExternalStorageDirectory(), "KartikaIDE")
+                            }
+                            
+                            if (!parentDir.exists()) parentDir.mkdirs()
+                            val folder = parentDir.resolve(repoName)
+                            
+                            if (folder.exists()) {
+                                Toast.makeText(context, "Project directory already exists", Toast.LENGTH_SHORT).show()
+                            } else {
+                                isCloning = true
+                                cloneLog = "Starting clone..."
+                                scope.launch(Dispatchers.IO) {
+                                    try {
+                                        folder.cloneRepository(
+                                            gitUrl,
+                                            PrintWriter(object : OutputStream() {
+                                                override fun write(b: Int) {
+                                                    scope.launch(Dispatchers.Main) {
+                                                        cloneLog += b.toChar()
+                                                    }
+                                                }
+                                                override fun write(b: ByteArray, off: Int, len: Int) {
+                                                    scope.launch(Dispatchers.Main) {
+                                                        cloneLog += String(b, off, len)
+                                                    }
+                                                }
+                                            }),
+                                            Credentials(Prefs.gitUsername, Prefs.gitApiKey)
+                                        )
+                                        viewModel.loadProjects()
+                                        withContext(Dispatchers.Main) {
+                                            isCloning = false
+                                            showGitCloneDialog = false
+                                            Toast.makeText(context, "Clone successful", Toast.LENGTH_SHORT).show()
                                         }
-                                        override fun write(b: ByteArray, off: Int, len: Int) {
-                                            scope.launch(Dispatchers.Main) {
-                                                cloneLog += String(b, off, len)
-                                            }
+                                    } catch (e: Exception) {
+                                        withContext(Dispatchers.Main) {
+                                            isCloning = false
+                                            Toast.makeText(context, "Clone failed: ${e.message}", Toast.LENGTH_LONG).show()
                                         }
-                                    }),
-                                    Credentials(Prefs.gitUsername, Prefs.gitApiKey)
-                                )
-                                viewModel.loadProjects()
-                                withContext(Dispatchers.Main) {
-                                    isCloning = false
-                                    showGitCloneDialog = false
-                                    Toast.makeText(context, "Clone successful", Toast.LENGTH_SHORT).show()
-                                }
-                            } catch (e: Exception) {
-                                withContext(Dispatchers.Main) {
-                                    isCloning = false
-                                    Toast.makeText(context, "Clone failed: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
                                 }
                             }
+                        }
+                        
+                        if (cloneLocation == 1) {
+                            checkStoragePermission { startClone() }
+                        } else {
+                            startClone()
                         }
                     }) { Text("Clone") }
                 }

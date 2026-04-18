@@ -90,9 +90,7 @@ fun KartikaApp() {
                 onNewProjectClick = {
                     navController.navigate("new_project")
                 },
-                /*onGitCloneClick = {
-                    // Git Clone logic
-                }*/
+
             )
         }
 
