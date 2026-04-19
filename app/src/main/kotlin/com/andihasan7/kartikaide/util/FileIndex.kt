@@ -31,41 +31,53 @@ class FileIndex(private val project: Project) {
      * @param files The list of files to add to the index.
      */
     fun putFiles(currentIndex: Int, files: List<File>) {
-        if (files.isEmpty()) {
-            return
+        val currentPath = filePath
+        
+        // Ensure cache directory exists
+        if (!project.cacheDir.exists()) {
+            project.cacheDir.mkdirs()
         }
 
-        val currentPath = filePath
-        if (currentPath.exists().not()) {
-            currentPath.parentFile?.mkdirs()
-            currentPath.createNewFile()
+        // If files is empty, save an empty list to clear the index
+        if (files.isEmpty()) {
+            try {
+                currentPath.writeText("[]")
+            } catch (e: Exception) {
+                Log.e("FileIndex", "Failed to clear index", e)
+            }
+            return
         }
 
         if (currentIndex < 0 || currentIndex >= files.size) {
             Log.e("FileIndex", "Invalid current index: $currentIndex for files size ${files.size}")
-            return
+            // Even if index is invalid, we might want to save the list (with 0 as default)
         }
 
+        val safeIndex = currentIndex.coerceIn(0, files.size - 1)
         val rootPath = project.root.absolutePath
+        
+        // Reorder list so the selected file is at index 0 (legacy behavior for restoration)
         val filePaths =
             files.toMutableList()
-                .apply { add(0, removeAt(currentIndex)) }
+                .apply { 
+                    val selected = removeAt(safeIndex)
+                    add(0, selected)
+                }
                 .map { file ->
                     val absolutePath = file.absolutePath
                     if (absolutePath.startsWith(rootPath)) {
                         absolutePath.removePrefix(rootPath).removePrefix(File.separator)
                     } else {
-                        // For files outside project (rare), keep absolute
                         absolutePath
                     }
                 }
 
-        if (project.cacheDir.exists().not()) {
-            project.cacheDir.mkdirs()
+        try {
+            val json = Gson().toJson(filePaths)
+            currentPath.writeText(json)
+        } catch (e: Exception) {
+            Log.e("FileIndex", "Failed to save file index", e)
         }
-
-        val json = Gson().toJson(filePaths)
-        currentPath.writeText(json)
     }
 
     /**
@@ -82,6 +94,10 @@ class FileIndex(private val project: Project) {
         val json = try {
             currentPath.readText()
         } catch (e: Exception) {
+            return listOf()
+        }
+
+        if (json.isBlank() || json == "[]") {
             return listOf()
         }
 

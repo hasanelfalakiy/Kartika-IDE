@@ -20,6 +20,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -54,6 +55,7 @@ import android.util.Log
 fun EditorScreen(
     project: Project,
     onBackClick: () -> Unit,
+    onNavigateToSettings: () -> Unit = {},
     viewModel: EditorViewModel = viewModel()
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -61,13 +63,18 @@ fun EditorScreen(
     
     val openFiles = viewModel.openFiles
     val selectedFile = viewModel.selectedFile
-    val selectedTabIndex = viewModel.selectedTabIndex
     
     // PagerState for visual transitions
     val pagerState = rememberPagerState(pageCount = { openFiles.size })
     
     // Track current active editor for global actions
     var activeEditor by remember { mutableStateOf<IdeEditor?>(null) }
+    
+    // Run Logic State
+    var showMainSelector by remember { mutableStateOf(false) }
+    var mainFunctions by remember { mutableStateOf<List<File>>(emptyList()) }
+    var showBuildLog by remember { mutableStateOf(false) }
+    var buildLogText by remember { mutableStateOf("") }
 
     // Initialize project
     LaunchedEffect(project) {
@@ -93,6 +100,24 @@ fun EditorScreen(
         }
     }
 
+    // Function to save current file
+    val saveCurrentFile = {
+        activeEditor?.let { editor ->
+            val file = viewModel.selectedFile
+            if (file != null) {
+                val content = editor.text.toString()
+                scope.launch(Dispatchers.IO) {
+                    try {
+                        file.writeText(content)
+                        Log.d("EditorScreen", "Manually saved: ${file.name}")
+                    } catch (e: Exception) {
+                        Log.e("EditorScreen", "Failed manual save", e)
+                    }
+                }
+            }
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -100,6 +125,8 @@ fun EditorScreen(
                 FileTreeView(
                     project = project,
                     onFileClick = { file ->
+                        // Save current before switching
+                        saveCurrentFile()
                         viewModel.openFile(file)
                         scope.launch { drawerState.close() }
                     }
@@ -120,10 +147,30 @@ fun EditorScreen(
                         EditorActionButtons(
                             onUndo = { activeEditor?.undo() },
                             onRedo = { activeEditor?.redo() },
-                            onCompile = { /* TODO: Implement Run Logic */ },
+                            onCompile = {
+                                saveCurrentFile()
+                                // Logic runner: cari main
+                                scope.launch(Dispatchers.IO) {
+                                    val mains = findMainFunctions(project.root)
+                                    withContext(Dispatchers.Main) {
+                                        if (mains.isEmpty()) {
+                                            buildLogText = "No main function found in project."
+                                            showBuildLog = true
+                                        } else if (mains.size == 1) {
+                                            runMain(mains[0]) { log ->
+                                                buildLogText = log
+                                                showBuildLog = true
+                                            }
+                                        } else {
+                                            mainFunctions = mains
+                                            showMainSelector = true
+                                        }
+                                    }
+                                }
+                            },
                             onAction = { action ->
                                 when(action) {
-                                    "Settings" -> { /* TODO: Navigate to Settings */ }
+                                    "Settings" -> onNavigateToSettings()
                                     "Git" -> { /* TODO: Open Git */ }
                                 }
                             }
@@ -134,19 +181,24 @@ fun EditorScreen(
         ) { padding ->
             Column(modifier = Modifier.padding(padding).fillMaxSize()) {
                 if (openFiles.isNotEmpty()) {
+                    // Stable snapshot for this recomposition pass
+                    val currentFiles = openFiles.toList()
+                    
                     EditorTabs(
-                        files = openFiles,
-                        selectedIndex = selectedTabIndex,
-                        onTabSelected = { index ->
-                            viewModel.selectedFile = openFiles.getOrNull(index)
+                        files = currentFiles,
+                        selectedFile = selectedFile,
+                        onTabSelected = { file ->
+                            saveCurrentFile()
+                            viewModel.selectedFile = file
                         },
-                        onCloseTab = { index ->
-                            viewModel.closeFileAt(index)
+                        onCloseTab = { file ->
+                            saveCurrentFile()
+                            viewModel.closeFile(file)
                         }
                     )
                     
                     EditorPager(
-                        files = openFiles,
+                        files = currentFiles,
                         pagerState = pagerState,
                         onEditorActive = { activeEditor = it }
                     )
@@ -156,28 +208,107 @@ fun EditorScreen(
             }
         }
     }
+
+    // Main Function Selector Dialog
+    if (showMainSelector) {
+        AlertDialog(
+            onDismissRequest = { showMainSelector = false },
+            title = { Text("Select Main Function") },
+            text = {
+                LazyColumn {
+                    items(mainFunctions.size) { index ->
+                        val file = mainFunctions[index]
+                        ListItem(
+                            headlineContent = { Text(file.name) },
+                            supportingContent = { Text(file.absolutePath.removePrefix(project.root.absolutePath)) },
+                            modifier = Modifier.clickable {
+                                showMainSelector = false
+                                runMain(file) { log ->
+                                    buildLogText = log
+                                    showBuildLog = true
+                                }
+                            }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMainSelector = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Build Log Dialog
+    if (showBuildLog) {
+        AlertDialog(
+            onDismissRequest = { showBuildLog = false },
+            title = { Text("Build & Run Log") },
+            text = {
+                Box(modifier = Modifier.heightIn(max = 400.dp)) {
+                    LazyColumn {
+                        item {
+                            Text(
+                                buildLogText,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBuildLog = false }) { Text("OK") }
+            }
+        )
+    }
+}
+
+// Helper to find main functions
+private fun findMainFunctions(root: File): List<File> {
+    val result = mutableListOf<File>()
+    root.walkTopDown().forEach { file ->
+        if (file.isFile && (file.extension == "kt" || file.extension == "java")) {
+            val content = file.readText()
+            if (file.extension == "kt") {
+                if (content.contains("fun main(")) result.add(file)
+            } else if (file.extension == "java") {
+                if (content.contains("public static void main")) result.add(file)
+            }
+        }
+    }
+    return result
+}
+
+// Mock runner function
+private fun runMain(file: File, onFinished: (String) -> Unit) {
+    // This should call your compiler/runner module
+    onFinished("Building ${file.name}...\n\n[INFO] Starting execution of ${file.name}\n\nHello, World!\n\n[SUCCESS] Execution finished.")
 }
 
 @Composable
 fun EditorTabs(
     files: List<File>,
-    selectedIndex: Int,
-    onTabSelected: (Int) -> Unit,
-    onCloseTab: (Int) -> Unit
+    selectedFile: File?,
+    onTabSelected: (File) -> Unit,
+    onCloseTab: (File) -> Unit
 ) {
     if (files.isEmpty()) return
 
-    val safeSelectedIndex = selectedIndex.coerceIn(0, (files.size - 1).coerceAtLeast(0))
+    val selectedIndex = remember(files, selectedFile) {
+        val index = files.indexOfFirst { it.absolutePath == selectedFile?.absolutePath }
+        if (index == -1) 0 else index
+    }.coerceIn(0, (files.size - 1).coerceAtLeast(0))
 
     ScrollableTabRow(
-        selectedTabIndex = safeSelectedIndex,
+        selectedTabIndex = selectedIndex,
         edgePadding = 0.dp,
         divider = {}
     ) {
-        files.forEachIndexed { index, file ->
+        files.forEach { file ->
+            val isSelected = file.absolutePath == selectedFile?.absolutePath
             Tab(
-                selected = safeSelectedIndex == index,
-                onClick = { onTabSelected(index) },
+                selected = isSelected,
+                onClick = { onTabSelected(file) },
                 text = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -187,7 +318,7 @@ fun EditorTabs(
                             imageVector = Icons.Default.Description,
                             contentDescription = null,
                             modifier = Modifier.size(16.dp).padding(end = 4.dp),
-                            tint = if (safeSelectedIndex == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             file.name,
@@ -196,7 +327,7 @@ fun EditorTabs(
                         )
                         Spacer(Modifier.width(4.dp))
                         IconButton(
-                            onClick = { onCloseTab(index) },
+                            onClick = { onCloseTab(file) },
                             modifier = Modifier.size(18.dp)
                         ) {
                             Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(14.dp))
@@ -246,6 +377,7 @@ fun CodeEditorView(
         }
     }
 
+    // Ensure content is saved when the editor is removed from composition
     DisposableEffect(file.absolutePath) {
         onDispose {
             editorInstance?.let { editor ->
@@ -357,13 +489,13 @@ fun EditorActionButtons(
                 // Advanced Menu Item
                 DropdownMenuItem(
                     text = { Text("Advanced") },
-                    onClick = { 
+                    onClick = {
                         expanded = false
                         onAction("Advanced")
                     },
                     trailingIcon = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, modifier = Modifier.size(18.dp)) }
                 )
-                
+
                 DropdownMenuItem(
                     text = { Text("Navigation Element") },
                     onClick = { expanded = false; onAction("Navigation") }
@@ -372,7 +504,6 @@ fun EditorActionButtons(
                 DropdownMenuItem(
                     text = { Text("Chat with AI") },
                     onClick = { expanded = false; onAction("AI") }
-                    // Leading icon removed as requested
                 )
                 
                 DropdownMenuItem(
@@ -423,14 +554,19 @@ fun FileTreeView(
     project: Project,
     onFileClick: (File) -> Unit
 ) {
-    // Auto-expand logic
-    fun getInitialExpandedDirs(root: File): Set<String> {
-        val expanded = mutableSetOf<String>()
-        var current: File? = root
+    // Fungsi bantuan untuk auto-expand folder secara rekursif
+    fun getAutoExpandedPaths(folder: File, currentSet: Set<String>): Set<String> {
+        val expanded = currentSet.toMutableSet()
+        var current: File? = folder
         while (current != null && current.isDirectory) {
             expanded.add(current.absolutePath)
+            // Filter file tersembunyi
             val children = current.listFiles()?.filter { !it.name.startsWith(".") } ?: emptyList()
-            // Stop if more than 1 item (folder/file) or if it contains files
+            
+            // Berhenti jika:
+            // 1. Kosong (children.isEmpty())
+            // 2. Ada lebih dari 1 item (misal: 2 folder, atau 1 folder + 1 file)
+            // 3. Item tunggal adalah file
             if (children.size == 1 && children[0].isDirectory) {
                 current = children[0]
             } else {
@@ -440,9 +576,24 @@ fun FileTreeView(
         return expanded
     }
 
-    var expandedDirs by remember { mutableStateOf(getInitialExpandedDirs(project.root)) }
+    // Inisialisasi dengan auto-expand dari root
+    var expandedDirs by remember { mutableStateOf(getAutoExpandedPaths(project.root, emptySet())) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    val onToggle: (String) -> Unit = { path ->
+        if (expandedDirs.contains(path)) {
+            // Jika sudah terbuka, maka tutup (remove dari set)
+            expandedDirs = expandedDirs - path
+        } else {
+            // Jika dibuka, gunakan logika auto-expand
+            expandedDirs = getAutoExpandedPaths(File(path), expandedDirs)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding() // Menangani keyboard agar tidak menutupi treeview
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -457,31 +608,32 @@ fun FileTreeView(
         
         HorizontalDivider()
 
-        // Vertical Scroll support (Horizontal scroll with LazyColumn and Intrinsics is not supported)
+        // Mendukung scroll horizontal dan vertikal
         Box(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .horizontalScroll(rememberScrollState())
         ) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                item {
-                    FileTreeItem(
-                        file = project.root,
-                        level = 0,
-                        isExpanded = expandedDirs.contains(project.root.absolutePath),
-                        onToggle = {
-                            expandedDirs = if (expandedDirs.contains(it)) expandedDirs - it else expandedDirs + it
-                        },
-                        onFileClick = onFileClick
-                    )
-                }
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .width(IntrinsicSize.Max) // Mengikuti lebar item terlebar agar horizontal scroll aktif
+            ) {
+                FileTreeItem(
+                    file = project.root,
+                    level = 0,
+                    isExpanded = expandedDirs.contains(project.root.absolutePath),
+                    onToggle = onToggle,
+                    onFileClick = onFileClick
+                )
                 
                 if (expandedDirs.contains(project.root.absolutePath)) {
-                    renderDirectoryContent(
+                    RenderDirectoryContent(
                         directory = project.root,
                         level = 1,
                         expandedDirs = expandedDirs,
-                        onToggle = {
-                            expandedDirs = if (expandedDirs.contains(it)) expandedDirs - it else expandedDirs + it
-                        },
+                        onToggle = onToggle,
                         onFileClick = onFileClick
                     )
                 }
@@ -490,17 +642,20 @@ fun FileTreeView(
     }
 }
 
-private fun LazyListScope.renderDirectoryContent(
+@Composable
+private fun RenderDirectoryContent(
     directory: File,
     level: Int,
     expandedDirs: Set<String>,
     onToggle: (String) -> Unit,
     onFileClick: (File) -> Unit
 ) {
-    val files = directory.listFiles()?.toList()?.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() })) ?: emptyList()
+    val files = remember(directory) {
+        directory.listFiles()?.toList()?.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() })) ?: emptyList()
+    }
     
     files.forEach { file ->
-        item(key = file.absolutePath) {
+        key(file.absolutePath) {
             FileTreeItem(
                 file = file,
                 level = level,
@@ -508,16 +663,16 @@ private fun LazyListScope.renderDirectoryContent(
                 onToggle = onToggle,
                 onFileClick = onFileClick
             )
-        }
-        
-        if (file.isDirectory && expandedDirs.contains(file.absolutePath)) {
-            renderDirectoryContent(
-                directory = file,
-                level = level + 1,
-                expandedDirs = expandedDirs,
-                onToggle = onToggle,
-                onFileClick = onFileClick
-            )
+            
+            if (file.isDirectory && expandedDirs.contains(file.absolutePath)) {
+                RenderDirectoryContent(
+                    directory = file,
+                    level = level + 1,
+                    expandedDirs = expandedDirs,
+                    onToggle = onToggle,
+                    onFileClick = onFileClick
+                )
+            }
         }
     }
 }

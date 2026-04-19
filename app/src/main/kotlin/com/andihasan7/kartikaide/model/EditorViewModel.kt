@@ -30,14 +30,15 @@ class EditorViewModel : ViewModel() {
     // Observable list of open files (tabs)
     val openFiles = mutableStateListOf<File>()
     
-    // Currently selected file (ID/Object-based instead of index-based for safety)
+    // Currently selected file
     var selectedFile by mutableStateOf<File?>(null)
 
     // Derived index for components that still need it (like TabRow)
-    // This is much safer as it's automatically calculated based on the list and current selection
+    // Ensures the index is always valid for the current openFiles list
     val selectedTabIndex by derivedStateOf {
+        if (openFiles.isEmpty()) return@derivedStateOf -1
         val index = openFiles.indexOfFirst { it.absolutePath == selectedFile?.absolutePath }
-        if (index == -1 && openFiles.isNotEmpty()) 0 else index
+        if (index == -1) 0 else index.coerceIn(0, openFiles.size - 1)
     }
     
     // File tree state
@@ -48,7 +49,6 @@ class EditorViewModel : ViewModel() {
 
     /**
      * Initializes the editor with a project.
-     * Restores previously open files from FileIndex.
      */
     fun setProject(newProject: Project) {
         if (_project.value?.root?.absolutePath == newProject.root.absolutePath) return
@@ -56,7 +56,6 @@ class EditorViewModel : ViewModel() {
         _project.value = newProject
         fileIndex = FileIndex(newProject)
         
-        // Restore open files from index
         viewModelScope.launch {
             val savedFiles = fileIndex?.getFiles() ?: emptyList()
             Snapshot.withMutableSnapshot {
@@ -76,9 +75,9 @@ class EditorViewModel : ViewModel() {
         if (file.isDirectory) return
         
         Snapshot.withMutableSnapshot {
-            val existing = openFiles.find { it.absolutePath == file.absolutePath }
-            if (existing != null) {
-                selectedFile = existing
+            val existingIndex = openFiles.indexOfFirst { it.absolutePath == file.absolutePath }
+            if (existingIndex != -1) {
+                selectedFile = openFiles[existingIndex]
             } else {
                 openFiles.add(file)
                 selectedFile = file
@@ -111,7 +110,7 @@ class EditorViewModel : ViewModel() {
     }
 
     /**
-     * Support closing by index (useful for UI components)
+     * Support closing by index
      */
     fun closeFileAt(index: Int) {
         if (index in openFiles.indices) {
@@ -135,9 +134,6 @@ class EditorViewModel : ViewModel() {
         saveFilesToIndex()
     }
 
-    /**
-     * Updates file paths when a file or directory is renamed.
-     */
     fun updatePaths(oldPath: String, newPath: String) {
         Snapshot.withMutableSnapshot {
             var updatedSelectedFile: File? = selectedFile
@@ -159,9 +155,6 @@ class EditorViewModel : ViewModel() {
         refreshFileTree()
     }
 
-    /**
-     * Removes a path (and children) from tabs when deleted.
-     */
     fun removePath(deletedPath: String) {
         Snapshot.withMutableSnapshot {
             val wasSelectedRemoved = selectedFile?.absolutePath == deletedPath || 
