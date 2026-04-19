@@ -15,7 +15,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
@@ -61,8 +60,11 @@ fun EditorScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     
-    val openFiles = viewModel.openFiles
-    val selectedFile = viewModel.selectedFile
+    // Use a consistent snapshot of the editor state
+    val editorState = viewModel.editorState
+    val openFiles = editorState.openFiles
+    val selectedFile = editorState.selectedFile
+    val selectedTabIndex = editorState.selectedIndex
     
     // PagerState for visual transitions
     val pagerState = rememberPagerState(pageCount = { openFiles.size })
@@ -82,17 +84,20 @@ fun EditorScreen(
         ProjectHandler.setProject(project)
     }
 
-    // Sync Pager position when selectedFile changes
-    LaunchedEffect(selectedFile, openFiles.size) {
-        val index = openFiles.indexOfFirst { it.absolutePath == selectedFile?.absolutePath }
-        if (index != -1 && index != pagerState.currentPage) {
-            pagerState.scrollToPage(index)
+    // Sync Pager position when selectedTabIndex changes
+    LaunchedEffect(selectedTabIndex, openFiles.size) {
+        if (openFiles.isNotEmpty() && selectedTabIndex in 0 until openFiles.size) {
+            if (pagerState.currentPage != selectedTabIndex) {
+                if (selectedTabIndex < pagerState.pageCount) {
+                    pagerState.scrollToPage(selectedTabIndex)
+                }
+            }
         }
     }
     
-    // Sync back to ViewModel if pager is scrolled
-    LaunchedEffect(pagerState.currentPage) {
-        if (pagerState.currentPage < openFiles.size) {
+    // Sync back to ViewModel if pager is scrolled manually
+    LaunchedEffect(pagerState.currentPage, pagerState.isScrollInProgress) {
+        if (!pagerState.isScrollInProgress && pagerState.currentPage < openFiles.size) {
             val fileAtPage = openFiles[pagerState.currentPage]
             if (viewModel.selectedFile?.absolutePath != fileAtPage.absolutePath) {
                 viewModel.selectedFile = fileAtPage
@@ -181,12 +186,9 @@ fun EditorScreen(
         ) { padding ->
             Column(modifier = Modifier.padding(padding).fillMaxSize()) {
                 if (openFiles.isNotEmpty()) {
-                    // Stable snapshot for this recomposition pass
-                    val currentFiles = openFiles.toList()
-                    
                     EditorTabs(
-                        files = currentFiles,
-                        selectedFile = selectedFile,
+                        files = openFiles,
+                        selectedIndex = selectedTabIndex,
                         onTabSelected = { file ->
                             saveCurrentFile()
                             viewModel.selectedFile = file
@@ -198,7 +200,7 @@ fun EditorScreen(
                     )
                     
                     EditorPager(
-                        files = currentFiles,
+                        files = openFiles,
                         pagerState = pagerState,
                         onEditorActive = { activeEditor = it }
                     )
@@ -288,53 +290,59 @@ private fun runMain(file: File, onFinished: (String) -> Unit) {
 @Composable
 fun EditorTabs(
     files: List<File>,
-    selectedFile: File?,
+    selectedIndex: Int,
     onTabSelected: (File) -> Unit,
     onCloseTab: (File) -> Unit
 ) {
     if (files.isEmpty()) return
 
-    val selectedIndex = remember(files, selectedFile) {
-        val index = files.indexOfFirst { it.absolutePath == selectedFile?.absolutePath }
-        if (index == -1) 0 else index
-    }.coerceIn(0, (files.size - 1).coerceAtLeast(0))
+    // Ensure index is always valid for the CURRENT list size during this recomposition
+    val safeIndex = selectedIndex.coerceIn(0, (files.size - 1).coerceAtLeast(0))
 
-    ScrollableTabRow(
-        selectedTabIndex = selectedIndex,
-        edgePadding = 0.dp,
-        divider = {}
-    ) {
-        files.forEach { file ->
-            val isSelected = file.absolutePath == selectedFile?.absolutePath
-            Tab(
-                selected = isSelected,
-                onClick = { onTabSelected(file) },
-                text = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Description,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp).padding(end = 4.dp),
-                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            file.name,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        IconButton(
-                            onClick = { onCloseTab(file) },
-                            modifier = Modifier.size(18.dp)
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(14.dp))
+    // Wrapping ScrollableTabRow in a key(files.size) forces the component to be fully re-created 
+    // when the number of tabs changes. This is a robust workaround for the common 
+    // IndexOutOfBoundsException in TabRow's internal SubcomposeLayout.
+    key(files.size) {
+        ScrollableTabRow(
+            selectedTabIndex = safeIndex,
+            edgePadding = 0.dp,
+            divider = {}
+        ) {
+            files.forEachIndexed { index, file ->
+                // Use key for each Tab to help Compose track state correctly
+                key(file.absolutePath) {
+                    val isSelected = index == safeIndex
+                    Tab(
+                        selected = isSelected,
+                        onClick = { onTabSelected(file) },
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Description,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp).padding(end = 4.dp),
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    file.name,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                IconButton(
+                                    onClick = { onCloseTab(file) },
+                                    modifier = Modifier.size(18.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(14.dp))
+                                }
+                            }
                         }
-                    }
+                    )
                 }
-            )
+            }
         }
     }
 }
@@ -349,7 +357,7 @@ fun EditorPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
         userScrollEnabled = false,
-        key = { page -> if (page < files.size) files[page].absolutePath else page }
+        key = { page -> if (page < files.size) files[page].absolutePath else "fallback_$page" }
     ) { page ->
         if (page < files.size) {
             val file = files[page]

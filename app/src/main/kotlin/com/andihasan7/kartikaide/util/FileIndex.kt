@@ -48,21 +48,32 @@ class FileIndex(private val project: Project) {
             return
         }
 
-        if (currentIndex < 0 || currentIndex >= files.size) {
-            Log.e("FileIndex", "Invalid current index: $currentIndex for files size ${files.size}")
-            // Even if index is invalid, we might want to save the list (with 0 as default)
+        // Safety check for index and files
+        val safeFiles = files.filter { it.exists() }
+        if (safeFiles.isEmpty()) {
+             try {
+                currentPath.writeText("[]")
+            } catch (e: Exception) {
+                Log.e("FileIndex", "Failed to clear index", e)
+            }
+            return
         }
 
-        val safeIndex = currentIndex.coerceIn(0, files.size - 1)
         val rootPath = project.root.absolutePath
+        val safeIndex = currentIndex.coerceIn(0, safeFiles.size - 1)
         
         // Reorder list so the selected file is at index 0 (legacy behavior for restoration)
         val filePaths =
-            files.toMutableList()
+            safeFiles.toMutableList()
                 .apply { 
-                    val selected = removeAt(safeIndex)
-                    add(0, selected)
+                    try {
+                        val selected = removeAt(safeIndex)
+                        add(0, selected)
+                    } catch (e: Exception) {
+                        Log.e("FileIndex", "Error reordering files", e)
+                    }
                 }
+                .distinctBy { it.absolutePath } // Prevent duplicates
                 .map { file ->
                     val absolutePath = file.absolutePath
                     if (absolutePath.startsWith(rootPath)) {
@@ -121,5 +132,6 @@ class FileIndex(private val project: Project) {
             }
             file
         }.filter { it.exists() }
+         .distinctBy { it.absolutePath } // Ensure no duplicates from storage
     }
 }
