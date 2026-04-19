@@ -87,18 +87,21 @@
         android:layout_marginBottom="16dp"
         android:gravity="end"
         android:orientation="vertical"
+        android:clipChildren="false"
         android:clipToPadding="false">
 
         <LinearLayout
             android:id="@+id/open_project"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="4dp"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:visibility="gone"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             tools:visibility="visible">
 
             <com.google.android.material.card.MaterialCardView
@@ -106,11 +109,11 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="12dp"
                 app:cardBackgroundColor="?attr/colorSurface"
-                app:cardElevation="1dp"
-                app:contentPaddingBottom="4dp"
-                app:contentPaddingLeft="8dp"
-                app:contentPaddingRight="8dp"
-                app:contentPaddingTop="4dp"
+                app:cardElevation="2dp"
+                app:contentPaddingBottom="6dp"
+                app:contentPaddingLeft="12dp"
+                app:contentPaddingRight="12dp"
+                app:contentPaddingTop="6dp"
                 app:strokeWidth="0dp">
 
                 <TextView
@@ -127,6 +130,7 @@
                 android:layout_height="wrap_content"
                 android:clickable="false"
                 android:contentDescription="@string/open_project"
+                app:useCompatPadding="true"
                 app:srcCompat="@drawable/ic_outline_folder_open_24" />
         </LinearLayout>
 
@@ -134,12 +138,14 @@
             android:id="@+id/git_clone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="4dp"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:visibility="gone"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             tools:visibility="visible">
 
             <com.google.android.material.card.MaterialCardView
@@ -147,11 +153,11 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="12dp"
                 app:cardBackgroundColor="?attr/colorSurface"
-                app:cardElevation="1dp"
-                app:contentPaddingBottom="4dp"
-                app:contentPaddingLeft="8dp"
-                app:contentPaddingRight="8dp"
-                app:contentPaddingTop="4dp"
+                app:cardElevation="2dp"
+                app:contentPaddingBottom="6dp"
+                app:contentPaddingLeft="12dp"
+                app:contentPaddingRight="12dp"
+                app:contentPaddingTop="6dp"
                 app:strokeWidth="0dp">
 
                 <TextView
@@ -168,6 +174,7 @@
                 android:layout_height="wrap_content"
                 android:clickable="false"
                 android:contentDescription="@string/clone_from_git"
+                app:useCompatPadding="true"
                 app:srcCompat="@drawable/github" />
         </LinearLayout>
 
@@ -175,12 +182,14 @@
             android:id="@+id/import_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="4dp"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:visibility="gone"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             tools:visibility="visible">
 
             <com.google.android.material.card.MaterialCardView
@@ -188,11 +197,11 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="12dp"
                 app:cardBackgroundColor="?attr/colorSurface"
-                app:cardElevation="1dp"
-                app:contentPaddingBottom="4dp"
-                app:contentPaddingLeft="8dp"
-                app:contentPaddingRight="8dp"
-                app:contentPaddingTop="4dp"
+                app:cardElevation="2dp"
+                app:contentPaddingBottom="6dp"
+                app:contentPaddingLeft="12dp"
+                app:contentPaddingRight="12dp"
+                app:contentPaddingTop="6dp"
                 app:strokeWidth="0dp">
 
                 <TextView
@@ -209,6 +218,7 @@
                 android:layout_height="wrap_content"
                 android:clickable="false"
                 android:contentDescription="@string/restore_project_zip"
+                app:useCompatPadding="true"
                 app:srcCompat="@drawable/ic_import" />
         </LinearLayout>
 
@@ -216,12 +226,14 @@
             android:id="@+id/fab_new_project"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="4dp"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:visibility="gone"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             tools:visibility="visible">
 
             <com.google.android.material.card.MaterialCardView
@@ -229,11 +241,11 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="12dp"
                 app:cardBackgroundColor="?attr/colorSurface"
-                app:cardElevation="1dp"
-                app:contentPaddingBottom="4dp"
-                app:contentPaddingLeft="8dp"
-                app:contentPaddingRight="8dp"
-                app:contentPaddingTop="4dp"
+                app:cardElevation="2dp"
+                app:contentPaddingBottom="6dp"
+                app:contentPaddingLeft="12dp"
+                app:contentPaddingRight="12dp"
+                app:contentPaddingTop="6dp"
                 app:strokeWidth="0dp">
 
                 <TextView
@@ -250,6 +262,7 @@
                 android:layout_height="wrap_content"
                 android:clickable="false"
                 android:contentDescription="@string/create_project"
+                app:useCompatPadding="true"
                 app:srcCompat="@drawable/sharp_add_24" />
         </LinearLayout>
 
@@ -260,7 +273,9 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:clipChildren="false"
+            android:clipToPadding="false">
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cancel_text_card"
@@ -269,11 +284,11 @@
                 android:layout_marginEnd="12dp"
                 android:visibility="gone"
                 app:cardBackgroundColor="?attr/colorSurface"
-                app:cardElevation="1dp"
-                app:contentPaddingBottom="4dp"
-                app:contentPaddingLeft="8dp"
-                app:contentPaddingRight="8dp"
-                app:contentPaddingTop="4dp"
+                app:cardElevation="2dp"
+                app:contentPaddingBottom="6dp"
+                app:contentPaddingLeft="12dp"
+                app:contentPaddingRight="12dp"
+                app:contentPaddingTop="6dp"
                 app:strokeWidth="0dp">
 
                 <TextView
@@ -291,6 +306,7 @@
                 android:layout_height="wrap_content"
                 android:clickable="false"
                 android:contentDescription="@string/create_project"
+                app:useCompatPadding="true"
                 app:srcCompat="@drawable/sharp_add_24" />
         </LinearLayout>
     </LinearLayout>
