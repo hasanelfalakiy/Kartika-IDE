@@ -28,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,6 +49,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import android.util.Log
+import android.view.ViewGroup
+import android.view.View
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,31 +63,25 @@ fun EditorScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     
-    // Use a consistent snapshot of the editor state
+    // snapshots stabil
     val editorState = viewModel.editorState
     val openFiles = editorState.openFiles
     val selectedFile = editorState.selectedFile
     val selectedTabIndex = editorState.selectedIndex
     
-    // PagerState for visual transitions
     val pagerState = rememberPagerState(pageCount = { openFiles.size })
-    
-    // Track current active editor for global actions
     var activeEditor by remember { mutableStateOf<IdeEditor?>(null) }
     
-    // Run Logic State
     var showMainSelector by remember { mutableStateOf(false) }
     var mainFunctions by remember { mutableStateOf<List<File>>(emptyList()) }
     var showBuildLog by remember { mutableStateOf(false) }
     var buildLogText by remember { mutableStateOf("") }
 
-    // Initialize project
     LaunchedEffect(project) {
         viewModel.setProject(project)
         ProjectHandler.setProject(project)
     }
 
-    // Sync Pager position when selectedTabIndex changes
     LaunchedEffect(selectedTabIndex, openFiles.size) {
         if (openFiles.isNotEmpty() && selectedTabIndex in 0 until openFiles.size) {
             if (pagerState.currentPage != selectedTabIndex) {
@@ -95,7 +92,6 @@ fun EditorScreen(
         }
     }
     
-    // Sync back to ViewModel if pager is scrolled manually
     LaunchedEffect(pagerState.currentPage, pagerState.isScrollInProgress) {
         if (!pagerState.isScrollInProgress && pagerState.currentPage < openFiles.size) {
             val fileAtPage = openFiles[pagerState.currentPage]
@@ -105,7 +101,6 @@ fun EditorScreen(
         }
     }
 
-    // Function to save current file
     val saveCurrentFile = {
         activeEditor?.let { editor ->
             val file = viewModel.selectedFile
@@ -114,7 +109,6 @@ fun EditorScreen(
                 scope.launch(Dispatchers.IO) {
                     try {
                         file.writeText(content)
-                        Log.d("EditorScreen", "Manually saved: ${file.name}")
                     } catch (e: Exception) {
                         Log.e("EditorScreen", "Failed manual save", e)
                     }
@@ -130,7 +124,6 @@ fun EditorScreen(
                 FileTreeView(
                     project = project,
                     onFileClick = { file ->
-                        // Save current before switching
                         saveCurrentFile()
                         viewModel.openFile(file)
                         scope.launch { drawerState.close() }
@@ -142,7 +135,7 @@ fun EditorScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { /* Teks file dihapus sesuai permintaan */ },
+                    title = { },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
                             Icon(Icons.Default.Menu, contentDescription = "Menu")
@@ -154,7 +147,6 @@ fun EditorScreen(
                             onRedo = { activeEditor?.redo() },
                             onCompile = {
                                 saveCurrentFile()
-                                // Logic runner: cari main
                                 scope.launch(Dispatchers.IO) {
                                     val mains = findMainFunctions(project.root)
                                     withContext(Dispatchers.Main) {
@@ -176,7 +168,7 @@ fun EditorScreen(
                             onAction = { action ->
                                 when(action) {
                                     "Settings" -> onNavigateToSettings()
-                                    "Git" -> { /* TODO: Open Git */ }
+                                    "Git" -> { }
                                 }
                             }
                         )
@@ -184,7 +176,11 @@ fun EditorScreen(
                 )
             }
         ) { padding ->
-            Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            // imePadding dipindah ke Column terdalam agar tidak memicu recompose seluruh Scaffold
+            Column(modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+            ) {
                 if (openFiles.isNotEmpty()) {
                     EditorTabs(
                         files = openFiles,
@@ -211,7 +207,6 @@ fun EditorScreen(
         }
     }
 
-    // Main Function Selector Dialog
     if (showMainSelector) {
         AlertDialog(
             onDismissRequest = { showMainSelector = false },
@@ -240,7 +235,6 @@ fun EditorScreen(
         )
     }
 
-    // Build Log Dialog
     if (showBuildLog) {
         AlertDialog(
             onDismissRequest = { showBuildLog = false },
@@ -265,12 +259,11 @@ fun EditorScreen(
     }
 }
 
-// Helper to find main functions
 private fun findMainFunctions(root: File): List<File> {
     val result = mutableListOf<File>()
     root.walkTopDown().forEach { file ->
         if (file.isFile && (file.extension == "kt" || file.extension == "java")) {
-            val content = file.readText()
+            val content = try { file.readText() } catch (e: Exception) { "" }
             if (file.extension == "kt") {
                 if (content.contains("fun main(")) result.add(file)
             } else if (file.extension == "java") {
@@ -281,9 +274,7 @@ private fun findMainFunctions(root: File): List<File> {
     return result
 }
 
-// Mock runner function
 private fun runMain(file: File, onFinished: (String) -> Unit) {
-    // This should call your compiler/runner module
     onFinished("Building ${file.name}...\n\n[INFO] Starting execution of ${file.name}\n\nHello, World!\n\n[SUCCESS] Execution finished.")
 }
 
@@ -295,13 +286,8 @@ fun EditorTabs(
     onCloseTab: (File) -> Unit
 ) {
     if (files.isEmpty()) return
-
-    // Ensure index is always valid for the CURRENT list size during this recomposition
     val safeIndex = selectedIndex.coerceIn(0, (files.size - 1).coerceAtLeast(0))
 
-    // Wrapping ScrollableTabRow in a key(files.size) forces the component to be fully re-created 
-    // when the number of tabs changes. This is a robust workaround for the common 
-    // IndexOutOfBoundsException in TabRow's internal SubcomposeLayout.
     key(files.size) {
         ScrollableTabRow(
             selectedTabIndex = safeIndex,
@@ -309,7 +295,6 @@ fun EditorTabs(
             divider = {}
         ) {
             files.forEachIndexed { index, file ->
-                // Use key for each Tab to help Compose track state correctly
                 key(file.absolutePath) {
                     val isSelected = index == safeIndex
                     Tab(
@@ -357,6 +342,7 @@ fun EditorPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
         userScrollEnabled = false,
+        beyondViewportPageCount = 1, 
         key = { page -> if (page < files.size) files[page].absolutePath else "fallback_$page" }
     ) { page ->
         if (page < files.size) {
@@ -377,18 +363,21 @@ fun CodeEditorView(
     onEditorCreated: (IdeEditor?) -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    var editorInstance by remember { mutableStateOf<IdeEditor?>(null) }
+    val editorRef = remember { mutableStateOf<IdeEditor?>(null) }
     
-    LaunchedEffect(isActive, editorInstance) {
-        if (isActive && editorInstance != null) {
-            onEditorCreated(editorInstance)
+    // Monitor status kursor secara pasif
+    LaunchedEffect(isActive, editorRef.value) {
+        if (isActive && editorRef.value != null) {
+            onEditorCreated(editorRef.value)
+            editorRef.value?.post {
+                editorRef.value?.setSelection(editorRef.value?.cursor?.leftLine ?: 0, editorRef.value?.cursor?.leftColumn ?: 0)
+            }
         }
     }
 
-    // Ensure content is saved when the editor is removed from composition
     DisposableEffect(file.absolutePath) {
         onDispose {
-            editorInstance?.let { editor ->
+            editorRef.value?.let { editor ->
                 val content = editor.text.toString()
                 scope.launch(Dispatchers.IO) {
                     try {
@@ -396,72 +385,91 @@ fun CodeEditorView(
                             file.writeText(content)
                         }
                     } catch (e: Exception) {
-                        Log.e("CodeEditorView", "Failed auto-save: ${file.name}", e)
+                        Log.e("CodeEditorView", "Failed auto-save", e)
                     }
                 }
             }
         }
     }
 
-    AndroidView(
-        modifier = Modifier.fillMaxSize(),
-        factory = { ctx ->
-            IdeEditor(ctx).apply {
-                editorInstance = this
-                
-                val project = ProjectHandler.getProject()
-                if (project != null) {
-                    try {
-                        val extension = file.extension.lowercase()
-                        when (extension) {
-                            "java" -> setEditorLanguage(TsLanguageJava.getInstance(this, project, file))
-                            "kt", "kts" -> setEditorLanguage(KotlinLanguage(this, project, file))
-                            else -> {
-                                val scopeName = when (extension) {
-                                    "smali" -> "source.smali"
-                                    "gradle" -> "source.groovy.gradle"
-                                    "xml" -> "text.xml"
-                                    "json" -> "source.json"
-                                    "md" -> "text.html.markdown"
-                                    else -> null
-                                }
-                                
-                                if (scopeName != null) {
-                                    val grammarRegistry = GrammarRegistry.getInstance()
-                                    val themeRegistry = ThemeRegistry.getInstance()
-                                    setEditorLanguage(TextMateLanguage.create(scopeName, grammarRegistry, themeRegistry, true))
-                                } else {
-                                    setEditorLanguage(EmptyLanguage())
+    // Gunakan imePadding di sini agar kursor terangkat saat keyboard muncul
+    Box(modifier = Modifier.fillMaxSize().imePadding()) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                IdeEditor(ctx).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    
+                    // PERFORMANCE: Paksa hardware acceleration di level View
+                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                    
+                    editorRef.value = this
+                    
+                    // Matikan overscroll agar tidak membebani canvas
+                    overScrollMode = View.OVER_SCROLL_NEVER
+                    
+                    // Terapkan pengaturan satu kali
+                    post {
+                        updateSettings()
+                    }
+                    
+                    val project = ProjectHandler.getProject()
+                    if (project != null) {
+                        try {
+                            val extension = file.extension.lowercase()
+                            when (extension) {
+                                "java" -> setEditorLanguage(TsLanguageJava.getInstance(this, project, file))
+                                "kt", "kts" -> setEditorLanguage(KotlinLanguage(this, project, file))
+                                else -> {
+                                    val scopeName = when (extension) {
+                                        "smali" -> "source.smali"
+                                        "gradle" -> "source.groovy.gradle"
+                                        "xml" -> "text.xml"
+                                        "json" -> "source.json"
+                                        "md" -> "text.html.markdown"
+                                        else -> null
+                                    }
+                                    
+                                    if (scopeName != null) {
+                                        val grammarRegistry = GrammarRegistry.getInstance()
+                                        val themeRegistry = ThemeRegistry.getInstance()
+                                        setEditorLanguage(TextMateLanguage.create(scopeName, grammarRegistry, themeRegistry, true))
+                                    } else {
+                                        setEditorLanguage(EmptyLanguage())
+                                    }
                                 }
                             }
+                        } catch (e: Exception) {
+                            Log.e("CodeEditorView", "Lang error", e)
+                            setEditorLanguage(EmptyLanguage())
                         }
-                    } catch (e: Exception) {
-                        Log.e("CodeEditorView", "Failed to set language for ${file.name}", e)
-                        setEditorLanguage(EmptyLanguage())
                     }
-                }
-                
-                scope.launch(Dispatchers.IO) {
-                    try {
-                        if (file.exists() && file.isFile) {
-                            val content = ContentIO.createFrom(FileInputStream(file))
-                            withContext(Dispatchers.Main) {
-                                setText(content)
+                    
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            if (file.exists() && file.isFile) {
+                                val content = ContentIO.createFrom(FileInputStream(file))
+                                withContext(Dispatchers.Main) {
+                                    setText(content)
+                                    if (file.length() > 512 * 1024) System.gc()
+                                }
                             }
-                        }
-                    } catch (e: Exception) {
-                        Log.e("CodeEditorView", "Failed to load ${file.name}", e)
-                        withContext(Dispatchers.Main) {
-                            setText(Content())
+                        } catch (e: Exception) {
+                            Log.e("CodeEditorView", "Load error", e)
+                            withContext(Dispatchers.Main) { setText(Content()) }
                         }
                     }
                 }
+            },
+            update = { 
+                // JANGAN panggil apapun di sini. 
+                // Biarkan IdeEditor mengelola state-nya sendiri.
             }
-        },
-        update = { editor ->
-            editor.updateSettings()
-        }
-    )
+        )
+    }
 }
 
 @Composable
@@ -481,7 +489,7 @@ fun EditorActionButtons(
             Icon(
                 imageVector = Icons.Default.PlayArrow, 
                 contentDescription = "Run", 
-                tint = Color(0xFF4CAF50) // Green color
+                tint = Color(0xFF4CAF50)
             ) 
         }
 
@@ -494,7 +502,6 @@ fun EditorActionButtons(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                // Advanced Menu Item
                 DropdownMenuItem(
                     text = { Text("Advanced") },
                     onClick = {
@@ -562,19 +569,12 @@ fun FileTreeView(
     project: Project,
     onFileClick: (File) -> Unit
 ) {
-    // Fungsi bantuan untuk auto-expand folder secara rekursif
     fun getAutoExpandedPaths(folder: File, currentSet: Set<String>): Set<String> {
         val expanded = currentSet.toMutableSet()
         var current: File? = folder
         while (current != null && current.isDirectory) {
             expanded.add(current.absolutePath)
-            // Filter file tersembunyi
             val children = current.listFiles()?.filter { !it.name.startsWith(".") } ?: emptyList()
-            
-            // Berhenti jika:
-            // 1. Kosong (children.isEmpty())
-            // 2. Ada lebih dari 1 item (misal: 2 folder, atau 1 folder + 1 file)
-            // 3. Item tunggal adalah file
             if (children.size == 1 && children[0].isDirectory) {
                 current = children[0]
             } else {
@@ -584,24 +584,17 @@ fun FileTreeView(
         return expanded
     }
 
-    // Inisialisasi dengan auto-expand dari root
     var expandedDirs by remember { mutableStateOf(getAutoExpandedPaths(project.root, emptySet())) }
 
     val onToggle: (String) -> Unit = { path ->
         if (expandedDirs.contains(path)) {
-            // Jika sudah terbuka, maka tutup (remove dari set)
             expandedDirs = expandedDirs - path
         } else {
-            // Jika dibuka, gunakan logika auto-expand
             expandedDirs = getAutoExpandedPaths(File(path), expandedDirs)
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .imePadding() // Menangani keyboard agar tidak menutupi treeview
-    ) {
+    Column(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -616,7 +609,6 @@ fun FileTreeView(
         
         HorizontalDivider()
 
-        // Mendukung scroll horizontal dan vertikal
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -626,7 +618,7 @@ fun FileTreeView(
                 modifier = Modifier
                     .fillMaxHeight()
                     .verticalScroll(rememberScrollState())
-                    .width(IntrinsicSize.Max) // Mengikuti lebar item terlebar agar horizontal scroll aktif
+                    .width(IntrinsicSize.Max)
             ) {
                 FileTreeItem(
                     file = project.root,
@@ -696,7 +688,7 @@ fun FileTreeItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(IntrinsicSize.Min) // Critical for VerticalDivider to fill height
+            .height(IntrinsicSize.Min)
             .clickable {
                 if (file.isDirectory) {
                     onToggle(file.absolutePath)
@@ -707,7 +699,6 @@ fun FileTreeItem(
             .padding(vertical = 4.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Scope lines
         repeat(level) {
             Box(
                 modifier = Modifier

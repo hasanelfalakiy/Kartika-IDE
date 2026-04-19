@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.editor
 
 import android.content.Context
@@ -29,6 +22,8 @@ import andihasan7.kartikaide.common.Prefs
 import com.andihasan7.kartikaide.editor.language.TsLanguageJava
 import com.andihasan7.kartikaide.extension.setCompletionLayout
 import com.andihasan7.kartikaide.extension.setFont
+import android.graphics.Typeface
+import android.view.View
 
 class IdeEditor @JvmOverloads constructor(
     context: Context,
@@ -41,19 +36,42 @@ class IdeEditor @JvmOverloads constructor(
         ')', ']', '}', '"', '>', '\'', ';'
     )
 
+    private var currentFontPath: String? = null
+    private var currentThemeName: String? = null
+
     init {
         setCompletionLayout()
         setTooltipImprovements()
-        updateSettings()
+        
+        // PERFORMANCE: Pengaturan dasar untuk kecepatan scroll
+        setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        isHardwareAcceleratedDrawAllowed = true
+        overScrollMode = View.OVER_SCROLL_NEVER
+        
+        // Mematikan animasi kursor yang berlebihan jika perlu untuk kelancaran
+        // isAnimationEnabled = false // Opsional jika masih lag
+        
         setInterceptParentHorizontalScrollIfNeeded(true)
     }
 
     fun updateSettings() {
-        setFont()
+        // Cek font agar tidak re-load jika sama (Operasi IO berat)
+        if (currentFontPath != Prefs.editorFont) {
+            setFont()
+            currentFontPath = Prefs.editorFont
+        }
+
         inputType = createInputFlags()
         updateNonPrintablePaintingFlags()
-        updateTextSize()
-        updateTabSize()
+        
+        if (textSizePx != Prefs.editorFontSize) {
+            setTextSize(Prefs.editorFontSize)
+        }
+        
+        if (tabWidth != Prefs.tabSize) {
+            tabWidth = Prefs.tabSize
+        }
+
         isLigatureEnabled = Prefs.useLigatures
         isWordwrap = Prefs.wordWrap
         setScrollBarEnabled(Prefs.scrollbarEnabled)
@@ -72,9 +90,17 @@ class IdeEditor @JvmOverloads constructor(
             if ((context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES) "darcula" else "QuietLight"
         }
 
-        ThemeRegistry.getInstance().setTheme(themeName)
-        colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
-        invalidate()
+        // Cek tema agar tidak re-load registry (Operasi berat)
+        if (currentThemeName != themeName) {
+            try {
+                ThemeRegistry.getInstance().setTheme(themeName)
+                colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
+                currentThemeName = themeName
+                invalidate()
+            } catch (e: Exception) {
+                // Fallback
+            }
+        }
     }
 
     override fun commitText(text: CharSequence, applyAutoIndent: Boolean) {
@@ -100,14 +126,6 @@ class IdeEditor @JvmOverloads constructor(
         }
         content.insert(lineCount - 1, col, text)
         return lineCount - 1
-    }
-
-    private fun updateTextSize() {
-        setTextSize(Prefs.editorFontSize)
-    }
-
-    private fun updateTabSize() {
-        tabWidth = Prefs.tabSize
     }
 
     private fun updateNonPrintablePaintingFlags() {
