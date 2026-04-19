@@ -126,7 +126,10 @@ class MainActivity : AppCompatActivity() {
         themeRegistry.loadTheme(loadTheme("darcula.json", "darcula"))
         themeRegistry.loadTheme(loadTheme("QuietLight.tmTheme.json", "QuietLight"))
         themeRegistry.loadTheme(loadTheme("dracula_2.json", "dracula_2"))
+        themeRegistry.loadTheme(loadTheme("dracula_clean.json", "dracula_clean"))
         themeRegistry.loadTheme(loadTheme("onedark.json", "onedark"))
+        themeRegistry.loadTheme(loadTheme("ayu_dark.json", "ayu_dark"))
+        themeRegistry.loadTheme(loadTheme("ayu_mirage.json", "ayu_mirage"))
 
         App.instance.get()!!.applyThemeBasedOnConfiguration()
     }

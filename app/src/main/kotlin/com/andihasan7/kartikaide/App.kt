@@ -205,7 +205,10 @@ class App : Application() {
 
         safeLoad("textmate/darcula.json", "darcula")
         safeLoad("textmate/dracula_2.json", "dracula_2")
+        safeLoad("textmate/dracula_clean.json", "dracula_clean")
         safeLoad("textmate/onedark.json", "onedark")
+        safeLoad("textmate/ayu_dark.json", "ayu_dark")
+        safeLoad("textmate/ayu_mirage.json", "ayu_mirage")
         
         if (assets.list("textmate")?.contains("QuietLight.tmTheme.json") == true) {
             safeLoad("textmate/QuietLight.tmTheme.json", "QuietLight")

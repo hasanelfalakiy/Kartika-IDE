@@ -56,7 +56,10 @@ class EditorSettings(private val activity: FragmentActivity) : SettingsProvider 
             singleChoice(PreferenceKeys.EDITOR_COLOR_SCHEME, listOf(
                 SelectionItem("darcula", "Default (Darcula)"),
                 SelectionItem("dracula_2", "Dracula 2"),
-                SelectionItem("onedark", "OneDark Pro")
+                SelectionItem("dracula_clean", "Dracula Clean"),
+                SelectionItem("onedark", "OneDark Pro"),
+                SelectionItem("ayu_dark", "Ayu Dark"),
+                SelectionItem("ayu_mirage", "Ayu Mirage")
             )) {
                 title = "Color Scheme"
                 summary = "Choose the editor color scheme"
