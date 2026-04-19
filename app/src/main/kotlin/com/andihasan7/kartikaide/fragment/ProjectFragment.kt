@@ -184,7 +184,7 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
         super.onResume()
         checkStoragePermission()
         viewModel.loadProjects()
-        setOnClickListeners()
+        toggleFabMenu(false)
     }
 
     private fun checkStoragePermission() {
@@ -212,55 +212,45 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
         }
     }
 
+    private fun toggleFabMenu(show: Boolean) {
+        val visibility = if (show) View.VISIBLE else View.GONE
+        binding.importButton.visibility = visibility
+        binding.fabNewProject.visibility = visibility
+        binding.cancelTextCard.visibility = visibility
+        binding.gitClone.visibility = visibility
+        binding.openProject.visibility = visibility
+
+        val iconRes = if (show) R.drawable.baseline_close_24 else R.drawable.sharp_add_24
+        binding.cancelFab.setImageDrawable(
+            ResourcesCompat.getDrawable(resources, iconRes, activity?.theme)
+        )
+    }
+
     private fun setOnClickListeners() {
-        binding.importButton.visibility = View.GONE
-        binding.fabNewProject.visibility = View.GONE
-        binding.cancelTextCard.visibility = View.GONE
-        binding.gitClone.visibility = View.GONE
-        binding.openProject.visibility = View.GONE
+        toggleFabMenu(false)
 
         binding.cancel.setOnClickListener {
-            if (!binding.importButton.isVisible) {
-                binding.importButton.visibility = View.VISIBLE
-                binding.fabNewProject.visibility = View.VISIBLE
-                binding.cancelTextCard.visibility = View.VISIBLE
-                binding.gitClone.visibility = View.VISIBLE
-                binding.openProject.visibility = View.VISIBLE
-                binding.cancelFab.setImageDrawable(
-                    ResourcesCompat.getDrawable(
-                        resources,
-                        R.drawable.baseline_close_24,
-                        activity?.theme
-                    )
-                )
-                binding.importButton.setOnClickListener {
-                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "application/zip"
-                    }
+            toggleFabMenu(!binding.importButton.isVisible)
+        }
 
-                    documentPickerLauncher.launch(intent)
-                }
-                binding.fabNewProject.setOnClickListener {
-                    navigateToNewProjectFragment()
-                }
-                binding.gitClone.setOnClickListener {
-                    gitClone()
-                }
-                binding.openProject.setOnClickListener {
-                    openExternalProject()
-                }
-            } else {
-                binding.importButton.visibility = View.GONE
-                binding.fabNewProject.visibility = View.GONE
-                binding.cancelTextCard.visibility = View.GONE
-                binding.gitClone.visibility = View.GONE
-                binding.openProject.visibility = View.GONE
-
-                binding.cancelFab.setImageDrawable(
-                    ResourcesCompat.getDrawable(resources, R.drawable.sharp_add_24, activity?.theme)
-                )
+        binding.importButton.setOnClickListener {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/zip"
             }
+            documentPickerLauncher.launch(intent)
+        }
+
+        binding.fabNewProject.setOnClickListener {
+            navigateToNewProjectFragment()
+        }
+
+        binding.gitClone.setOnClickListener {
+            gitClone()
+        }
+
+        binding.openProject.setOnClickListener {
+            openExternalProject()
         }
 
         binding.swipeRefresh.setOnRefreshListener {
@@ -453,7 +443,7 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                     setCancelable(false)
                     show()
                 }
-                binding.cancel.performClick()
+                toggleFabMenu(false)
 
                 lifecycleScope.launch(Dispatchers.IO) {
                     try {
@@ -563,7 +553,6 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     }
 
     private fun navigateToNewProjectFragment() {
-        setOnClickListeners()
         parentFragmentManager.commit {
             add(R.id.fragment_container, NewProjectFragment())
             addToBackStack(null)
