@@ -291,7 +291,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     private fun configureToolbar() {
         binding.toolbar.apply {
-            title = project.name
+            title = "" // Clear project name from toolbar
             setNavigationOnClickListener {
                 editorAdapter.saveAll()
                 binding.drawer.open()
@@ -837,7 +837,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                 if (file == project.root) {
                                     project.root = newFile
                                     this.binding.included.projectName.text = name
-                                    this.binding.toolbar.title = name
+                                    this.binding.toolbar.title = "" // Keep title empty after rename
                                     projectViewModel.loadProjects()
                                 }
                                 

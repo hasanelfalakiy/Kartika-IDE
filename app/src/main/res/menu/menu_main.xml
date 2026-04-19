@@ -10,12 +10,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/nav_items"
-        android:icon="@drawable/nav_icon"
-        android:title="@string/navigation_elements"
-        app:showAsAction="always" />
-
-    <item
         android:id="@+id/action_compile"
         android:icon="@drawable/round_play_arrow_24"
         android:title="@string/action_compile"
@@ -41,6 +35,11 @@
                 android:title="@string/program_arguments" />
         </menu>
     </item>
+
+    <item
+        android:id="@+id/nav_items"
+        android:icon="@drawable/nav_icon"
+        android:title="@string/navigation_elements" />
 
     <item
         android:id="@+id/action_chat"
