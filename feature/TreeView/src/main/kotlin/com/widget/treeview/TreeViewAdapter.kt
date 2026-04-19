@@ -17,14 +17,17 @@
 package com.widget.treeview
 
 import android.content.Context
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
-import androidx.core.view.setPadding
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.color.MaterialColors
 import com.unnamed.b.atv.R
 import com.widget.treeview.TreeUtils.toNodeList
 import java.io.File
@@ -35,7 +38,7 @@ interface OnTreeItemClickListener {
 }
 
 class TreeViewAdapter(
-    context: Context,
+    private val context: Context,
     private var nodes: MutableList<Node<File>>
 ) : RecyclerView.Adapter<TreeViewAdapter.ViewHolder>() {
 
@@ -75,16 +78,51 @@ class TreeViewAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val node = nodes[position]
 
-        val indentation = node.depth * 36
-        holder.itemView.setPaddingRelative(indentation, 0, 0, 0)
+        // Handle indentation and guide lines
+        holder.indentContainer.removeAllViews()
+        for (i in 0 until node.depth) {
+            val indentView = View(context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 16f, resources.displayMetrics).toInt(),
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            }
+            
+            // Add vertical line
+            val lineView = View(context).apply {
+                val lineParams = LinearLayout.LayoutParams(
+                    TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1f, resources.displayMetrics).toInt(),
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                lineParams.marginStart = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8f, resources.displayMetrics).toInt()
+                layoutParams = lineParams
+                setBackgroundColor(
+                    MaterialColors.getColor(
+                        context,
+                        com.google.android.material.R.attr.colorOutline,
+                        ContextCompat.getColor(context, android.R.color.darker_gray)
+                    )
+                )
+                alpha = 0.3f
+            }
+            
+            val frame = LinearLayout(context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24f, resources.displayMetrics).toInt(),
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                addView(lineView)
+            }
+            
+            holder.indentContainer.addView(frame)
+        }
 
         if (node.value.isDirectory) {
             holder.expandView.setImageDrawable(if (!node.isExpanded) chevronRightIcon else expandMoreIcon)
-            holder.fileView.setPadding(0)
+            holder.fileView.setPadding(0, 0, 0, 0)
             holder.fileView.setImageDrawable(folderIcon)
         } else {
             holder.expandView.setImageDrawable(null)
-            holder.fileView.setPaddingRelative(chevronRightIcon.intrinsicWidth, 0, 0, 0)
             holder.fileView.setImageDrawable(fileIcon)
         }
 
@@ -155,6 +193,7 @@ class TreeViewAdapter(
     }
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val indentContainer: LinearLayout = view.findViewById(R.id.indent_container)
         val expandView: ImageView = view.findViewById(R.id.expand)
         val fileView: ImageView = view.findViewById(R.id.file_view)
         val textView: TextView = view.findViewById(R.id.text_view)
