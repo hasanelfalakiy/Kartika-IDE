@@ -212,27 +212,27 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     }
 
     private fun setOnClickListeners() {
-        binding.fabs.importButton.visibility = View.GONE
-        binding.fabs.fabNewProject.visibility = View.GONE
-        binding.fabs.cancelText.visibility = View.GONE
-        binding.fabs.gitClone.visibility = View.GONE
-        binding.fabs.openProject.visibility = View.GONE
+        binding.importButton.visibility = View.GONE
+        binding.fabNewProject.visibility = View.GONE
+        binding.cancelTextCard.visibility = View.GONE
+        binding.gitClone.visibility = View.GONE
+        binding.openProject.visibility = View.GONE
 
-        binding.fabs.cancel.setOnClickListener {
-            if (!binding.fabs.importButton.isVisible) {
-                binding.fabs.importButton.visibility = View.VISIBLE
-                binding.fabs.fabNewProject.visibility = View.VISIBLE
-                binding.fabs.cancelText.visibility = View.VISIBLE
-                binding.fabs.gitClone.visibility = View.VISIBLE
-                binding.fabs.openProject.visibility = View.VISIBLE
-                binding.fabs.cancelFab.setImageDrawable(
+        binding.cancel.setOnClickListener {
+            if (!binding.importButton.isVisible) {
+                binding.importButton.visibility = View.VISIBLE
+                binding.fabNewProject.visibility = View.VISIBLE
+                binding.cancelTextCard.visibility = View.VISIBLE
+                binding.gitClone.visibility = View.VISIBLE
+                binding.openProject.visibility = View.VISIBLE
+                binding.cancelFab.setImageDrawable(
                     ResourcesCompat.getDrawable(
                         resources,
                         R.drawable.baseline_close_24,
                         activity?.theme
                     )
                 )
-                binding.fabs.importButton.setOnClickListener {
+                binding.importButton.setOnClickListener {
                     val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                         addCategory(Intent.CATEGORY_OPENABLE)
                         type = "application/zip"
@@ -240,23 +240,23 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
 
                     documentPickerLauncher.launch(intent)
                 }
-                binding.fabs.fabNewProject.setOnClickListener {
+                binding.fabNewProject.setOnClickListener {
                     navigateToNewProjectFragment()
                 }
-                binding.fabs.gitClone.setOnClickListener {
+                binding.gitClone.setOnClickListener {
                     gitClone()
                 }
-                binding.fabs.openProject.setOnClickListener {
+                binding.openProject.setOnClickListener {
                     openExternalProject()
                 }
             } else {
-                binding.fabs.importButton.visibility = View.GONE
-                binding.fabs.fabNewProject.visibility = View.GONE
-                binding.fabs.cancelText.visibility = View.GONE
-                binding.fabs.gitClone.visibility = View.GONE
-                binding.fabs.openProject.visibility = View.GONE
+                binding.importButton.visibility = View.GONE
+                binding.fabNewProject.visibility = View.GONE
+                binding.cancelTextCard.visibility = View.GONE
+                binding.gitClone.visibility = View.GONE
+                binding.openProject.visibility = View.GONE
 
-                binding.fabs.cancelFab.setImageDrawable(
+                binding.cancelFab.setImageDrawable(
                     ResourcesCompat.getDrawable(resources, R.drawable.sharp_add_24, activity?.theme)
                 )
             }
@@ -425,7 +425,7 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                     setCancelable(false)
                     show()
                 }
-                binding.fabs.cancel.performClick()
+                binding.cancel.performClick()
 
                 try {
                     lifecycleScope.launch(Dispatchers.IO) {

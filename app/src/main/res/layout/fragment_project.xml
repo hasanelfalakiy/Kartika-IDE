@@ -78,17 +78,221 @@
         </ViewSwitcher>
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-
-    <include
-        android:id="@+id/fabs"
-        layout="@layout/project_fragment_fab"
+    <LinearLayout
+        android:id="@+id/fabs_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="16dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:transitionGroup="true" />
+        android:gravity="end"
+        android:orientation="vertical"
+        android:clipToPadding="false">
+
+        <LinearLayout
+            android:id="@+id/open_project"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardElevation="1dp"
+                app:contentPaddingBottom="4dp"
+                app:contentPaddingLeft="8dp"
+                app:contentPaddingRight="8dp"
+                app:contentPaddingTop="4dp"
+                app:strokeWidth="0dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/open_project"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                    android:textColor="?attr/colorOnSurface" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                style="?attr/floatingActionButtonSmallStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="false"
+                android:contentDescription="@string/open_project"
+                app:srcCompat="@drawable/ic_outline_folder_open_24" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/git_clone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardElevation="1dp"
+                app:contentPaddingBottom="4dp"
+                app:contentPaddingLeft="8dp"
+                app:contentPaddingRight="8dp"
+                app:contentPaddingTop="4dp"
+                app:strokeWidth="0dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/clone_from_git"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                    android:textColor="?attr/colorOnSurface" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                style="?attr/floatingActionButtonSmallStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="false"
+                android:contentDescription="@string/clone_from_git"
+                app:srcCompat="@drawable/github" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/import_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardElevation="1dp"
+                app:contentPaddingBottom="4dp"
+                app:contentPaddingLeft="8dp"
+                app:contentPaddingRight="8dp"
+                app:contentPaddingTop="4dp"
+                app:strokeWidth="0dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/restore_project_zip"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                    android:textColor="?attr/colorOnSurface" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                style="?attr/floatingActionButtonSmallStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="false"
+                android:contentDescription="@string/restore_project_zip"
+                app:srcCompat="@drawable/ic_import" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/fab_new_project"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardElevation="1dp"
+                app:contentPaddingBottom="4dp"
+                app:contentPaddingLeft="8dp"
+                app:contentPaddingRight="8dp"
+                app:contentPaddingTop="4dp"
+                app:strokeWidth="0dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/create_project"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                    android:textColor="?attr/colorOnSurface" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                style="?attr/floatingActionButtonSmallStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="false"
+                android:contentDescription="@string/create_project"
+                app:srcCompat="@drawable/sharp_add_24" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cancel_text_card"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardElevation="1dp"
+                app:contentPaddingBottom="4dp"
+                app:contentPaddingLeft="8dp"
+                app:contentPaddingRight="8dp"
+                app:contentPaddingTop="4dp"
+                app:strokeWidth="0dp">
+
+                <TextView
+                    android:id="@+id/cancel_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/cancel"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                    android:textColor="?attr/colorOnSurface" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/cancel_fab"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="false"
+                android:contentDescription="@string/create_project"
+                app:srcCompat="@drawable/sharp_add_24" />
+        </LinearLayout>
+    </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
