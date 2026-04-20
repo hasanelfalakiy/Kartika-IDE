@@ -164,18 +164,30 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             }
         }
 
+        binding.addAll.text = "Add Selected"
         binding.addAll.setOnClickListener {
             catchException {
-                for (file in (binding.staging.adapter as StagingAdapter).files) {
+                val selectedFiles = (binding.staging.adapter as StagingAdapter).getSelectedFiles()
+                if (selectedFiles.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        Snackbar.make(binding.root, "No files selected", Snackbar.LENGTH_SHORT).show()
+                    }
+                    return@catchException
+                }
+                
+                for (file in selectedFiles) {
                     when (file.status) {
                         StagingAdapter.FileStatus.REMOVED -> repository.git.rm {
                             addFilepattern(file.path)
                         }
-
                         else -> repository.add(file.path)
                     }
                 }
-                (binding.staging.adapter as StagingAdapter).updateStatus(repository.git.status())
+                val newStatus = repository.git.status()
+                withContext(Dispatchers.Main) {
+                    (binding.staging.adapter as StagingAdapter).updateStatus(newStatus)
+                    Snackbar.make(binding.root, "Added ${selectedFiles.size} files", Snackbar.LENGTH_SHORT).show()
+                }
             }
         }
 
@@ -211,7 +223,8 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
         binding.commit.setOnClickListener {
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    if (repository.git.status().hasUncommittedChanges().not()) {
+                    val status = repository.git.status()
+                    if (status.hasUncommittedChanges().not()) {
                         withContext(Dispatchers.Main) {
                             Snackbar.make(binding.root, "Nothing to commit", Snackbar.LENGTH_SHORT).show()
                         }
@@ -222,6 +235,9 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
                     )
                     withContext(Dispatchers.Main) {
                         (binding.recyclerview.adapter as GitAdapter).updateCommits(repository.getCommitList())
+                        val newStatus = repository.git.status()
+                        (binding.staging.adapter as StagingAdapter).updateStatus(newStatus)
+                        binding.commitMessage.text?.clear()
                         Snackbar.make(binding.root, "Committed", Snackbar.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {

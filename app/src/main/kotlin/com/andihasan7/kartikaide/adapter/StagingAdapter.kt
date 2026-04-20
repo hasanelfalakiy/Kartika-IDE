@@ -5,28 +5,22 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.adapter
 
 import android.graphics.Color
+import android.view.LayoutInflater
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.andihasan7.kartikaide.databinding.StagingItemBinding
 import org.eclipse.jgit.api.Status
 
-class StagingAdapter(val path: String) : RecyclerView.Adapter<StagingAdapter.ViewHolder>() {
+class StagingAdapter(val rootPath: String) : RecyclerView.Adapter<StagingAdapter.ViewHolder>() {
 
-    val files = mutableSetOf<File>()
+    val files = mutableListOf<File>()
 
-    fun updateStatus(status: Status) {
+    fun updateStatus(status: Status?) {
         files.clear()
-        status.apply {
+        status?.apply {
             files.addAll(added.map { File(it, FileStatus.ADDED) })
             files.addAll(changed.map { File(it, FileStatus.CHANGED) })
             files.addAll(removed.map { File(it, FileStatus.REMOVED) })
@@ -35,6 +29,7 @@ class StagingAdapter(val path: String) : RecyclerView.Adapter<StagingAdapter.Vie
             files.addAll(conflicting.map { File(it, FileStatus.CONFLICTING) })
             files.addAll(untracked.map { File(it, FileStatus.UNTRACKED) })
         }
+        notifyDataSetChanged()
     }
 
     override fun onCreateViewHolder(
@@ -42,41 +37,47 @@ class StagingAdapter(val path: String) : RecyclerView.Adapter<StagingAdapter.Vie
         viewType: Int
     ): ViewHolder {
         return ViewHolder(
-            TextView(parent.context)
+            StagingItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         )
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(files.elementAt(position))
+        holder.bind(files[position])
     }
 
     override fun getItemCount() = files.size
 
+    fun getSelectedFiles() = files.filter { it.isSelected }
+
     inner class ViewHolder(
-        val textView: TextView
-    ) : RecyclerView.ViewHolder(textView) {
+        private val binding: StagingItemBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(commit: File) {
-            setColor(commit.status)
-            textView.textSize = 12f
-            textView.text = commit.path.substringAfter(path)
-        }
+        fun bind(file: File) {
+            binding.checkbox.setOnCheckedChangeListener(null)
+            binding.checkbox.isChecked = file.isSelected
+            binding.checkbox.setOnCheckedChangeListener { _, isChecked ->
+                file.isSelected = isChecked
+            }
 
-        fun setColor(status: FileStatus) {
-            textView.setTextColor(
-                when (status) {
-                    FileStatus.ADDED -> Color.GREEN
-                    FileStatus.CHANGED, FileStatus.MODIFIED -> Color.YELLOW
-                    FileStatus.REMOVED, FileStatus.MISSING, FileStatus.CONFLICTING -> Color.RED
-                    FileStatus.UNTRACKED -> Color.WHITE
-                }
-            )
+            binding.filePath.text = file.path
+            binding.fileStatus.text = file.status.name
+            
+            val color = when (file.status) {
+                FileStatus.ADDED -> Color.GREEN
+                FileStatus.CHANGED, FileStatus.MODIFIED -> Color.YELLOW
+                FileStatus.REMOVED, FileStatus.MISSING, FileStatus.CONFLICTING -> Color.RED
+                FileStatus.UNTRACKED -> Color.WHITE
+            }
+            binding.fileStatus.setTextColor(color)
+            binding.filePath.setTextColor(color)
         }
     }
 
     data class File(
         val path: String,
-        val status: FileStatus
+        val status: FileStatus,
+        var isSelected: Boolean = false
     )
 
     enum class FileStatus {
