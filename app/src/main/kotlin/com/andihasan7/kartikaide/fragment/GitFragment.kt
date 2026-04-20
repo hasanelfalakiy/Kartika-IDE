@@ -31,14 +31,14 @@ import com.andihasan7.kartikaide.adapter.StagingAdapter
 import com.andihasan7.kartikaide.databinding.FragmentGitBinding
 import com.andihasan7.kartikaide.databinding.GitCommandBinding
 import com.andihasan7.kartikaide.databinding.DialogGitDiffBinding
+import com.andihasan7.kartikaide.databinding.DialogGitProgressBinding
 import andihasan7.kartikaide.common.Analytics
 import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
 import com.andihasan7.kartikaide.util.ProjectHandler
-import org.eclipse.jgit.api.Status
 import java.io.OutputStream
-import java.io.OutputStreamWriter
 import java.io.PrintStream
+import java.io.Writer
 
 class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
 
@@ -69,10 +69,7 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
         if (gitFolder.exists()) {
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    // Try to open using the root directory
                     repository = root.toRepository()
-                    Log.d("GitFragment", "Repository opened successfully. Work tree: ${repository.git.repository.workTree}")
-                    
                     withContext(Dispatchers.Main) {
                         setup()
                     }
@@ -81,7 +78,7 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
                     withContext(Dispatchers.Main) {
                         MaterialAlertDialogBuilder(requireContext())
                             .setTitle("Error Opening Repository")
-                            .setMessage("JGit failed to open the existing repository.\nReason: ${e.message}\n\nThis sometimes happens due to format differences between Git and JGit.")
+                            .setMessage("JGit failed to open the existing repository.")
                             .setPositiveButton("OK", null)
                             .show()
                     }
@@ -206,16 +203,38 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
         }
 
         binding.pull.setOnClickListener {
-            catchException {
-                repository.pull(
-                    OutputStreamWriter(System.out),
-                    binding.rebase.isChecked,
-                    Credentials(Prefs.gitUsername, Prefs.gitApiKey)
-                )
-                withContext(Dispatchers.Main) {
-                    (binding.recyclerview.adapter as GitAdapter).updateCommits(repository.getCommitList())
-                    Snackbar.make(binding.root, "Pulled changes from remote", Snackbar.LENGTH_SHORT)
-                        .show()
+            showProgressDialog("Pulling changes...") { progressBinding, dialog ->
+                val writer = object : Writer() {
+                    override fun write(cbuf: CharArray, off: Int, len: Int) {
+                        val text = String(cbuf, off, len)
+                        progressBinding.root.post {
+                            progressBinding.outputText.append(text)
+                            progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                        }
+                    }
+                    override fun flush() {}
+                    override fun close() {}
+                }
+                
+                try {
+                    repository.pull(
+                        writer,
+                        binding.rebase.isChecked,
+                        Credentials(Prefs.gitUsername, Prefs.gitApiKey)
+                    )
+                    withContext(Dispatchers.Main) {
+                        (binding.recyclerview.adapter as GitAdapter).updateCommits(repository.getCommitList())
+                        updateStatus()
+                        dialog.dismiss()
+                        Snackbar.make(binding.root, "Pulled changes from remote", Snackbar.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        progressBinding.progressIndicator.isIndeterminate = false
+                        progressBinding.progressIndicator.progress = 0
+                        progressBinding.outputText.append("\nError: ${e.message}")
+                        progressBinding.progressTitle.text = "Pull Failed"
+                    }
                 }
             }
         }
@@ -249,21 +268,43 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
         }
 
         binding.push.setOnClickListener {
-            catchException {
-                repository.push(
-                    OutputStreamWriter(System.out), Credentials(Prefs.gitUsername, Prefs.gitApiKey)
-                )
-                withContext(Dispatchers.Main) {
-                    Snackbar.make(binding.root, "Pushed", Snackbar.LENGTH_SHORT).show()
+            showProgressDialog("Pushing changes...") { progressBinding, dialog ->
+                val writer = object : Writer() {
+                    override fun write(cbuf: CharArray, off: Int, len: Int) {
+                        val text = String(cbuf, off, len)
+                        progressBinding.root.post {
+                            progressBinding.outputText.append(text)
+                            progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                        }
+                    }
+                    override fun flush() {}
+                    override fun close() {}
                 }
-                Analytics.logEvent(
-                    "git_push", mapOf(
-                        "project" to ProjectHandler.getProject()!!.name,
-                        "remote" to binding.remote.text.toString(),
-                        "rebase" to binding.rebase.isChecked,
-                        "time" to System.currentTimeMillis().toString()
+
+                try {
+                    repository.push(
+                        writer, Credentials(Prefs.gitUsername, Prefs.gitApiKey)
                     )
-                )
+                    withContext(Dispatchers.Main) {
+                        dialog.dismiss()
+                        Snackbar.make(binding.root, "Pushed", Snackbar.LENGTH_SHORT).show()
+                    }
+                    Analytics.logEvent(
+                        "git_push", mapOf(
+                            "project" to ProjectHandler.getProject()!!.name,
+                            "remote" to binding.remote.text.toString(),
+                            "rebase" to binding.rebase.isChecked,
+                            "time" to System.currentTimeMillis().toString()
+                        )
+                    )
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        progressBinding.progressIndicator.isIndeterminate = false
+                        progressBinding.progressIndicator.progress = 0
+                        progressBinding.outputText.append("\nError: ${e.message}")
+                        progressBinding.progressTitle.text = "Push Failed"
+                    }
+                }
             }
         }
 
@@ -295,6 +336,30 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
         }
     }
 
+    private fun showProgressDialog(title: String, action: suspend (DialogGitProgressBinding, androidx.appcompat.app.AlertDialog) -> Unit) {
+        val progressBinding = DialogGitProgressBinding.inflate(layoutInflater)
+        progressBinding.progressTitle.text = title
+        
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setView(progressBinding.root)
+            .setCancelable(false)
+            .setPositiveButton("Close", null)
+            .create()
+        
+        dialog.show()
+        val closeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+        closeButton.visibility = View.GONE
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            action(progressBinding, dialog)
+            withContext(Dispatchers.Main) {
+                closeButton.visibility = View.VISIBLE
+                progressBinding.progressIndicator.isIndeterminate = false
+                progressBinding.progressIndicator.progress = 100
+            }
+        }
+    }
+
     private fun updateStatus() {
         lifecycleScope.launch(Dispatchers.IO) {
             val status = try { repository.git.status() } catch (e: Exception) { null }
@@ -302,20 +367,18 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
                 val unstaged = mutableListOf<StagingAdapter.File>()
                 val staged = mutableListOf<StagingAdapter.File>()
 
-                // Staged (Index) - Green
                 status.added.forEach { staged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.ADDED)) }
                 status.changed.forEach { staged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.STAGED_MODIFIED)) }
                 status.removed.forEach { staged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.STAGED_REMOVED)) }
 
-                // Unstaged (Working Directory) - Yellow/Red/White
                 status.modified.forEach { unstaged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.MODIFIED)) }
                 status.missing.forEach { unstaged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.MISSING)) }
                 status.untracked.forEach { unstaged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.UNTRACKED)) }
                 status.conflicting.forEach { unstaged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.CONFLICTING)) }
 
                 withContext(Dispatchers.Main) {
-                    (binding.staging.adapter as StagingAdapter).updateFiles(unstaged)
-                    (binding.stagedList.adapter as StagingAdapter).updateFiles(staged)
+                    (binding.staging.adapter as? StagingAdapter)?.updateFiles(unstaged)
+                    (binding.stagedList.adapter as? StagingAdapter)?.updateFiles(staged)
                     binding.commit.isEnabled = staged.isNotEmpty()
                 }
             }
@@ -327,7 +390,7 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             val diff = repository.getDiff(file.path)
             withContext(Dispatchers.Main) {
                 val diffBinding = DialogGitDiffBinding.inflate(layoutInflater)
-                diffBinding.diffText.text = if (diff.isEmpty()) "No changes or file is untracked" else diff
+                diffBinding.diffText.text = diff.ifEmpty { "No changes or file is untracked" }
                 
                 MaterialAlertDialogBuilder(requireContext())
                     .setTitle("Diff: ${file.path}")
