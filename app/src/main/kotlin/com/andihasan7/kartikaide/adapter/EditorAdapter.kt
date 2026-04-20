@@ -167,19 +167,24 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             setColorScheme()
             editor.isDisableSoftKbdIfHardKbdAvailable = true
             setEditorLanguage()
-            
-            // Menggunakan ContentListener yang benar untuk versi 0.24.5
+            attachUndoListener()
+        }
+
+        private fun attachUndoListener() {
+            // Re-attach listener ke objek Content yang baru
             editor.text.addContentListener(object : ContentListener {
                 override fun beforeReplace(content: Content) {}
+                
                 override fun afterInsert(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, inserted: CharSequence) {
-                    notifyUndoStatus()
-                }
-                override fun afterDelete(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, deleted: CharSequence) {
-                    notifyUndoStatus()
+                    notifyStatus()
                 }
                 
-                private fun notifyUndoStatus() {
-                    view.post {
+                override fun afterDelete(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, deleted: CharSequence) {
+                    notifyStatus()
+                }
+
+                private fun notifyStatus() {
+                    view?.post {
                         (parentFragment as? EditorFragment)?.updateUndoRedoStatus()
                     }
                 }
@@ -249,6 +254,14 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                     editor.setText(Javap.disassemble(file.absolutePath))
                 } else {
                     editor.setText(file.readText())
+                }
+                
+                // PENTING: setText mengganti objek Content, jadi pasang ulang listener-nya
+                attachUndoListener()
+                editor.isUndoEnabled = true
+                
+                view?.post {
+                    (parentFragment as? EditorFragment)?.updateUndoRedoStatus()
                 }
             }
         }
