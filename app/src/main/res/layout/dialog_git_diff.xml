@@ -12,12 +12,20 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <TextView
-        android:id="@+id/diff_text"
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fontFamily="monospace"
-        android:textSize="12sp"
-        android:scrollbars="vertical" />
+        android:background="?colorSurfaceContainer">
+
+        <TextView
+            android:id="@+id/diff_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:padding="8dp"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="12sp" />
+
+    </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>

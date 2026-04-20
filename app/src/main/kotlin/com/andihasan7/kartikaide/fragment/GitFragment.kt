@@ -7,7 +7,14 @@
 
 package com.andihasan7.kartikaide.fragment
 
+import android.graphics.Color
+import android.graphics.Typeface
 import android.os.Bundle
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.util.Log
 import android.view.View
 import androidx.fragment.app.commit
@@ -145,7 +152,7 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             layoutManager = LinearLayoutManager(context)
         }
 
-        catchException {
+        lifecycleScope.launch(Dispatchers.IO) {
             val commits = repository.getCommitList()
             withContext(Dispatchers.Main) {
                 (binding.recyclerview.adapter as GitAdapter).updateCommits(commits)
@@ -154,36 +161,41 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
 
         updateStatus()
 
-        catchException {
-            repository.git.repository.config.getString("remote", "origin", "url")?.let {
-                withContext(Dispatchers.Main) {
-                    binding.remote.setText(it)
-                }
+        lifecycleScope.launch(Dispatchers.IO) {
+            val remoteUrl = repository.git.repository.config.getString("remote", "origin", "url")
+            withContext(Dispatchers.Main) {
+                remoteUrl?.let { binding.remote.setText(it) }
             }
         }
 
         binding.addAll.text = "Add Selected"
         binding.addAll.setOnClickListener {
-            catchException {
-                val selectedFiles = (binding.staging.adapter as StagingAdapter).getSelectedFiles()
-                if (selectedFiles.isEmpty()) {
-                    withContext(Dispatchers.Main) {
-                        Snackbar.make(binding.root, "No files selected", Snackbar.LENGTH_SHORT).show()
-                    }
-                    return@catchException
-                }
-                
-                for (file in selectedFiles) {
-                    when (file.status) {
-                        StagingAdapter.FileStatus.REMOVED, StagingAdapter.FileStatus.MISSING -> repository.git.rm {
-                            addFilepattern(file.path)
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val selectedFiles = (binding.staging.adapter as StagingAdapter).getSelectedFiles()
+                    if (selectedFiles.isEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            Snackbar.make(binding.root, "No files selected", Snackbar.LENGTH_SHORT).show()
                         }
-                        else -> repository.add(file.path)
+                        return@launch
                     }
-                }
-                updateStatus()
-                withContext(Dispatchers.Main) {
-                    Snackbar.make(binding.root, "Added ${selectedFiles.size} files", Snackbar.LENGTH_SHORT).show()
+                    
+                    for (file in selectedFiles) {
+                        when (file.status) {
+                            StagingAdapter.FileStatus.REMOVED, StagingAdapter.FileStatus.MISSING -> repository.git.rm {
+                                addFilepattern(file.path)
+                            }
+                            else -> repository.add(file.path)
+                        }
+                    }
+                    updateStatus()
+                    withContext(Dispatchers.Main) {
+                        Snackbar.make(binding.root, "Added ${selectedFiles.size} files", Snackbar.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Snackbar.make(binding.root, "Error: ${e.message}", Snackbar.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
@@ -192,10 +204,14 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             if (!hasFocus) {
                 val remote = binding.remote.text.toString()
                 if (remote.isNotEmpty()) {
-                    catchException {
-                        repository.git.repository.config.apply {
-                            setString("remote", "origin", "url", remote)
-                            save()
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            repository.git.repository.config.apply {
+                                setString("remote", "origin", "url", remote)
+                                save()
+                            }
+                        } catch (e: Exception) {
+                            Log.e("GitFragment", "Failed to save remote", e)
                         }
                     }
                 }
@@ -390,7 +406,12 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             val diff = repository.getDiff(file.path)
             withContext(Dispatchers.Main) {
                 val diffBinding = DialogGitDiffBinding.inflate(layoutInflater)
-                diffBinding.diffText.text = diff.ifEmpty { "No changes or file is untracked" }
+                
+                if (diff.isEmpty()) {
+                    diffBinding.diffText.text = "No changes or file is untracked"
+                } else {
+                    diffBinding.diffText.text = formatDiffText(diff)
+                }
                 
                 MaterialAlertDialogBuilder(requireContext())
                     .setTitle("Diff: ${file.path}")
@@ -399,6 +420,38 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
                     .show()
             }
         }
+    }
+
+    private fun formatDiffText(diff: String): CharSequence {
+        val spannable = SpannableStringBuilder()
+        val lines = diff.lines()
+        for (line in lines) {
+            val start = spannable.length
+            spannable.append(line).append("\n")
+            val end = spannable.length
+            
+            when {
+                line.startsWith("+") && !line.startsWith("+++") -> {
+                    // Green for additions
+                    spannable.setSpan(BackgroundColorSpan(0x3300FF00.toInt()), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannable.setSpan(ForegroundColorSpan(Color.parseColor("#2E7D32")), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                line.startsWith("-") && !line.startsWith("---") -> {
+                    // Red for deletions
+                    spannable.setSpan(BackgroundColorSpan(0x33FF0000.toInt()), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    spannable.setSpan(ForegroundColorSpan(Color.parseColor("#C62828")), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                line.startsWith("@@") -> {
+                    // Blue for headers
+                    spannable.setSpan(ForegroundColorSpan(Color.parseColor("#0277BD")), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                line.startsWith("diff") || line.startsWith("index") || line.startsWith("---") || line.startsWith("+++") -> {
+                    // Bold for file info
+                    spannable.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+        }
+        return spannable
     }
 
     override fun onDestroyView() {
