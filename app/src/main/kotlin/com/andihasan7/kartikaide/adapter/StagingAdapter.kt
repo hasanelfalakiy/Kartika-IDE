@@ -14,7 +14,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.andihasan7.kartikaide.databinding.StagingItemBinding
 import org.eclipse.jgit.api.Status
 
-class StagingAdapter(val rootPath: String) : RecyclerView.Adapter<StagingAdapter.ViewHolder>() {
+class StagingAdapter(
+    val rootPath: String,
+    private val onFileClick: (File) -> Unit
+) : RecyclerView.Adapter<StagingAdapter.ViewHolder>() {
 
     val files = mutableListOf<File>()
 
@@ -54,6 +57,8 @@ class StagingAdapter(val rootPath: String) : RecyclerView.Adapter<StagingAdapter
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(file: File) {
+            binding.root.setOnClickListener { onFileClick(file) }
+
             binding.checkbox.setOnCheckedChangeListener(null)
             binding.checkbox.isChecked = file.isSelected
             binding.checkbox.setOnCheckedChangeListener { _, isChecked ->

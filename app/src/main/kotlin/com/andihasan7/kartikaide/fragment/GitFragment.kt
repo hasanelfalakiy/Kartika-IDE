@@ -30,6 +30,7 @@ import com.andihasan7.kartikaide.adapter.GitAdapter
 import com.andihasan7.kartikaide.adapter.StagingAdapter
 import com.andihasan7.kartikaide.databinding.FragmentGitBinding
 import com.andihasan7.kartikaide.databinding.GitCommandBinding
+import com.andihasan7.kartikaide.databinding.DialogGitDiffBinding
 import andihasan7.kartikaide.common.Analytics
 import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
@@ -133,7 +134,9 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
         }
 
         binding.staging.apply {
-            adapter = StagingAdapter(ProjectHandler.getProject()!!.root.absolutePath)
+            adapter = StagingAdapter(ProjectHandler.getProject()!!.root.absolutePath) { file ->
+                showDiff(file)
+            }
             layoutManager = LinearLayoutManager(context)
         }
 
@@ -293,6 +296,22 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
                 }
             }
             true
+        }
+    }
+
+    private fun showDiff(file: StagingAdapter.File) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val diff = repository.getDiff(file.path)
+            withContext(Dispatchers.Main) {
+                val diffBinding = DialogGitDiffBinding.inflate(layoutInflater)
+                diffBinding.diffText.text = if (diff.isEmpty()) "No changes or file is untracked" else diff
+                
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Diff: ${file.path}")
+                    .setView(diffBinding.root)
+                    .setPositiveButton("Close", null)
+                    .show()
+            }
         }
     }
 
