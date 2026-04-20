@@ -12,7 +12,6 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.andihasan7.kartikaide.databinding.StagingItemBinding
-import org.eclipse.jgit.api.Status
 
 class StagingAdapter(
     val rootPath: String,
@@ -21,17 +20,9 @@ class StagingAdapter(
 
     val files = mutableListOf<File>()
 
-    fun updateStatus(status: Status?) {
+    fun updateFiles(newFiles: List<File>) {
         files.clear()
-        status?.apply {
-            files.addAll(added.map { File(it, FileStatus.ADDED) })
-            files.addAll(changed.map { File(it, FileStatus.CHANGED) })
-            files.addAll(removed.map { File(it, FileStatus.REMOVED) })
-            files.addAll(missing.map { File(it, FileStatus.MISSING) })
-            files.addAll(modified.map { File(it, FileStatus.MODIFIED) })
-            files.addAll(conflicting.map { File(it, FileStatus.CONFLICTING) })
-            files.addAll(untracked.map { File(it, FileStatus.UNTRACKED) })
-        }
+        files.addAll(newFiles)
         notifyDataSetChanged()
     }
 
@@ -58,7 +49,7 @@ class StagingAdapter(
 
         fun bind(file: File) {
             binding.root.setOnClickListener { onFileClick(file) }
-
+            
             binding.checkbox.setOnCheckedChangeListener(null)
             binding.checkbox.isChecked = file.isSelected
             binding.checkbox.setOnCheckedChangeListener { _, isChecked ->
@@ -69,7 +60,7 @@ class StagingAdapter(
             binding.fileStatus.text = file.status.name
             
             val color = when (file.status) {
-                FileStatus.ADDED -> Color.GREEN
+                FileStatus.ADDED, FileStatus.STAGED_MODIFIED, FileStatus.STAGED_REMOVED -> Color.GREEN
                 FileStatus.CHANGED, FileStatus.MODIFIED -> Color.YELLOW
                 FileStatus.REMOVED, FileStatus.MISSING, FileStatus.CONFLICTING -> Color.RED
                 FileStatus.UNTRACKED -> Color.WHITE
@@ -86,6 +77,7 @@ class StagingAdapter(
     )
 
     enum class FileStatus {
-        ADDED, CHANGED, REMOVED, MISSING, MODIFIED, CONFLICTING, UNTRACKED
+        ADDED, CHANGED, REMOVED, MISSING, MODIFIED, CONFLICTING, UNTRACKED,
+        STAGED_MODIFIED, STAGED_REMOVED
     }
 }

@@ -35,6 +35,7 @@ import andihasan7.kartikaide.common.Analytics
 import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
 import com.andihasan7.kartikaide.util.ProjectHandler
+import org.eclipse.jgit.api.Status
 import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.io.PrintStream
@@ -140,6 +141,13 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             layoutManager = LinearLayoutManager(context)
         }
 
+        binding.stagedList.apply {
+            adapter = StagingAdapter(ProjectHandler.getProject()!!.root.absolutePath) { file ->
+                showDiff(file)
+            }
+            layoutManager = LinearLayoutManager(context)
+        }
+
         catchException {
             val commits = repository.getCommitList()
             withContext(Dispatchers.Main) {
@@ -147,17 +155,7 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             }
         }
 
-        lifecycleScope.launch(Dispatchers.IO) {
-            val isClean = try { repository.isClean() } catch (e: Exception) { false }
-            val status = try { repository.git.status() } catch (e: Exception) { null }
-            
-            withContext(Dispatchers.Main) {
-                binding.commit.isEnabled = !isClean
-                if (!isClean && status != null) {
-                    (binding.staging.adapter as StagingAdapter).updateStatus(status)
-                }
-            }
-        }
+        updateStatus()
 
         catchException {
             repository.git.repository.config.getString("remote", "origin", "url")?.let {
@@ -180,15 +178,14 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
                 
                 for (file in selectedFiles) {
                     when (file.status) {
-                        StagingAdapter.FileStatus.REMOVED -> repository.git.rm {
+                        StagingAdapter.FileStatus.REMOVED, StagingAdapter.FileStatus.MISSING -> repository.git.rm {
                             addFilepattern(file.path)
                         }
                         else -> repository.add(file.path)
                     }
                 }
-                val newStatus = repository.git.status()
+                updateStatus()
                 withContext(Dispatchers.Main) {
-                    (binding.staging.adapter as StagingAdapter).updateStatus(newStatus)
                     Snackbar.make(binding.root, "Added ${selectedFiles.size} files", Snackbar.LENGTH_SHORT).show()
                 }
             }
@@ -238,8 +235,7 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
                     )
                     withContext(Dispatchers.Main) {
                         (binding.recyclerview.adapter as GitAdapter).updateCommits(repository.getCommitList())
-                        val newStatus = repository.git.status()
-                        (binding.staging.adapter as StagingAdapter).updateStatus(newStatus)
+                        updateStatus()
                         binding.commitMessage.text?.clear()
                         Snackbar.make(binding.root, "Committed", Snackbar.LENGTH_SHORT).show()
                     }
@@ -296,6 +292,33 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
                 }
             }
             true
+        }
+    }
+
+    private fun updateStatus() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val status = try { repository.git.status() } catch (e: Exception) { null }
+            if (status != null) {
+                val unstaged = mutableListOf<StagingAdapter.File>()
+                val staged = mutableListOf<StagingAdapter.File>()
+
+                // Staged (Index) - Green
+                status.added.forEach { staged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.ADDED)) }
+                status.changed.forEach { staged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.STAGED_MODIFIED)) }
+                status.removed.forEach { staged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.STAGED_REMOVED)) }
+
+                // Unstaged (Working Directory) - Yellow/Red/White
+                status.modified.forEach { unstaged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.MODIFIED)) }
+                status.missing.forEach { unstaged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.MISSING)) }
+                status.untracked.forEach { unstaged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.UNTRACKED)) }
+                status.conflicting.forEach { unstaged.add(StagingAdapter.File(it, StagingAdapter.FileStatus.CONFLICTING)) }
+
+                withContext(Dispatchers.Main) {
+                    (binding.staging.adapter as StagingAdapter).updateFiles(unstaged)
+                    (binding.stagedList.adapter as StagingAdapter).updateFiles(staged)
+                    binding.commit.isEnabled = staged.isNotEmpty()
+                }
+            }
         }
     }
 
