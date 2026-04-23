@@ -157,8 +157,8 @@ object Prefs {
     val pluginRepository: String
         get() = prefs.getString(
             PreferenceKeys.PLUGIN_REPOSITORY,
-            "https://raw.githubusercontent.com/Cosmic-IDE/plugins-repo/main/plugins.json"
-        ) ?: "https://raw.githubusercontent.com/Cosmic-IDE/plugins-repo/main/plugins.json"
+            "https://raw.githubusercontent.com/hasanelfalakiy/plugins-repo/main/plugins.json"
+        ) ?: "https://raw.githubusercontent.com/hasanelfalakiy/plugins-repo/main/plugins.json"
 
     val editorFontSize: Float
         get() = runCatching {
