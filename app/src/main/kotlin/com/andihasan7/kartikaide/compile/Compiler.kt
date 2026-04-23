@@ -10,17 +10,15 @@ package com.andihasan7.kartikaide.compile
 import android.util.Log
 import com.andihasan7.kartikaide.App
 import com.andihasan7.kartikaide.R
-import andihasan7.kartikaide.build.BuildReporter
-import andihasan7.kartikaide.build.Task
-import andihasan7.kartikaide.build.dex.D8Task
-import andihasan7.kartikaide.build.java.JarTask
-import andihasan7.kartikaide.build.java.JavaCompileTask
-import andihasan7.kartikaide.build.kotlin.KotlinCompiler
-import com.andihasan7.kartikaide.util.CommonUtils
+import andihasan7.kartikaide.buildtools.BuildReporter
+import andihasan7.kartikaide.buildtools.Task
+import andihasan7.kartikaide.buildtools.dex.D8Task
+import andihasan7.kartikaide.buildtools.java.JarTask
+import andihasan7.kartikaide.buildtools.java.JavaCompileTask
+import andihasan7.kartikaide.buildtools.kotlin.KotlinCompiler
 import andihasan7.kartikaide.project.Project
 import com.intellij.openapi.application.ApplicationManager
 import org.jetbrains.kotlin.load.kotlin.KotlinBinaryClassCache
-import java.io.File
 
 /**
  * A class responsible for compiling Java and Kotlin code and converting class files to dex format.

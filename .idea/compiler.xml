@@ -69,6 +69,7 @@
       <module name="CosmicIDE.jgit.main" target="17" />
       <module name="CosmicIDE.jgit.test" target="17" />
       <module name="CosmicIDE.util" target="17" />
+      <module name="KartikaIDE.stubs" target="17" />
     </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">

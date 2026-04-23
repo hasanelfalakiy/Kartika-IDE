@@ -14,7 +14,7 @@
 
 package com.andihasan7.kartikaide.compile
 
-import andihasan7.kartikaide.build.Task
+import andihasan7.kartikaide.buildtools.Task
 
 /**
  * Singleton object to manage the caching of compiler instances.

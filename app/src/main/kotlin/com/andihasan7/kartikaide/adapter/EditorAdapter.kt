@@ -7,7 +7,7 @@
 
 package com.andihasan7.kartikaide.adapter
 
-import andihasan7.kartikaide.build.Javap
+import andihasan7.kartikaide.buildtools.Javap
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.editor.analyzers.EditorDiagnosticsMarker
 import com.andihasan7.kartikaide.fragment.EditorFragment
