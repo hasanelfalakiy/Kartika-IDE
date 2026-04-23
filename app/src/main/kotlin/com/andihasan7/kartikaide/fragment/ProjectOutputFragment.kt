@@ -76,6 +76,8 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         binding.infoEditor.apply {
             setEditorLanguage(TextMateLanguage.create("source.build", false))
             setFont()
+            // Pastikan editor bisa diedit agar pengguna bisa mengetik input
+            isEditable = true
         }
 
         binding.toolbar.title = "Running ${project.name}"
@@ -171,11 +173,12 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                 bos.reset()
                 lifecycleScope.launch(Dispatchers.Main) {
                     val text = binding.infoEditor.text
-                    text.insert(
-                        text.lineCount - 1,
-                        text.getColumnCount(text.lineCount - 1),
-                        s
-                    )
+                    val line = text.lineCount - 1
+                    val column = text.getColumnCount(line)
+                    text.insert(line, column, s)
+                    
+                    // Update offset di inputStream SETELAH teks dimasukkan ke editor
+                    // agar input stream tahu bahwa teks ini adalah output program, bukan input user.
                     inputStream.updateOffset(text.length)
                 }
             }
