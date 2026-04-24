@@ -9,12 +9,18 @@ package dev.pranav.jgit.tasks
 
 import com.github.syari.kgit.KGit
 import dev.pranav.jgit.api.Author
+import org.eclipse.jgit.diff.DiffFormatter
+import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.TextProgressMonitor
 import org.eclipse.jgit.pgm.Main
 import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.transport.HttpTransport
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+import org.eclipse.jgit.treewalk.CanonicalTreeParser
+import org.eclipse.jgit.treewalk.FileTreeIterator
+import org.eclipse.jgit.treewalk.filter.PathFilter
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
 import java.io.Writer
@@ -112,6 +118,35 @@ class Repository(val git: KGit) {
                 )
             )
             progressMonitor = TextProgressMonitor(writer)
+        }
+    }
+
+    fun getDiff(filePath: String): String {
+        return try {
+            val out = ByteArrayOutputStream()
+            DiffFormatter(out).use { formatter ->
+                formatter.setRepository(git.repository)
+                val commitId = git.repository.resolve(Constants.HEAD)
+                val oldTreeIter = if (commitId != null) {
+                    val revWalk = RevWalk(git.repository)
+                    val commit = revWalk.parseCommit(commitId)
+                    val tree = commit.tree
+                    val treeParser = CanonicalTreeParser()
+                    git.repository.newObjectReader().use { reader ->
+                        treeParser.reset(reader, tree.id)
+                    }
+                    treeParser
+                } else {
+                    CanonicalTreeParser()
+                }
+                
+                val newTreeIter = FileTreeIterator(git.repository)
+                formatter.setPathFilter(PathFilter.create(filePath))
+                formatter.format(oldTreeIter, newTreeIter)
+            }
+            out.toString()
+        } catch (e: Exception) {
+            "Error generating diff: ${e.message}"
         }
     }
 }

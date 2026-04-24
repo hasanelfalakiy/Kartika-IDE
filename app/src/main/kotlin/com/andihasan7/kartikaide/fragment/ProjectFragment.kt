@@ -34,19 +34,12 @@ import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.snackbar.Snackbar
-import dev.pranav.jgit.tasks.Credentials
-import dev.pranav.jgit.tasks.cloneRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.andihasan7.kartikaide.R
 import com.andihasan7.kartikaide.adapter.ProjectAdapter
 import andihasan7.kartikaide.common.Analytics
 import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
+import com.andihasan7.kartikaide.databinding.DialogGitCloneBinding
 import com.andihasan7.kartikaide.databinding.FragmentProjectBinding
 import com.andihasan7.kartikaide.databinding.TreeviewContextActionDialogItemBinding
 import com.andihasan7.kartikaide.model.ProjectViewModel
@@ -57,6 +50,14 @@ import andihasan7.kartikaide.rewrite.util.PermissionUtils
 import andihasan7.kartikaide.rewrite.util.compressToZip
 import andihasan7.kartikaide.rewrite.util.unzip
 import com.andihasan7.kartikaide.util.CommonUtils
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
+import dev.pranav.jgit.tasks.Credentials
+import dev.pranav.jgit.tasks.cloneRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.OutputStream
 import java.io.PrintWriter
@@ -183,7 +184,7 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
         super.onResume()
         checkStoragePermission()
         viewModel.loadProjects()
-        setOnClickListeners()
+        toggleFabMenu(false)
     }
 
     private fun checkStoragePermission() {
@@ -211,55 +212,45 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
         }
     }
 
+    private fun toggleFabMenu(show: Boolean) {
+        val visibility = if (show) View.VISIBLE else View.GONE
+        binding.importButton.visibility = visibility
+        binding.fabNewProject.visibility = visibility
+        binding.cancelTextCard.visibility = visibility
+        binding.gitClone.visibility = visibility
+        binding.openProject.visibility = visibility
+
+        val iconRes = if (show) R.drawable.baseline_close_24 else R.drawable.sharp_add_24
+        binding.cancelFab.setImageDrawable(
+            ResourcesCompat.getDrawable(resources, iconRes, activity?.theme)
+        )
+    }
+
     private fun setOnClickListeners() {
-        binding.fabs.importButton.visibility = View.GONE
-        binding.fabs.fabNewProject.visibility = View.GONE
-        binding.fabs.cancelText.visibility = View.GONE
-        binding.fabs.gitClone.visibility = View.GONE
-        binding.fabs.openProject.visibility = View.GONE
+        toggleFabMenu(false)
 
-        binding.fabs.cancel.setOnClickListener {
-            if (!binding.fabs.importButton.isVisible) {
-                binding.fabs.importButton.visibility = View.VISIBLE
-                binding.fabs.fabNewProject.visibility = View.VISIBLE
-                binding.fabs.cancelText.visibility = View.VISIBLE
-                binding.fabs.gitClone.visibility = View.VISIBLE
-                binding.fabs.openProject.visibility = View.VISIBLE
-                binding.fabs.cancelFab.setImageDrawable(
-                    ResourcesCompat.getDrawable(
-                        resources,
-                        R.drawable.baseline_close_24,
-                        activity?.theme
-                    )
-                )
-                binding.fabs.importButton.setOnClickListener {
-                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "application/zip"
-                    }
+        binding.cancel.setOnClickListener {
+            toggleFabMenu(!binding.importButton.isVisible)
+        }
 
-                    documentPickerLauncher.launch(intent)
-                }
-                binding.fabs.fabNewProject.setOnClickListener {
-                    navigateToNewProjectFragment()
-                }
-                binding.fabs.gitClone.setOnClickListener {
-                    gitClone()
-                }
-                binding.fabs.openProject.setOnClickListener {
-                    openExternalProject()
-                }
-            } else {
-                binding.fabs.importButton.visibility = View.GONE
-                binding.fabs.fabNewProject.visibility = View.GONE
-                binding.fabs.cancelText.visibility = View.GONE
-                binding.fabs.gitClone.visibility = View.GONE
-                binding.fabs.openProject.visibility = View.GONE
-
-                binding.fabs.cancelFab.setImageDrawable(
-                    ResourcesCompat.getDrawable(resources, R.drawable.sharp_add_24, activity?.theme)
-                )
+        binding.importButton.setOnClickListener {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/zip"
             }
+            documentPickerLauncher.launch(intent)
+        }
+
+        binding.fabNewProject.setOnClickListener {
+            navigateToNewProjectFragment()
+        }
+
+        binding.gitClone.setOnClickListener {
+            gitClone()
+        }
+
+        binding.openProject.setOnClickListener {
+            openExternalProject()
         }
 
         binding.swipeRefresh.setOnRefreshListener {
@@ -384,9 +375,15 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     }
 
     fun gitClone() {
-        val editText = EditText(requireContext()).apply {
-            hint = "Enter git url"
+        val dialogBinding = DialogGitCloneBinding.inflate(layoutInflater)
+        
+        dialogBinding.useExternalStorage.setOnCheckedChangeListener { _, isChecked ->
+            dialogBinding.externalPathText.isVisible = isChecked
+            if (isChecked && !PermissionUtils.hasStoragePermission(requireContext())) {
+                checkStoragePermission()
+            }
         }
+
         if (Prefs.gitUsername.isEmpty() || Prefs.gitApiKey.isEmpty()) {
             MaterialAlertDialogBuilder(requireContext()).apply {
                 setTitle("Git Clone")
@@ -400,21 +397,42 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
             }
             return
         }
+
         MaterialAlertDialogBuilder(requireContext()).apply {
-            setView(editText)
+            setView(dialogBinding.root)
             setTitle("Git Clone")
             setPositiveButton("Clone") { _, _ ->
-                val url = editText.text.toString()
+                val url = dialogBinding.gitUrlEditText.text.toString()
+                if (url.isEmpty()) {
+                    Toast.makeText(requireContext(), "URL cannot be empty", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
                 var repoName = url.substringAfterLast("/")
                 if (repoName.endsWith(".git")) {
                     repoName = repoName.substringBefore(".git")
                 }
-                val folder = FileUtil.projectDir.resolve(repoName)
+
+                val useExternal = dialogBinding.useExternalStorage.isChecked
+                val parentDir = if (useExternal) {
+                    if (!PermissionUtils.hasStoragePermission(requireContext())) {
+                        checkStoragePermission()
+                        return@setPositiveButton
+                    }
+                    val extDir = File(Environment.getExternalStorageDirectory(), "KartikaIDE")
+                    if (!extDir.exists()) extDir.mkdirs()
+                    extDir
+                } else {
+                    FileUtil.projectDir
+                }
+
+                val folder = File(parentDir, repoName)
                 if (folder.exists()) {
                     Snackbar.make(requireView(), "Project already exists", Snackbar.LENGTH_LONG)
                         .show()
                     return@setPositiveButton
                 }
+
                 val textView = TextView(requireContext()).apply {
                     text = getString(R.string.clone)
                     setPadding(32, 32, 32, 32)
@@ -425,10 +443,10 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                     setCancelable(false)
                     show()
                 }
-                binding.fabs.cancel.performClick()
+                toggleFabMenu(false)
 
-                try {
-                    lifecycleScope.launch(Dispatchers.IO) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    try {
                         folder.cloneRepository(url,
                             PrintWriter(
                                 object : OutputStream() {
@@ -446,23 +464,28 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                                 }
                             ),
                             Credentials(Prefs.gitUsername, Prefs.gitApiKey))
-                        viewModel.loadProjects()
-                        lifecycleScope.launch(Dispatchers.Main) {
+                        
+                        withContext(Dispatchers.Main) {
+                            viewModel.loadProjects()
                             sheet.dismiss()
                         }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    sheet.dismiss()
-                    lifecycleScope.launch {
-                        CommonUtils.showSnackbarError(
-                            requireView(),
-                            e.message ?: "Unknown error",
-                            e
-                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        // Hapus folder jika gagal agar tidak menghalangi percobaan berikutnya
+                        if (folder.exists()) folder.deleteRecursively()
+                        
+                        withContext(Dispatchers.Main) {
+                            sheet.dismiss()
+                            CommonUtils.showSnackbarError(
+                                requireView(),
+                                "Clone failed: ${e.message ?: "Unknown error"}",
+                                e
+                            )
+                        }
                     }
                 }
             }
+            setNegativeButton("Cancel", null)
         }.show()
     }
 
@@ -530,7 +553,6 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     }
 
     private fun navigateToNewProjectFragment() {
-        setOnClickListeners()
         parentFragmentManager.commit {
             add(R.id.fragment_container, NewProjectFragment())
             addToBackStack(null)

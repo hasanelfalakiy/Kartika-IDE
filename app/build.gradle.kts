@@ -193,6 +193,7 @@ dependencies {
     implementation("com.itsaky.androidide.treesitter:android-tree-sitter:4.3.1")
     implementation("com.itsaky.androidide.treesitter:tree-sitter-java:4.3.1")
     implementation("com.itsaky.androidide.treesitter:tree-sitter-kotlin:4.3.1")
+    implementation("com.github.hasanelfalakiy:ColorKTX:1.0.0")
 
     implementation("io.github.itsaky:nb-javac-android:17.0.0.3")
 

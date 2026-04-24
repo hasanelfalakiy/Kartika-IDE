@@ -7,7 +7,7 @@
 
 package com.andihasan7.kartikaide.fragment
 
-import andihasan7.kartikaide.build.dex.D8Task
+import andihasan7.kartikaide.buildtools.dex.D8Task
 import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.project.Language
@@ -47,7 +47,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
-import com.widget.treeview.Node
 import com.widget.treeview.OnTreeItemClickListener
 import com.widget.treeview.TreeUtils.toNodeList
 import com.widget.treeview.TreeViewAdapter
@@ -115,6 +114,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 fileViewModel.setCurrentPosition(tab.position)
+                updateUndoRedoStatus()
             }
 
             override fun onTabUnselected(tab: TabLayout.Tab) {
@@ -177,26 +177,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         fileViewModel.currentPosition.observe(viewLifecycleOwner) { pos ->
             binding.toolbar.apply {
                 if (pos == -1) {
-                    menu.findItem(R.id.nav_items).apply {
-                        isVisible = false
-                    }
-                    menu.findItem(R.id.undo).apply {
-                        isVisible = false
-                    }
-                    menu.findItem(R.id.redo).apply {
-                        isVisible = false
-                    }
+                    menu.findItem(R.id.nav_items)?.isVisible = false
+                    menu.findItem(R.id.undo)?.isVisible = false
+                    menu.findItem(R.id.redo)?.isVisible = false
                     return@observe
                 } else {
-                    menu.findItem(R.id.nav_items).apply {
-                        isVisible = true
-                    }
-                    menu.findItem(R.id.undo).apply {
-                        isVisible = true
-                    }
-                    menu.findItem(R.id.redo).apply {
-                        isVisible = true
-                    }
+                    menu.findItem(R.id.nav_items)?.isVisible = true
+                    menu.findItem(R.id.undo)?.isVisible = true
+                    menu.findItem(R.id.redo)?.isVisible = true
                 }
             }
 
@@ -207,10 +195,36 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 tab.select()
                 binding.pager.currentItem = pos
             }
+            updateUndoRedoStatus()
         }
         fileViewModel.setCurrentPosition(0)
         if (fileViewModel.files.value!!.isEmpty()) {
             binding.viewContainer.displayedChild = 1
+        }
+    }
+
+    fun updateUndoRedoStatus() {
+        val editor = getCurrentFragment()?.editor
+        if (editor != null) {
+            val canUndo = editor.canUndo()
+            val canRedo = editor.canRedo()
+            Log.d("EditorFragment", "Updating status: undo=$canUndo, redo=$canRedo")
+            updateUndoRedoIcons(canUndo, canRedo)
+        } else {
+            updateUndoRedoIcons(canUndo = false, canRedo = false)
+        }
+    }
+
+    private fun updateUndoRedoIcons(canUndo: Boolean, canRedo: Boolean) {
+        binding.toolbar.menu.apply {
+            findItem(R.id.undo)?.let {
+                it.isEnabled = canUndo
+                it.icon?.alpha = if (canUndo) 255 else 100
+            }
+            findItem(R.id.redo)?.let {
+                it.isEnabled = canRedo
+                it.icon?.alpha = if (canRedo) 255 else 100
+            }
         }
     }
 
@@ -291,14 +305,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     private fun configureToolbar() {
         binding.toolbar.apply {
-            title = project.name
+            title = "" // Clear project name from toolbar
             setNavigationOnClickListener {
                 editorAdapter.saveAll()
                 binding.drawer.open()
             }
 
             if (Prefs.experimentsEnabled) {
-                menu.findItem(R.id.action_chat).isVisible = true
+                menu.findItem(R.id.action_chat)?.isVisible = true
             }
 
             setOnMenuItemClickListener { item ->
@@ -329,11 +343,13 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
                     R.id.undo -> {
                         getCurrentFragment()?.editor?.undo()
+                        updateUndoRedoStatus()
                         true
                     }
 
                     R.id.redo -> {
                         getCurrentFragment()?.editor?.redo()
+                        updateUndoRedoStatus()
                         true
                     }
 
@@ -615,6 +631,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 if (formatted.isNotEmpty() && formatted != text) {
                     withContext(Dispatchers.Main) {
                         content.replace(0, content.length, formatted)
+                        updateUndoRedoStatus()
                     }
                 }
             } catch (e: Exception) {
@@ -837,7 +854,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                 if (file == project.root) {
                                     project.root = newFile
                                     this.binding.included.projectName.text = name
-                                    this.binding.toolbar.title = name
+                                    this.binding.toolbar.title = "" // Keep title empty after rename
                                     projectViewModel.loadProjects()
                                 }
                                 

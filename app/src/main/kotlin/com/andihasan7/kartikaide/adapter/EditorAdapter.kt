@@ -7,9 +7,10 @@
 
 package com.andihasan7.kartikaide.adapter
 
-import andihasan7.kartikaide.build.Javap
+import andihasan7.kartikaide.buildtools.Javap
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.editor.analyzers.EditorDiagnosticsMarker
+import com.andihasan7.kartikaide.fragment.EditorFragment
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
@@ -32,6 +33,8 @@ import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.widget.subscribeEvent
+import io.github.rosemoe.sora.text.ContentListener
+import io.github.rosemoe.sora.text.Content
 import java.io.File
 import kotlin.properties.Delegates
 
@@ -60,10 +63,8 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                 }
             }
 
-            // Update fragments mapping and internal file references
             val newFragments = mutableMapOf<Long, CodeEditorFragment>()
             if (files.size == oldIds.size) {
-                // Probable rename or reorder: mapping by index
                 oldIds.forEachIndexed { index, oldId ->
                     fragments[oldId]?.let { frag ->
                         val newId = newIds[index]
@@ -79,7 +80,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                     }
                 }
             } else {
-                // Size changed: mapping by stable ID
                 newIds.forEachIndexed { index, newId ->
                     val frag = fragments[newId] ?: fragments.values.find { it.file.absolutePath == files[index].absolutePath }
                     if (frag != null) {
@@ -100,9 +100,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
     override fun createFragment(position: Int): Fragment {
         val id = getItemId(position)
-        // If we already have a migrated fragment, it will be in the map but 
-        // ViewPager2 might still call createFragment if it was cleared from its internal state.
-        // However, FragmentStateAdapter expects a NEW fragment here.
         val fragment = CodeEditorFragment().apply {
             arguments = Bundle().apply {
                 putSerializable("file", fileViewModel.files.value!![position])
@@ -131,7 +128,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
     fun refreshSettings() {
         fragments.values.forEach { it.refreshSettings() }
-
     }
 
     fun reloadAll() {
@@ -140,7 +136,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
     class CodeEditorFragment : Fragment() {
 
-        private lateinit var eventReceiver: SubscriptionReceipt<ContentChangeEvent>
+        private var diagReceiver: SubscriptionReceipt<ContentChangeEvent>? = null
         private lateinit var binding: EditorFragmentBinding
         lateinit var editor: IdeEditor
         
@@ -171,6 +167,28 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             setColorScheme()
             editor.isDisableSoftKbdIfHardKbdAvailable = true
             setEditorLanguage()
+            attachUndoListener()
+        }
+
+        private fun attachUndoListener() {
+            // Re-attach listener ke objek Content yang baru
+            editor.text.addContentListener(object : ContentListener {
+                override fun beforeReplace(content: Content) {}
+                
+                override fun afterInsert(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, inserted: CharSequence) {
+                    notifyStatus()
+                }
+                
+                override fun afterDelete(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, deleted: CharSequence) {
+                    notifyStatus()
+                }
+
+                private fun notifyStatus() {
+                    view?.post {
+                        (parentFragment as? EditorFragment)?.updateUndoRedoStatus()
+                    }
+                }
+            })
         }
 
         private fun setupSymbols() {
@@ -181,8 +199,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                 }
                 symbolViewContainer.visibility = View.VISIBLE
                 symbolView.bindEditor(editor)
-                
-                // Clear existing symbols to prevent accumulation/duplication
                 symbolView.removeSymbols()
                 
                 val rawSymbols = Prefs.customSymbols.split(",")
@@ -201,11 +217,10 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             when (file.extension) {
                 "java" -> {
                     editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
-                    if (::eventReceiver.isInitialized) eventReceiver.unsubscribe()
-                    eventReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
+                    diagReceiver?.unsubscribe()
+                    diagReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
                 }
                 "kt", "kts" -> {
-                    // Re-set even if it's already KotlinLanguage to ensure theme is applied correctly
                     editor.setEditorLanguage(KotlinLanguage(editor, project, file))
                 }
                 "class" -> {
@@ -240,6 +255,14 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                 } else {
                     editor.setText(file.readText())
                 }
+                
+                // PENTING: setText mengganti objek Content, jadi pasang ulang listener-nya
+                attachUndoListener()
+                editor.isUndoEnabled = true
+                
+                view?.post {
+                    (parentFragment as? EditorFragment)?.updateUndoRedoStatus()
+                }
             }
         }
 
@@ -261,7 +284,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         fun refreshSettings() {
             if (::editor.isInitialized) {
                 editor.updateSettings()
-                // Force update language to refresh TreeSitter theme mapping
                 setEditorLanguage()
                 setupSymbols()
             }
@@ -271,7 +293,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             super.onConfigurationChanged(newConfig)
             if (::editor.isInitialized) {
                 setColorScheme()
-                // Update language on config change as well
                 setEditorLanguage()
             }
         }
@@ -284,7 +305,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         fun release() {
             if (::editor.isInitialized) {
                 hideWindows()
-                if (::eventReceiver.isInitialized) eventReceiver.unsubscribe()
+                diagReceiver?.unsubscribe()
                 editor.release()
             }
         }

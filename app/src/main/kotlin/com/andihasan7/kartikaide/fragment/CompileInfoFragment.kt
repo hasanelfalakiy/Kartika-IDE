@@ -19,8 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.andihasan7.kartikaide.R
-import andihasan7.kartikaide.build.BuildReporter
-import andihasan7.kartikaide.common.BaseBindingFragment
+import andihasan7.kartikaide.buildtools.BuildReporter
 import com.andihasan7.kartikaide.compile.Compiler
 import andihasan7.kartikaide.project.Project
 import android.view.LayoutInflater

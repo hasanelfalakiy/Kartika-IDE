@@ -41,6 +41,7 @@ import com.andihasan7.kartikaide.util.MaterialEditorTheme
 import com.andihasan7.kartikaide.util.ResourceUtil
 import com.andihasan7.kartikaide.util.awaitBinderReceived
 import com.andihasan7.kartikaide.util.isShizukuInstalled
+import io.github.andihasan.colorktx.ColorKtx
 import org.eclipse.tm4e.core.registry.IThemeSource
 import rikka.shizuku.Shizuku
 import rikka.shizuku.Shizuku.OnRequestPermissionResultListener
@@ -51,10 +52,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     val shizukuPermissionCode = 1
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+    private var lastThemeOrdinal: Int = -1
+    private var lastThemeMode: Int = -1
+    private var lastTrueBlack: Boolean = false
+    private var lastDynamic: Boolean = false
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ColorKtx.applyToActivity(this)
         super.onCreate(savedInstanceState)
+
+        val colorKtx = ColorKtx.getInstance(this)
+        saveCurrentState(colorKtx)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
 
@@ -97,6 +105,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun saveCurrentState(colorKtx: ColorKtx) {
+        lastThemeOrdinal = colorKtx.staticTheme.ordinal
+        lastThemeMode = colorKtx.themeMode
+        lastTrueBlack = colorKtx.isTrueBlack
+        lastDynamic = colorKtx.isDynamicTheme
+    }
     private val listener =
         OnRequestPermissionResultListener { _, grantResult ->
             val granted = grantResult == PackageManager.PERMISSION_GRANTED
@@ -126,7 +140,10 @@ class MainActivity : AppCompatActivity() {
         themeRegistry.loadTheme(loadTheme("darcula.json", "darcula"))
         themeRegistry.loadTheme(loadTheme("QuietLight.tmTheme.json", "QuietLight"))
         themeRegistry.loadTheme(loadTheme("dracula_2.json", "dracula_2"))
+        themeRegistry.loadTheme(loadTheme("dracula_clean.json", "dracula_clean"))
         themeRegistry.loadTheme(loadTheme("onedark.json", "onedark"))
+        themeRegistry.loadTheme(loadTheme("ayu_dark.json", "ayu_dark"))
+        themeRegistry.loadTheme(loadTheme("ayu_mirage.json", "ayu_mirage"))
 
         App.instance.get()!!.applyThemeBasedOnConfiguration()
     }

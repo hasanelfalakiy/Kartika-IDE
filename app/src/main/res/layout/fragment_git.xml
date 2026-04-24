@@ -43,7 +43,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:layout_marginStart="16dp"
-                android:text="@string/commits"
+                android:text="Commits"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorPrimary" />
 
@@ -68,13 +68,13 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:layout_marginStart="16dp"
-                android:text="@string/staging_area"
+                android:text="Unstaged Changes (Working Directory)"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorPrimary" />
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_margin="16dp">
 
                 <androidx.recyclerview.widget.RecyclerView
@@ -91,17 +91,39 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="16dp"
                 android:layout_marginBottom="16dp"
-                android:text="@string/add_all" />
+                android:text="Add Selected" />
 
             <com.google.android.material.divider.MaterialDivider
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:layout_marginStart="16dp"
+                android:text="Staged Changes (Index)"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="#4CAF50" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                app:cardBackgroundColor="?colorSurfaceContainer">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/staged_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="8dp" />
+            </com.google.android.material.card.MaterialCardView>
+
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_margin="16dp"
-                android:hint="@string/commit_message">
+                android:hint="Commit Message">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/commit_message"
@@ -116,7 +138,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="16dp"
                 android:layout_marginBottom="16dp"
-                android:text="@string/commit" />
+                android:text="Commit" />
 
             <com.google.android.material.divider.MaterialDivider
                 android:layout_width="match_parent"
@@ -126,7 +148,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_margin="16dp"
-                android:hint="@string/remote_repository_url">
+                android:hint="Remote URL">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/remote"
@@ -141,7 +163,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="16dp"
                 android:layout_marginBottom="16dp"
-                android:text="@string/push_to_remote" />
+                android:text="Push" />
 
             <com.google.android.material.divider.MaterialDivider
                 android:layout_width="match_parent"
@@ -152,7 +174,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:layout_marginStart="16dp"
-                android:text="@string/pull"
+                android:text="Pull"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorPrimary" />
 
@@ -164,7 +186,7 @@
                 android:layout_marginHorizontal="16dp"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="8dp"
-                android:text="@string/pull_from_remote" />
+                android:text="Pull" />
 
             <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/rebase"
@@ -172,7 +194,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="16dp"
                 android:layout_marginBottom="16dp"
-                android:text="@string/rebase" />
+                android:text="Rebase" />
 
         </LinearLayout>
     </ScrollView>
