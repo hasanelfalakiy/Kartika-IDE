@@ -55,8 +55,8 @@
                 android:background="@drawable/bg_circle"
                 android:contentDescription="Icon maintener"
                 android:focusable="true"
-                android:scaleType="fitCenter"
-                android:src="@drawable/img_placeholder"
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_kartikaide"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
