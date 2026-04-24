@@ -87,23 +87,7 @@ class AppearanceSettings(private val activity: MainActivity) : SettingsProvider 
                 }
             }
 
-            // 3. Pure Black
-            switch(PreferenceKeys.PURE_BLACK) {
-                title = "Pure Black Background"
-                defaultValue = colorKtx.isTrueBlack
-                icon = ResourcesCompat.getDrawable(
-                    activity.resources,
-                    R.drawable.outline_invert_colors_24,
-                    activity.theme
-                )
-                onCheckedChange { checked ->
-                    colorKtx.isTrueBlack = checked
-                    activity.recreate()
-                    true
-                }
-            }
-
-            // 4. Dynamic Theme (Android 12+)
+            // 3. Dynamic Theme (Android 12+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 switch(PreferenceKeys.DYNAMIC_COLOR) {
                     title = "Dynamic Theme"
