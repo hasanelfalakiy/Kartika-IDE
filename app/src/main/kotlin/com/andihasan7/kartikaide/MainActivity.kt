@@ -52,7 +52,6 @@ class MainActivity : AppCompatActivity() {
     val shizukuPermissionCode = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
 
         super.onCreate(savedInstanceState)
 
