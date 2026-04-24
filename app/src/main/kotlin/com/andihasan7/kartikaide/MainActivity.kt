@@ -41,6 +41,7 @@ import com.andihasan7.kartikaide.util.MaterialEditorTheme
 import com.andihasan7.kartikaide.util.ResourceUtil
 import com.andihasan7.kartikaide.util.awaitBinderReceived
 import com.andihasan7.kartikaide.util.isShizukuInstalled
+import io.github.andihasan.colorktx.ColorKtx
 import org.eclipse.tm4e.core.registry.IThemeSource
 import rikka.shizuku.Shizuku
 import rikka.shizuku.Shizuku.OnRequestPermissionResultListener
@@ -51,9 +52,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     val shizukuPermissionCode = 1
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    private var lastThemeOrdinal: Int = -1
+    private var lastThemeMode: Int = -1
+    private var lastTrueBlack: Boolean = false
+    private var lastDynamic: Boolean = false
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ColorKtx.applyToActivity(this)
         super.onCreate(savedInstanceState)
+
+        val colorKtx = ColorKtx.getInstance(this)
+        saveCurrentState(colorKtx)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
 
@@ -96,6 +105,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun saveCurrentState(colorKtx: ColorKtx) {
+        lastThemeOrdinal = colorKtx.staticTheme.ordinal
+        lastThemeMode = colorKtx.themeMode
+        lastTrueBlack = colorKtx.isTrueBlack
+        lastDynamic = colorKtx.isDynamicTheme
+    }
     private val listener =
         OnRequestPermissionResultListener { _, grantResult ->
             val granted = grantResult == PackageManager.PERMISSION_GRANTED

@@ -11,6 +11,9 @@ object PreferenceKeys {
 
     // Appearance
     const val APP_THEME = "app_theme"
+    const val COLOR_THEME = "color_theme"
+    const val PURE_BLACK = "pure_black"
+    const val DYNAMIC_COLOR = "dynamic_color"
 
     // Compiler
     const val COMPILER_USE_FJFS = "use_fast_jar_file_system"

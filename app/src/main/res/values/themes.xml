@@ -6,7 +6,7 @@
   -->
 <resources>
 
-    <style name="Theme.CosmicIde.Base" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
+    <style name="Theme.CosmicIde.Base" parent="Theme.Material3Expressive.DayNight.NoActionBar">
         <!-- Android framework -->
         <item name="android:overScrollMode">never</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
