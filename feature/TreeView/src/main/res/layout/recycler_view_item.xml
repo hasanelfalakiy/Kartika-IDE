@@ -36,7 +36,7 @@
         android:layout_marginStart="8dp"
         android:layout_marginEnd="24dp"
         android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-        android:maxLines="1"
+        android:singleLine="true"
         android:ellipsize="none"
         android:scrollHorizontally="true"
         tools:text="Main.kt" />

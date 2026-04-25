@@ -44,34 +44,37 @@
         android:layout_height="1dp"
         android:background="?attr/dividerHorizontal" />
 
-    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-        android:id="@+id/refresher"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-        <HorizontalScrollView
-            android:id="@+id/h_scroll"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:orientation="vertical"
+        >
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/refresher"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:fillViewport="false"
-            android:scrollbars="horizontal">
+            android:layout_height="match_parent">
 
-            <!-- Container lebar wrap_content sangat penting agar TreeView bisa mengembang ke samping -->
-            <LinearLayout
-                android:layout_width="wrap_content"
+            <HorizontalScrollView
+                android:id="@+id/h_scroll"
+                android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:orientation="vertical">
+                android:fillViewport="false"
+                android:scrollbars="horizontal">
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/recycler"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:clipToPadding="false"
-                    android:paddingBottom="16dp" />
-            </LinearLayout>
+                <!-- Container lebar wrap_content sangat penting agar TreeView bisa mengembang ke samping -->
 
-        </HorizontalScrollView>
 
-    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/recycler"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:clipToPadding="false"
+                        android:paddingBottom="16dp" />
+
+
+            </HorizontalScrollView>
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+    </LinearLayout>
 
 </LinearLayout>
