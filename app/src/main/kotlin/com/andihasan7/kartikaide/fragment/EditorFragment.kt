@@ -12,13 +12,17 @@ import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.annotation.MenuRes
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
@@ -73,6 +77,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     override fun getViewBinding() = FragmentEditorBinding.inflate(layoutInflater)
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -108,6 +113,33 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     initTreeView()
                 }
                 isRefreshing = false
+            }
+        }
+
+        // Handle Horizontal Scroll to Lock/Unlock Drawer
+        binding.drawer.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+            override fun onDrawerOpened(drawerView: View) {
+                updateDrawerLockState()
+            }
+
+            override fun onDrawerClosed(drawerView: View) {
+                binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+            }
+        })
+
+        binding.included.hScroll.apply {
+            setOnScrollChangeListener { _, _, _, _, _ ->
+                updateDrawerLockState()
+            }
+            
+            // Prioritaskan gestur geser ke TreeView daripada ke DrawerLayout
+            setOnTouchListener { v, event ->
+                if (event.action == MotionEvent.ACTION_MOVE) {
+                    if (v.canScrollHorizontally(1) || v.canScrollHorizontally(-1)) {
+                        v.parent.requestDisallowInterceptTouchEvent(true)
+                    }
+                }
+                false
             }
         }
 
@@ -164,6 +196,18 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         parentFragmentManager.setFragmentResultListener("settings_changed", viewLifecycleOwner) { _, _ ->
             refreshAllEditors()
+        }
+    }
+
+    private fun updateDrawerLockState() {
+        if (binding.drawer.isDrawerOpen(GravityCompat.START)) {
+            // Jika masih bisa digeser ke arah ujung kanan, maka kunci drawer
+            if (binding.included.hScroll.canScrollHorizontally(1)) {
+                binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_OPEN)
+            } else {
+                // Jika sudah mentok kanan, bebaskan kunci agar swipe bisa menutup drawer
+                binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+            }
         }
     }
 

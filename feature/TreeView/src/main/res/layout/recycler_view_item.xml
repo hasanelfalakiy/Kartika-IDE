@@ -5,7 +5,7 @@
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingVertical="2dp">
+    android:paddingVertical="4dp">
 
     <LinearLayout
         android:id="@+id/indent_container"
@@ -31,10 +31,14 @@
 
     <TextView
         android:id="@+id/text_view"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
+        android:layout_marginEnd="24dp"
         android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+        android:maxLines="1"
+        android:ellipsize="none"
+        android:scrollHorizontally="true"
         tools:text="Main.kt" />
 
 </LinearLayout>
