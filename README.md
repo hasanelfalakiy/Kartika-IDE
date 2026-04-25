@@ -82,7 +82,8 @@ If you appreciate the work that has been put into Kartika IDE, you can donate to
 We would like to thank the following projects and their maintainers for their work, which has been used in Kartika IDE:
 
 - [Cosmic-IDE](https://github.com/Cosmic-Ide/Cosmic-IDE.git) Original application, licensed under the GNU GPL-v3 License
-- [Iyxan23](https://github.com/Iyxan23) for the app icon!
+- [hasanelfalakiy](https://github.com/hasanelfalakiy) for the app icon!
+- [AndroidPE](https://github.com/jkasdbt/AndroidPE) for some icon!
 - [Sora Editor](https://github.com/Rosemoe/sora-editor) licensed under the GNU Lesser General Public License v2.1
 - [CodeAssist Kotlin code completion](https://github.com/tyron12233/CodeAssist/tree/main/kotlin-completion) licensed under GNU GPL-v3
 - [NB Javac Android](https://github.com/AndroidIDEOfficial/nb-javac-android) licensed under GNU GPL-v2
