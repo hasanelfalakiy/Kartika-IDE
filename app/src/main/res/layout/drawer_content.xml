@@ -23,7 +23,7 @@
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:src="@drawable/ic_outline_folder_open_24"
+            android:src="@drawable/ic_filled_open_folder"
             app:tint="?colorOnSurface" />
 
         <TextView
