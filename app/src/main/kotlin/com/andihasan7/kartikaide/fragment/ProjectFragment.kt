@@ -377,6 +377,10 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     fun gitClone() {
         val dialogBinding = DialogGitCloneBinding.inflate(layoutInflater)
         
+        // Aktifkan checkbox secara default
+        dialogBinding.useExternalStorage.isChecked = true
+        dialogBinding.externalPathText.isVisible = true
+
         dialogBinding.useExternalStorage.setOnCheckedChangeListener { _, isChecked ->
             dialogBinding.externalPathText.isVisible = isChecked
             if (isChecked && !PermissionUtils.hasStoragePermission(requireContext())) {
