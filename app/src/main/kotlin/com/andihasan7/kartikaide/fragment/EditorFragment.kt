@@ -192,7 +192,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             })
 
         TabLayoutMediator(binding.tabLayout, binding.pager, true, false) { tab, position ->
-            tab.text = fileViewModel.files.value!![position].name
+            val file = fileViewModel.files.value!![position]
+            tab.text = file.name
+            tab.icon = getFileIcon(file)
             tab.view.setOnLongClickListener {
                 showMenu(it, R.menu.tab_menu, position)
                 true
@@ -202,6 +204,24 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         parentFragmentManager.setFragmentResultListener("settings_changed", viewLifecycleOwner) { _, _ ->
             refreshAllEditors()
         }
+    }
+
+    private fun getFileIcon(file: File): Drawable? {
+        val resId = when (file.extension.lowercase()) {
+            "kt" -> R.drawable.ic_kotlin
+            "kts" -> R.drawable.ic_kotlin_kts
+            "cpp", "cxx", "cc" -> R.drawable.ic_cpp
+            "html", "htm" -> R.drawable.ic_html
+            "css" -> R.drawable.ic_css
+            "js" -> R.drawable.ic_javascript
+            "java" -> R.drawable.ic_java
+            "gitignore" -> R.drawable.ic_git
+            "gradle" -> R.drawable.ic_gradle
+            "md" -> R.drawable.ic_markdown_m
+            "xml" -> R.drawable.ic_xml
+            else -> if (file.name.startsWith(".")) R.drawable.ic_git else R.drawable.ic_file
+        }
+        return ContextCompat.getDrawable(requireContext(), resId)
     }
 
     private fun exitProject() {
@@ -304,21 +324,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         val iconProvider = object : TreeIconProvider {
             override fun getIconForFile(file: File): Drawable? {
-                val resId = when (file.extension.lowercase()) {
-                    "kt" -> R.drawable.ic_kotlin
-                    "kts" -> R.drawable.ic_kotlin_kts
-                    "cpp", "cxx", "cc" -> R.drawable.ic_cpp
-                    "html", "htm" -> R.drawable.ic_html
-                    "css" -> R.drawable.ic_css
-                    "js" -> R.drawable.ic_javascript
-                    "java" -> R.drawable.ic_java
-                    "gitignore" -> R.drawable.ic_git
-                    "gradle" -> R.drawable.ic_gradle
-                    "md" -> R.drawable.ic_markdown_m
-                    "xml" -> R.drawable.ic_xml
-                    else -> if (file.name.startsWith(".")) R.drawable.ic_git else R.drawable.ic_file
-                }
-                return ContextCompat.getDrawable(requireContext(), resId)
+                return getFileIcon(file)
             }
 
             override fun getIconForFolder(file: File, isExpanded: Boolean): Drawable? {
