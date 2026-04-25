@@ -36,7 +36,7 @@
 
     <item
         android:id="@+id/action_git"
-        android:icon="@drawable/baseline_account_tree_24"
+        android:icon="@drawable/ic_git"
         android:title="@string/git"
         app:showAsAction="always"
         tools:ignore="AlwaysShowAction" />

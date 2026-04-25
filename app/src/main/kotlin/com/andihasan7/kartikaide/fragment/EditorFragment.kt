@@ -12,13 +12,19 @@ import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
+import android.annotation.SuppressLint
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.annotation.MenuRes
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.ContextCompat
+import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
@@ -48,6 +54,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import com.widget.treeview.OnTreeItemClickListener
+import com.widget.treeview.TreeIconProvider
 import com.widget.treeview.TreeUtils.toNodeList
 import com.widget.treeview.TreeViewAdapter
 import dev.pranav.navigation.KtNavigationProvider
@@ -73,6 +80,15 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     override fun getViewBinding() = FragmentEditorBinding.inflate(layoutInflater)
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Clear files from previous project session if this is a fresh entry
+        if (savedInstanceState == null) {
+            fileViewModel.removeAll()
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -97,7 +113,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             isSaveEnabled = true
         }
 
-        fileViewModel.updateFiles(fileIndex.getFiles())
+        // Only load saved files from index if the list is currently empty
+        if (fileViewModel.files.value.isNullOrEmpty()) {
+            fileViewModel.updateFiles(fileIndex.getFiles())
+        }
 
         binding.tabLayout.isSmoothScrollingEnabled = false
 
@@ -108,6 +127,33 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     initTreeView()
                 }
                 isRefreshing = false
+            }
+        }
+
+        // Handle Horizontal Scroll to Lock/Unlock Drawer
+        binding.drawer.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+            override fun onDrawerOpened(drawerView: View) {
+                updateDrawerLockState()
+            }
+
+            override fun onDrawerClosed(drawerView: View) {
+                binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+            }
+        })
+
+        binding.included.hScroll.apply {
+            setOnScrollChangeListener { _, _, _, _, _ ->
+                updateDrawerLockState()
+            }
+            
+            // Prioritaskan gestur geser ke TreeView daripada ke DrawerLayout
+            setOnTouchListener { v, event ->
+                if (event.action == MotionEvent.ACTION_MOVE) {
+                    if (v.canScrollHorizontally(1) || v.canScrollHorizontally(-1)) {
+                        v.parent.requestDisallowInterceptTouchEvent(true)
+                    }
+                }
+                false
             }
         }
 
@@ -139,23 +185,16 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         if (drawer.isOpen) {
                             drawer.close()
                         } else {
-                            editorAdapter.saveAll()
-                            editorAdapter.releaseAll()
-
-                            fileIndex.putFiles(
-                                binding.pager.currentItem, fileViewModel.files.value!!
-                            )
-
-                            fileViewModel.files.removeObservers(viewLifecycleOwner)
-                            fileViewModel.removeAll()
-                            parentFragmentManager.popBackStack()
+                            exitProject()
                         }
                     }
                 }
             })
 
         TabLayoutMediator(binding.tabLayout, binding.pager, true, false) { tab, position ->
-            tab.text = fileViewModel.files.value!![position].name
+            val file = fileViewModel.files.value!![position]
+            tab.text = file.name
+            tab.icon = getFileIcon(file)
             tab.view.setOnLongClickListener {
                 showMenu(it, R.menu.tab_menu, position)
                 true
@@ -164,6 +203,50 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         parentFragmentManager.setFragmentResultListener("settings_changed", viewLifecycleOwner) { _, _ ->
             refreshAllEditors()
+        }
+    }
+
+    private fun getFileIcon(file: File): Drawable? {
+        val resId = when (file.extension.lowercase()) {
+            "kt" -> R.drawable.ic_kotlin
+            "kts" -> R.drawable.ic_kotlin_kts
+            "cpp", "cxx", "cc" -> R.drawable.ic_cpp
+            "html", "htm" -> R.drawable.ic_html
+            "css" -> R.drawable.ic_css
+            "js" -> R.drawable.ic_javascript
+            "java" -> R.drawable.ic_java
+            "gitignore" -> R.drawable.ic_git
+            "gradle" -> R.drawable.ic_gradle
+            "md" -> R.drawable.ic_markdown_m
+            "xml" -> R.drawable.ic_xml
+            else -> if (file.name.startsWith(".")) R.drawable.ic_git else R.drawable.ic_file
+        }
+        return ContextCompat.getDrawable(requireContext(), resId)
+    }
+
+    private fun exitProject() {
+        editorAdapter.saveAll()
+        editorAdapter.releaseAll()
+
+        fileIndex.putFiles(
+            binding.pager.currentItem, fileViewModel.files.value!!
+        )
+
+        fileViewModel.files.removeObservers(viewLifecycleOwner)
+        fileViewModel.currentPosition.removeObservers(viewLifecycleOwner)
+        fileViewModel.removeAll()
+        parentFragmentManager.popBackStack()
+    }
+
+    private fun updateDrawerLockState() {
+        if (binding.drawer.isDrawerOpen(GravityCompat.START)) {
+            // Jika masih bisa digeser ke arah ujung kanan, maka kunci drawer
+            if (binding.included.hScroll.canScrollHorizontally(1)) {
+                binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_OPEN)
+            } else {
+                // Jika sudah mentok kanan, bebaskan kunci agar swipe bisa menutup drawer
+                binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+            }
         }
     }
 
@@ -197,7 +280,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
             updateUndoRedoStatus()
         }
-        fileViewModel.setCurrentPosition(0)
+        
         if (fileViewModel.files.value!!.isEmpty()) {
             binding.viewContainer.displayedChild = 1
         }
@@ -239,8 +322,19 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }
 
+        val iconProvider = object : TreeIconProvider {
+            override fun getIconForFile(file: File): Drawable? {
+                return getFileIcon(file)
+            }
+
+            override fun getIconForFolder(file: File, isExpanded: Boolean): Drawable? {
+                val resId = if (isExpanded) R.drawable.ic_filled_open_folder else R.drawable.ic_filled_folder
+                return ContextCompat.getDrawable(requireContext(), resId)
+            }
+        }
+
         val nodes = project.root.toNodeList()
-        val adapter = TreeViewAdapter(requireContext(), nodes)
+        val adapter = TreeViewAdapter(requireContext(), nodes, iconProvider)
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         recyclerView.adapter = adapter
         
@@ -287,12 +381,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     }
 
     override fun onDestroyView() {
-        editorAdapter.saveAll()
-
+        // Don't call exitProject() here because ganti tema triggers onDestroyView
+        // We only save to index but don't clear ViewModel
         fileIndex.putFiles(
             binding.pager.currentItem, fileViewModel.files.value!!
         )
-
         fileViewModel.files.removeObservers(viewLifecycleOwner)
         fileViewModel.currentPosition.removeObservers(viewLifecycleOwner)
         super.onDestroyView()

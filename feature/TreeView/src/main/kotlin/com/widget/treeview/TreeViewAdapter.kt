@@ -17,6 +17,7 @@
 package com.widget.treeview
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
@@ -26,6 +27,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.widget.ImageViewCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.color.MaterialColors
 import com.unnamed.b.atv.R
@@ -39,7 +41,8 @@ interface OnTreeItemClickListener {
 
 class TreeViewAdapter(
     private val context: Context,
-    private var nodes: MutableList<Node<File>>
+    private var nodes: MutableList<Node<File>>,
+    private val iconProvider: TreeIconProvider? = null
 ) : RecyclerView.Adapter<TreeViewAdapter.ViewHolder>() {
 
     private val fileIcon = ResourcesCompat.getDrawable(
@@ -62,6 +65,17 @@ class TreeViewAdapter(
         R.drawable.round_expand_more_24,
         context.theme
     )!!
+
+    // Gunakan lazy dan gunakan atribut dari androidx.appcompat atau android.R untuk stabilitas
+    private val colorPrimary by lazy { 
+        MaterialColors.getColor(context, androidx.appcompat.R.attr.colorPrimary, ContextCompat.getColor(context, android.R.color.holo_blue_dark)) 
+    }
+    private val colorOnSurface by lazy { 
+        MaterialColors.getColor(context, android.R.attr.textColorPrimary, ContextCompat.getColor(context, android.R.color.black)) 
+    }
+    private val colorOutline by lazy {
+        MaterialColors.getColor(context, com.google.android.material.R.attr.colorOutline, ContextCompat.getColor(context, android.R.color.darker_gray))
+    }
 
     private var listener: OnTreeItemClickListener? = null
 
@@ -96,13 +110,7 @@ class TreeViewAdapter(
                 )
                 lineParams.marginStart = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8f, resources.displayMetrics).toInt()
                 layoutParams = lineParams
-                setBackgroundColor(
-                    MaterialColors.getColor(
-                        context,
-                        com.google.android.material.R.attr.colorOutline,
-                        ContextCompat.getColor(context, android.R.color.darker_gray)
-                    )
-                )
+                setBackgroundColor(colorOutline)
                 alpha = 0.3f
             }
             
@@ -117,13 +125,25 @@ class TreeViewAdapter(
             holder.indentContainer.addView(frame)
         }
 
+        val activeColor = if (node.isExpanded) colorPrimary else colorOnSurface
+
         if (node.value.isDirectory) {
             holder.expandView.setImageDrawable(if (!node.isExpanded) chevronRightIcon else expandMoreIcon)
+            ImageViewCompat.setImageTintList(holder.expandView, ColorStateList.valueOf(activeColor))
+            
             holder.fileView.setPadding(0, 0, 0, 0)
-            holder.fileView.setImageDrawable(folderIcon)
+            val customFolder = iconProvider?.getIconForFolder(node.value, node.isExpanded)
+            holder.fileView.setImageDrawable(customFolder ?: folderIcon)
+            ImageViewCompat.setImageTintList(holder.fileView, ColorStateList.valueOf(activeColor))
+            
+            holder.textView.setTextColor(activeColor)
         } else {
             holder.expandView.setImageDrawable(null)
-            holder.fileView.setImageDrawable(fileIcon)
+            val customFile = iconProvider?.getIconForFile(node.value)
+            holder.fileView.setImageDrawable(customFile ?: fileIcon)
+            // Reset tint agar icon file asli tetap terlihat warnanya
+            ImageViewCompat.setImageTintList(holder.fileView, null) 
+            holder.textView.setTextColor(colorOnSurface)
         }
 
         holder.textView.text = node.value.name
