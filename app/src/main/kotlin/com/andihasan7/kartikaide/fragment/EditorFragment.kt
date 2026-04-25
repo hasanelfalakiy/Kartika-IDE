@@ -80,6 +80,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     override fun getViewBinding() = FragmentEditorBinding.inflate(layoutInflater)
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Clear files from previous project session if this is a fresh entry
+        if (savedInstanceState == null) {
+            fileViewModel.removeAll()
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -105,7 +113,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             isSaveEnabled = true
         }
 
-        fileViewModel.updateFiles(fileIndex.getFiles())
+        // Only load saved files from index if the list is currently empty
+        if (fileViewModel.files.value.isNullOrEmpty()) {
+            fileViewModel.updateFiles(fileIndex.getFiles())
+        }
 
         binding.tabLayout.isSmoothScrollingEnabled = false
 
@@ -174,16 +185,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         if (drawer.isOpen) {
                             drawer.close()
                         } else {
-                            editorAdapter.saveAll()
-                            editorAdapter.releaseAll()
-
-                            fileIndex.putFiles(
-                                binding.pager.currentItem, fileViewModel.files.value!!
-                            )
-
-                            fileViewModel.files.removeObservers(viewLifecycleOwner)
-                            fileViewModel.removeAll()
-                            parentFragmentManager.popBackStack()
+                            exitProject()
                         }
                     }
                 }
@@ -200,6 +202,20 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         parentFragmentManager.setFragmentResultListener("settings_changed", viewLifecycleOwner) { _, _ ->
             refreshAllEditors()
         }
+    }
+
+    private fun exitProject() {
+        editorAdapter.saveAll()
+        editorAdapter.releaseAll()
+
+        fileIndex.putFiles(
+            binding.pager.currentItem, fileViewModel.files.value!!
+        )
+
+        fileViewModel.files.removeObservers(viewLifecycleOwner)
+        fileViewModel.currentPosition.removeObservers(viewLifecycleOwner)
+        fileViewModel.removeAll()
+        parentFragmentManager.popBackStack()
     }
 
     private fun updateDrawerLockState() {
@@ -244,7 +260,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
             updateUndoRedoStatus()
         }
-        fileViewModel.setCurrentPosition(0)
+        
         if (fileViewModel.files.value!!.isEmpty()) {
             binding.viewContainer.displayedChild = 1
         }
@@ -359,12 +375,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     }
 
     override fun onDestroyView() {
-        editorAdapter.saveAll()
-
+        // Don't call exitProject() here because ganti tema triggers onDestroyView
+        // We only save to index but don't clear ViewModel
         fileIndex.putFiles(
             binding.pager.currentItem, fileViewModel.files.value!!
         )
-
         fileViewModel.files.removeObservers(viewLifecycleOwner)
         fileViewModel.currentPosition.removeObservers(viewLifecycleOwner)
         super.onDestroyView()
