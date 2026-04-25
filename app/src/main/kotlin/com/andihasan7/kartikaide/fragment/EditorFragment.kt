@@ -13,6 +13,7 @@ import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
 import android.annotation.SuppressLint
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
@@ -21,6 +22,7 @@ import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.annotation.MenuRes
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.activityViewModels
@@ -52,6 +54,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import com.widget.treeview.OnTreeItemClickListener
+import com.widget.treeview.TreeIconProvider
 import com.widget.treeview.TreeUtils.toNodeList
 import com.widget.treeview.TreeViewAdapter
 import dev.pranav.navigation.KtNavigationProvider
@@ -283,8 +286,33 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }
 
+        val iconProvider = object : TreeIconProvider {
+            override fun getIconForFile(file: File): Drawable? {
+                val resId = when (file.extension.lowercase()) {
+                    "kt" -> R.drawable.ic_kotlin
+                    "kts" -> R.drawable.ic_kotlin_kts
+                    "cpp", "cxx", "cc" -> R.drawable.ic_cpp
+                    "html", "htm" -> R.drawable.ic_html
+                    "css" -> R.drawable.ic_css
+                    "js" -> R.drawable.ic_javascript
+                    "java" -> R.drawable.ic_java
+                    "gitignore" -> R.drawable.ic_git
+                    "gradle" -> R.drawable.ic_gradle
+                    "md" -> R.drawable.ic_markdown_m
+                    "xml" -> R.drawable.ic_xml
+                    else -> if (file.name.startsWith(".")) R.drawable.ic_git else R.drawable.ic_file
+                }
+                return ContextCompat.getDrawable(requireContext(), resId)
+            }
+
+            override fun getIconForFolder(file: File, isExpanded: Boolean): Drawable? {
+                val resId = if (isExpanded) R.drawable.ic_filled_open_folder else R.drawable.ic_filled_folder
+                return ContextCompat.getDrawable(requireContext(), resId)
+            }
+        }
+
         val nodes = project.root.toNodeList()
-        val adapter = TreeViewAdapter(requireContext(), nodes)
+        val adapter = TreeViewAdapter(requireContext(), nodes, iconProvider)
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         recyclerView.adapter = adapter
         

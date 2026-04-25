@@ -39,7 +39,8 @@ interface OnTreeItemClickListener {
 
 class TreeViewAdapter(
     private val context: Context,
-    private var nodes: MutableList<Node<File>>
+    private var nodes: MutableList<Node<File>>,
+    private val iconProvider: TreeIconProvider? = null
 ) : RecyclerView.Adapter<TreeViewAdapter.ViewHolder>() {
 
     private val fileIcon = ResourcesCompat.getDrawable(
@@ -120,10 +121,12 @@ class TreeViewAdapter(
         if (node.value.isDirectory) {
             holder.expandView.setImageDrawable(if (!node.isExpanded) chevronRightIcon else expandMoreIcon)
             holder.fileView.setPadding(0, 0, 0, 0)
-            holder.fileView.setImageDrawable(folderIcon)
+            val customFolder = iconProvider?.getIconForFolder(node.value, node.isExpanded)
+            holder.fileView.setImageDrawable(customFolder ?: folderIcon)
         } else {
             holder.expandView.setImageDrawable(null)
-            holder.fileView.setImageDrawable(fileIcon)
+            val customFile = iconProvider?.getIconForFile(node.value)
+            holder.fileView.setImageDrawable(customFile ?: fileIcon)
         }
 
         holder.textView.text = node.value.name
