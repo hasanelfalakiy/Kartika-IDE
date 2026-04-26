@@ -70,6 +70,12 @@ class AboutSettings(private val activity: FragmentActivity) : SettingsProvider {
                 text =
                     "Kartika IDE is a free and open-source IDE for Android. It is licensed under the GNU General Public License v3.0."
             }
+            expandText("acknowledge") {
+                title = "Acknowledge"
+                summary = "An important statement."
+                text =
+                    "Kartika IDE is a fork of Cosmic IDE (author: Pranav Purwar) which has been discontinued."
+            }
             singleChoice(
                 "donate",
                 listOf(SelectionItem("paypal", "Treat me to Coffee (Trakteer)"), SelectionItem("patreon", "Treat me to Bakso (Saweria)"))
