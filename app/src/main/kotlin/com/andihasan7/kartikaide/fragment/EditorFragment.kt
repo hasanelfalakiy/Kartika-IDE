@@ -122,11 +122,15 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         binding.included.refresher.apply {
             setOnRefreshListener {
-                isRefreshing = true
                 lifecycleScope.launch {
                     initTreeView()
+
+                    // tunggu UI settle
+                    binding.included.recycler.post {
+                        updateDrawerLockState()
+                        binding.included.refresher.isRefreshing = false
+                    }
                 }
-                isRefreshing = false
             }
         }
 
@@ -147,10 +151,26 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
             
             // Prioritaskan gestur geser ke TreeView daripada ke DrawerLayout
+            var lastX = 0f
             setOnTouchListener { v, event ->
-                if (event.action == MotionEvent.ACTION_MOVE) {
-                    if (v.canScrollHorizontally(1) || v.canScrollHorizontally(-1)) {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        lastX = event.x
                         v.parent.requestDisallowInterceptTouchEvent(true)
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val deltaX = event.x - lastX
+
+                        if (deltaX < 0 && v.canScrollHorizontally(1)) {
+                            // scroll ke kanan → tahan di TreeView
+                            v.parent.requestDisallowInterceptTouchEvent(true)
+                        } else if (deltaX > 0 && v.canScrollHorizontally(-1)) {
+                            // scroll ke kiri → tahan di TreeView
+                            v.parent.requestDisallowInterceptTouchEvent(true)
+                        } else {
+                            // sudah mentok → kasih DrawerLayout ambil gesture
+                            v.parent.requestDisallowInterceptTouchEvent(false)
+                        }
                     }
                 }
                 false
@@ -239,13 +259,17 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     }
 
     private fun updateDrawerLockState() {
-        if (binding.drawer.isDrawerOpen(GravityCompat.START)) {
-            // Jika masih bisa digeser ke arah ujung kanan, maka kunci drawer
-            if (binding.included.hScroll.canScrollHorizontally(1)) {
-                binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_OPEN)
-            } else {
-                // Jika sudah mentok kanan, bebaskan kunci agar swipe bisa menutup drawer
-                binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+        binding.drawer.post {
+            if (binding.drawer.isDrawerOpen(GravityCompat.START)) {
+                val hScroll = binding.included.hScroll
+
+                // Kunci hanya jika masih bisa scroll ke kanan (artinya belum di posisi paling kanan)
+                if (hScroll.canScrollHorizontally(1)) {
+                    binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_OPEN)
+                } else {
+                    // Sudah mentok kanan → izinkan drawer ditutup
+                    binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+                }
             }
         }
     }
@@ -312,6 +336,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     }
 
     private fun initTreeView() {
+        binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
         val recyclerView = binding.included.recycler
         val currentAdapter = recyclerView.adapter as? TreeViewAdapter
         val expandedPaths = mutableSetOf<String>()
@@ -340,9 +365,13 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         
         adapter.setOnItemClickListener(object : OnTreeItemClickListener {
             override fun onItemClick(view: View, position: Int) {
-                val file = adapter.getNodes()[position].value
-                if (file.exists().not() || file.isDirectory) return
-                if (file.isFile) {
+                val node = adapter.getNodes()[position]
+                val file = node.value
+                
+                if (file.isDirectory) {
+                    // Update lock state after expansion/collapse
+                    updateDrawerLockState()
+                } else if (file.exists() && file.isFile) {
                     fileViewModel.addFile(file)
                 }
             }
@@ -354,6 +383,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         // Restore expanded state
         restoreExpandedState(adapter, expandedPaths)
+
+
+        // restore update drawer lock state
+        recyclerView.post {
+            updateDrawerLockState()
+        }
     }
 
     private fun restoreExpandedState(adapter: TreeViewAdapter, expandedPaths: Set<String>) {
