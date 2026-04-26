@@ -122,11 +122,15 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         binding.included.refresher.apply {
             setOnRefreshListener {
-                isRefreshing = true
                 lifecycleScope.launch {
                     initTreeView()
+
+                    // tunggu UI settle
+                    binding.included.recycler.post {
+                        updateDrawerLockState()
+                        binding.included.refresher.isRefreshing = false
+                    }
                 }
-                isRefreshing = false
             }
         }
 
@@ -332,6 +336,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     }
 
     private fun initTreeView() {
+        binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
         val recyclerView = binding.included.recycler
         val currentAdapter = recyclerView.adapter as? TreeViewAdapter
         val expandedPaths = mutableSetOf<String>()
@@ -378,6 +383,13 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         // Restore expanded state
         restoreExpandedState(adapter, expandedPaths)
+
+
+        // restore update drawer lock state
+        recyclerView.post {
+            binding.included.hScroll.scrollTo(0, 0)
+            updateDrawerLockState()
+        }
     }
 
     private fun restoreExpandedState(adapter: TreeViewAdapter, expandedPaths: Set<String>) {
