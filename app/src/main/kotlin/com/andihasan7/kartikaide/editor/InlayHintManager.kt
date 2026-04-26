@@ -7,6 +7,7 @@
 
 package com.andihasan7.kartikaide.editor
 
+import android.graphics.Color
 import android.util.Log
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.lang.styling.inlayHint.TextInlayHint
@@ -39,9 +40,31 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
         try {
             // Register the default text inlay hint renderer to the editor
             editor.registerInlayHintRenderer(TextInlayHintRenderer.DefaultInstance)
+            updateHintColors()
         } catch (e: Throwable) {
             Log.e("InlayHintManager", "Failed to register TextInlayHintRenderer", e)
         }
+    }
+
+    /**
+     * Updates the colors of the inlay hints to match the current theme.
+     */
+    private fun updateHintColors() {
+        val scheme = editor.colorScheme
+        val commentColor = scheme.getColor(EditorColorScheme.COMMENT)
+        
+        // Background: subtle version of line number background or a semi-transparent gray
+        var bgColor = scheme.getColor(EditorColorScheme.LINE_NUMBER_BACKGROUND)
+        if (bgColor == 0) bgColor = 0x22888888
+        else {
+            // Add transparency if it's opaque
+            if (Color.alpha(bgColor) == 255) {
+                bgColor = Color.argb(40, Color.red(bgColor), Color.green(bgColor), Color.blue(bgColor))
+            }
+        }
+        
+        scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_BACKGROUND, bgColor)
+        scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_FOREGROUND, commentColor)
     }
 
     /**
@@ -69,7 +92,7 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
 
         updateJob?.cancel()
         updateJob = scope.launch {
-            // Debounce updates for better performance
+            // Debounce updates
             delay(500)
             
             val symbols = mutableListOf<NavigationProvider.NavigationItem>()
@@ -86,7 +109,7 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
                         if (language is KotlinLanguage) {
                             val ktFile = language.kotlinEnvironment.kotlinFiles[file.absolutePath]?.kotlinFile
                             if (ktFile != null) {
-                                // Use parseKtFile because it provides accurate offsets
+                                // Use parseKtFile for accurate offsets
                                 symbols.addAll(KtNavigationProvider.parseKtFile(ktFile))
                             }
                         }
@@ -106,6 +129,8 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
             val container = InlayHintsContainer()
             val indexer = editor.text.indexer
 
+            // Sort symbols by end position to handle nesting properly if needed,
+            // but Sora Editor handles point anchored hints by position.
             symbols.forEach { item ->
                 if (item.kind == NavigationProvider.NavigationItemKind.CLASS || 
                     item.kind == NavigationProvider.NavigationItemKind.METHOD) {
@@ -120,23 +145,28 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
                             
                             // Show hint only if the block spans more than 2 lines
                             if (pos.line - startPos.line > 2) {
-                                // Extract name part (handle supertypes/interfaces in the string)
-                                val rawName = item.name.substringBefore('(')
+                                var rawName = item.name.substringBefore('(')
                                     .substringBefore(" :")
                                     .substringBefore(" implements")
                                     .substringBefore(" ->")
                                     .trim()
                                     .substringAfterLast('.')
                                 
+                                // Fix for "companion object" which might not have a proper name in symbols
+                                if (rawName.isEmpty() && item.modifiers.contains("companion", ignoreCase = true)) {
+                                    rawName = "companion object"
+                                }
+
                                 val prefix = when (item.kind) {
                                     NavigationProvider.NavigationItemKind.CLASS -> {
                                         val mods = item.modifiers.lowercase()
-                                        val nameLow = item.name.lowercase()
+                                        val content = item.name.lowercase()
                                         when {
-                                            mods.contains("interface") || nameLow.contains("interface") -> "interface "
-                                            mods.contains("enum") || nameLow.contains("enum") -> "enum "
-                                            mods.contains("object") || nameLow.contains("object") -> "object "
-                                            mods.contains("data") -> "data class "
+                                            mods.contains("interface") || content.contains("interface") -> "interface "
+                                            mods.contains("enum") || content.contains("enum") -> "enum "
+                                            mods.contains("companion") || content.contains("companion object") -> "" // already handled in name
+                                            mods.contains("object") || content.contains("object") -> "object "
+                                            mods.contains("data") || content.contains("data class") -> "data class "
                                             else -> "class "
                                         }
                                     }
@@ -146,7 +176,6 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
 
                                 if (rawName.isNotEmpty()) {
                                     val label = " // $prefix$rawName"
-                                    // Add hint to the container at the closing brace position
                                     container.add(TextInlayHint(pos.line, pos.column, label))
                                 }
                             }
@@ -157,15 +186,7 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
 
             withContext(Dispatchers.Main) {
                 try {
-                    // Ensure colors are set in the scheme
-                    val scheme = editor.colorScheme
-                    if (scheme.getColor(EditorColorScheme.TEXT_INLAY_HINT_BACKGROUND) == 0) {
-                        scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_BACKGROUND, 0x33888888)
-                    }
-                    if (scheme.getColor(EditorColorScheme.TEXT_INLAY_HINT_FOREGROUND) == 0) {
-                        scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_FOREGROUND, 0x000000)
-                    }
-
+                    updateHintColors()
                     editor.setInlayHints(container)
                 } catch (e: Exception) {
                     Log.e("InlayHintManager", "Failed to set inlay hints", e)
