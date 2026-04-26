@@ -141,8 +141,8 @@ class TreeViewAdapter(
             holder.expandView.setImageDrawable(null)
             val customFile = iconProvider?.getIconForFile(node.value)
             holder.fileView.setImageDrawable(customFile ?: fileIcon)
-            // Reset tint agar icon file asli tetap terlihat warnanya
-            ImageViewCompat.setImageTintList(holder.fileView, null) 
+            // Menggunakan warna primary untuk ikon file
+            ImageViewCompat.setImageTintList(holder.fileView, ColorStateList.valueOf(colorPrimary))
             holder.textView.setTextColor(colorOnSurface)
         }
 
