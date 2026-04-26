@@ -156,11 +156,16 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val deltaX = event.x - lastX
-                        // Jika sedang menggeser dan TreeView masih bisa discroll di arah tersebut,
-                        // pastikan DrawerLayout tidak mencegat gestur.
-                        if ((deltaX < 0 && v.canScrollHorizontally(1)) || 
-                            (deltaX > 0 && v.canScrollHorizontally(-1))) {
+
+                        if (deltaX < 0 && v.canScrollHorizontally(1)) {
+                            // scroll ke kanan → tahan di TreeView
                             v.parent.requestDisallowInterceptTouchEvent(true)
+                        } else if (deltaX > 0 && v.canScrollHorizontally(-1)) {
+                            // scroll ke kiri → tahan di TreeView
+                            v.parent.requestDisallowInterceptTouchEvent(true)
+                        } else {
+                            // sudah mentok → kasih DrawerLayout ambil gesture
+                            v.parent.requestDisallowInterceptTouchEvent(false)
                         }
                     }
                 }
@@ -253,12 +258,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         binding.drawer.post {
             if (binding.drawer.isDrawerOpen(GravityCompat.START)) {
                 val hScroll = binding.included.hScroll
-                // Jika TreeView bisa discroll secara horizontal ke arah manapun,
-                // kunci drawer agar gestur geser tetap di TreeView.
-                if (hScroll.canScrollHorizontally(1) || hScroll.canScrollHorizontally(-1)) {
+
+                // Kunci hanya jika masih bisa scroll ke kanan (artinya belum di posisi paling kanan)
+                if (hScroll.canScrollHorizontally(1)) {
                     binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_OPEN)
                 } else {
-                    // Jika sudah mentok di kedua sisi, bebaskan kuncinya.
+                    // Sudah mentok kanan → izinkan drawer ditutup
                     binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
                 }
             }
