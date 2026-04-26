@@ -387,7 +387,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         // restore update drawer lock state
         recyclerView.post {
-            binding.included.hScroll.scrollTo(0, 0)
             updateDrawerLockState()
         }
     }
