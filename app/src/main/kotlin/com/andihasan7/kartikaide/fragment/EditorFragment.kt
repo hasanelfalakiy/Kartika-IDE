@@ -147,10 +147,21 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
             
             // Prioritaskan gestur geser ke TreeView daripada ke DrawerLayout
+            var lastX = 0f
             setOnTouchListener { v, event ->
-                if (event.action == MotionEvent.ACTION_MOVE) {
-                    if (v.canScrollHorizontally(1) || v.canScrollHorizontally(-1)) {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        lastX = event.x
                         v.parent.requestDisallowInterceptTouchEvent(true)
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val deltaX = event.x - lastX
+                        // Jika sedang menggeser dan TreeView masih bisa discroll di arah tersebut,
+                        // pastikan DrawerLayout tidak mencegat gestur.
+                        if ((deltaX < 0 && v.canScrollHorizontally(1)) || 
+                            (deltaX > 0 && v.canScrollHorizontally(-1))) {
+                            v.parent.requestDisallowInterceptTouchEvent(true)
+                        }
                     }
                 }
                 false
@@ -239,13 +250,17 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     }
 
     private fun updateDrawerLockState() {
-        if (binding.drawer.isDrawerOpen(GravityCompat.START)) {
-            // Jika masih bisa digeser ke arah ujung kanan, maka kunci drawer
-            if (binding.included.hScroll.canScrollHorizontally(1)) {
-                binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_OPEN)
-            } else {
-                // Jika sudah mentok kanan, bebaskan kunci agar swipe bisa menutup drawer
-                binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+        binding.drawer.post {
+            if (binding.drawer.isDrawerOpen(GravityCompat.START)) {
+                val hScroll = binding.included.hScroll
+                // Jika TreeView bisa discroll secara horizontal ke arah manapun,
+                // kunci drawer agar gestur geser tetap di TreeView.
+                if (hScroll.canScrollHorizontally(1) || hScroll.canScrollHorizontally(-1)) {
+                    binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_OPEN)
+                } else {
+                    // Jika sudah mentok di kedua sisi, bebaskan kuncinya.
+                    binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+                }
             }
         }
     }
@@ -340,9 +355,13 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         
         adapter.setOnItemClickListener(object : OnTreeItemClickListener {
             override fun onItemClick(view: View, position: Int) {
-                val file = adapter.getNodes()[position].value
-                if (file.exists().not() || file.isDirectory) return
-                if (file.isFile) {
+                val node = adapter.getNodes()[position]
+                val file = node.value
+                
+                if (file.isDirectory) {
+                    // Update lock state after expansion/collapse
+                    updateDrawerLockState()
+                } else if (file.exists() && file.isFile) {
                     fileViewModel.addFile(file)
                 }
             }
