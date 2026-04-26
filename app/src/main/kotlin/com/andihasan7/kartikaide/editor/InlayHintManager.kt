@@ -51,26 +51,22 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
      */
     private fun updateHintColors() {
         val scheme = editor.colorScheme
-        val commentColor = scheme.getColor(EditorColorScheme.COMMENT)
-        val normalTextColor = scheme.getColor(EditorColorScheme.TEXT_NORMAL)
+        val isDark = scheme.isDark
         
-        // Pilih warna teks: prioritas Comment, jika 0 pakai Text Normal, jika tetap 0 pakai Abu-abu terang
-        val finalFgColor = when {
-            commentColor != 0 -> commentColor
-            normalTextColor != 0 -> normalTextColor
-            else -> Color.LTGRAY
+        val commentColor = scheme.getColor(EditorColorScheme.COMMENT)
+        
+        // Warna teks: Gunakan warna komentar, jika tidak ada/hitam di tema gelap, gunakan Abu-abu terang
+        val finalFgColor = if (isDark) {
+            if (commentColor != 0 && commentColor != Color.BLACK) commentColor else Color.parseColor("#A0A0A0")
+        } else {
+            if (commentColor != 0 && commentColor != Color.WHITE) commentColor else Color.GRAY
         }
         
-        // Background: ambil warna dasar dari line number background atau background utama
-        var bgColor = scheme.getColor(EditorColorScheme.LINE_NUMBER_BACKGROUND)
-        if (bgColor == 0) bgColor = scheme.getColor(EditorColorScheme.WHOLE_BACKGROUND)
-        
-        if (bgColor == 0) {
-            // Fallback jika semua warna 0 (hitam/transparan)
-            bgColor = Color.argb(120, 128, 128, 128)
+        // Background: Putih transparan pekat untuk tema gelap agar terlihat seperti highlight abu-abu
+        val bgColor = if (isDark) {
+            Color.argb(110, 255, 255, 255) 
         } else {
-            // Paksa Alpha ke 150 agar container terlihat jelas di tema gelap
-            bgColor = Color.argb(150, Color.red(bgColor), Color.green(bgColor), Color.blue(bgColor))
+            Color.argb(40, 0, 0, 0)
         }
         
         scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_BACKGROUND, bgColor)
@@ -102,8 +98,8 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
 
         updateJob?.cancel()
         updateJob = scope.launch {
-            // Debounce updates
-            delay(500)
+            // Debounce lebih cepat (200ms) agar lebih responsif saat mengetik
+            delay(200)
             
             val symbols = mutableListOf<NavigationProvider.NavigationItem>()
             try {
@@ -126,7 +122,7 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
                     }
                 }
             } catch (e: Exception) {
-                // Silently ignore analysis errors
+                // Ignore parsing errors during typing
             }
 
             if (symbols.isEmpty()) {
