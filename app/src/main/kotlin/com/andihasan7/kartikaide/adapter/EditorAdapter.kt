@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.andihasan7.kartikaide.databinding.EditorFragmentBinding
 import com.andihasan7.kartikaide.editor.IdeEditor
+import com.andihasan7.kartikaide.editor.InlayHintManager
 import com.andihasan7.kartikaide.editor.language.KotlinLanguage
 import com.andihasan7.kartikaide.editor.language.TsLanguageJava
 import com.andihasan7.kartikaide.extension.setFont
@@ -139,6 +140,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         private var diagReceiver: SubscriptionReceipt<ContentChangeEvent>? = null
         private lateinit var binding: EditorFragmentBinding
         lateinit var editor: IdeEditor
+        private var inlayHintManager: InlayHintManager? = null
         
         private var _file: File? = null
         val file: File get() = _file ?: (requireArguments().getSerializable("file") as File)
@@ -156,6 +158,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         ): View {
             binding = EditorFragmentBinding.inflate(inflater, container, false)
             editor = binding.editor
+            inlayHintManager = InlayHintManager(editor)
             return binding.root
         }
 
@@ -168,6 +171,12 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             editor.isDisableSoftKbdIfHardKbdAvailable = true
             setEditorLanguage()
             attachUndoListener()
+            setupInlayHints()
+        }
+
+        private fun setupInlayHints() {
+            val project = ProjectHandler.getProject() ?: return
+            inlayHintManager?.setup(file, project)
         }
 
         private fun attachUndoListener() {
@@ -230,6 +239,8 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                     editor.setEditorLanguage(EmptyLanguage())
                 }
             }
+            // Update hints when language is set (analysis might be needed)
+            inlayHintManager?.updateHints()
         }
 
         private fun setColorScheme() {
@@ -260,6 +271,8 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                 attachUndoListener()
                 editor.isUndoEnabled = true
                 
+                setupInlayHints()
+                
                 view?.post {
                     (parentFragment as? EditorFragment)?.updateUndoRedoStatus()
                 }
@@ -286,6 +299,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                 editor.updateSettings()
                 setEditorLanguage()
                 setupSymbols()
+                setupInlayHints()
             }
         }
 
@@ -306,6 +320,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             if (::editor.isInitialized) {
                 hideWindows()
                 diagReceiver?.unsubscribe()
+                inlayHintManager?.release()
                 editor.release()
             }
         }
