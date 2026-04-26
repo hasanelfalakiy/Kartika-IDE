@@ -52,19 +52,29 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
     private fun updateHintColors() {
         val scheme = editor.colorScheme
         val commentColor = scheme.getColor(EditorColorScheme.COMMENT)
+        val normalTextColor = scheme.getColor(EditorColorScheme.TEXT_NORMAL)
         
-        // Background: subtle version of line number background or a semi-transparent gray
+        // Pilih warna teks: prioritas Comment, jika 0 pakai Text Normal, jika tetap 0 pakai Abu-abu terang
+        val finalFgColor = when {
+            commentColor != 0 -> commentColor
+            normalTextColor != 0 -> normalTextColor
+            else -> Color.LTGRAY
+        }
+        
+        // Background: ambil warna dasar dari line number background atau background utama
         var bgColor = scheme.getColor(EditorColorScheme.LINE_NUMBER_BACKGROUND)
-        if (bgColor == 0) bgColor = 0x22888888
-        else {
-            // Add transparency if it's opaque
-            if (Color.alpha(bgColor) == 255) {
-                bgColor = Color.argb(40, Color.red(bgColor), Color.green(bgColor), Color.blue(bgColor))
-            }
+        if (bgColor == 0) bgColor = scheme.getColor(EditorColorScheme.WHOLE_BACKGROUND)
+        
+        if (bgColor == 0) {
+            // Fallback jika semua warna 0 (hitam/transparan)
+            bgColor = Color.argb(120, 128, 128, 128)
+        } else {
+            // Paksa Alpha ke 150 agar container terlihat jelas di tema gelap
+            bgColor = Color.argb(150, Color.red(bgColor), Color.green(bgColor), Color.blue(bgColor))
         }
         
         scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_BACKGROUND, bgColor)
-        scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_FOREGROUND, commentColor)
+        scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_FOREGROUND, finalFgColor)
     }
 
     /**
@@ -129,8 +139,6 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
             val container = InlayHintsContainer()
             val indexer = editor.text.indexer
 
-            // Sort symbols by end position to handle nesting properly if needed,
-            // but Sora Editor handles point anchored hints by position.
             symbols.forEach { item ->
                 if (item.kind == NavigationProvider.NavigationItemKind.CLASS || 
                     item.kind == NavigationProvider.NavigationItemKind.METHOD) {
@@ -175,7 +183,7 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
                                 }
 
                                 if (rawName.isNotEmpty()) {
-                                    val label = " // $prefix$rawName"
+                                    val label = "$prefix$rawName"
                                     container.add(TextInlayHint(pos.line, pos.column, label))
                                 }
                             }
