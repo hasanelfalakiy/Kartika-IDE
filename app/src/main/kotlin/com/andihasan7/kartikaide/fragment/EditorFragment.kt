@@ -230,16 +230,36 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         val resId = when (file.extension.lowercase()) {
             "kt" -> R.drawable.ic_kotlin
             "kts" -> R.drawable.ic_kotlin_kts
+            "apk", "apks", "dex" -> R.drawable.ic_android
+            "bin" -> R.drawable.ic_bin_file
             "cpp", "cxx", "cc" -> R.drawable.ic_cpp
+            "c" -> R.drawable.ic_c
+            "cs" -> R.drawable.ic_c_sharp
             "html", "htm" -> R.drawable.ic_html
             "css" -> R.drawable.ic_css
+            "jar" -> R.drawable.ic_jar_icon
             "js" -> R.drawable.ic_javascript
-            "java" -> R.drawable.ic_java
+            "json" -> R.drawable.ic_json
+            "java", "class" -> R.drawable.ic_java
             "gitignore" -> R.drawable.ic_git
             "gradle" -> R.drawable.ic_gradle
+            "gradlew", "bat" -> R.drawable.ic_termux
             "md" -> R.drawable.ic_markdown_m
-            "xml" -> R.drawable.ic_xml
-            else -> if (file.name.startsWith(".")) R.drawable.ic_git else R.drawable.ic_file
+            "py", "pyw", "pyi", "pyx", "pxd" -> R.drawable.ic_python
+            "svg" -> R.drawable.ic_svg_icon
+            "properties", "env", "ini", "cfg", "conf", "toml", "yaml", "yml" -> R.drawable.ic_file_config
+            "xml", "xaml", "xsd", "xslt", "xsl", "plist", "rss", "atom" -> R.drawable.ic_xml
+            "zip" -> R.drawable.baseline_folder_zip_24
+            "license", "licence", "copying", "notice" -> R.drawable.baseline_copyright_24
+            else -> if (file.name.startsWith(".")) {
+                R.drawable.ic_git
+            } else if (file.name.startsWith("gradlew")) {
+                R.drawable.ic_termux
+            } else if (file.name.startsWith("LICENSE")) {
+                R.drawable.baseline_copyright_24
+            } else if (file.name.startsWith("license.")) {
+                R.drawable.baseline_copyright_24
+            } else R.drawable.ic_file
         }
         return ContextCompat.getDrawable(requireContext(), resId)
     }
