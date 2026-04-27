@@ -846,11 +846,11 @@ data class KotlinEnvironment(
                     put(JVMConfigurationKeys.DISABLE_CALL_ASSERTIONS, true)
                     put(JVMConfigurationKeys.DISABLE_PARAM_ASSERTIONS, true)
                     put(JVMConfigurationKeys.DISABLE_RECEIVER_ASSERTIONS, true)
-                    put(CommonConfigurationKeys.INCREMENTAL_COMPILATION, false)
+                    put(CommonConfigurationKeys.INCREMENTAL_COMPILATION, Prefs.incrementalCompilation)
                     put(JVMConfigurationKeys.USE_FAST_JAR_FILE_SYSTEM, Prefs.useFastJarFs)
                     // Disable FIR for now as we are using FE1.0 APIs (BindingContext, etc.)
                     put(CommonConfigurationKeys.USE_FIR, false)
-                    put(CommonConfigurationKeys.USE_LIGHT_TREE, false)
+                    put(CommonConfigurationKeys.USE_LIGHT_TREE, Prefs.useLightTree)
                     put(CommonConfigurationKeys.PARALLEL_BACKEND_THREADS, 10)
                     put(CommonConfigurationKeys.USE_FIR_EXTENDED_CHECKERS, false)
 
