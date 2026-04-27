@@ -110,7 +110,8 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
      */
     fun updateHints() {
         val file = lastFile ?: return
-        val text = editor.text.toString()
+        val textContent = editor.text
+        val textString = textContent.toString()
         val extension = file.extension
 
         updateJob?.cancel()
@@ -122,7 +123,7 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
             try {
                 when (extension) {
                     "java" -> {
-                        val psiJavaFile = FileFactoryProvider.getPsiJavaFile(file.name, text)
+                        val psiJavaFile = FileFactoryProvider.getPsiJavaFile(file.name, textString)
                         psiJavaFile.classes.forEach { psiClass ->
                             symbols.addAll(NavigationProvider.extractMethodsAndFields(psiClass))
                         }
@@ -161,11 +162,16 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
                         item.kind == NavigationProvider.NavigationItemKind.METHOD) {
                         
                         val endOffset = item.endPosition
-                        if (endOffset > 0 && endOffset <= text.length) {
+                        // FIX: length is a property in SORA Editor Content
+                        val currentLength = textContent.length
+                        if (endOffset > 0 && endOffset <= currentLength) {
+                            val pos = indexer.getCharPosition(endOffset)
                             // Check if the character at endOffset - 1 is a closing brace '}'
-                            val charBefore = text.getOrNull(endOffset - 1)
+                            // Safe access using line/column
+                            val charPosBefore = indexer.getCharPosition(endOffset - 1)
+                            val charBefore = textContent.charAt(charPosBefore.line, charPosBefore.column)
+                            
                             if (charBefore == '}') {
-                                val pos = indexer.getCharPosition(endOffset)
                                 val startPos = indexer.getCharPosition(item.startPosition)
                                 
                                 // Show hint only if the block spans more than 2 lines
@@ -185,13 +191,13 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
                                     val prefix = when (item.kind) {
                                         NavigationProvider.NavigationItemKind.CLASS -> {
                                             val mods = item.modifiers.lowercase()
-                                            val content = item.name.lowercase()
+                                            val contentName = item.name.lowercase()
                                             when {
-                                                mods.contains("interface") || content.contains("interface") -> "interface "
-                                                mods.contains("enum") || content.contains("enum") -> "enum "
-                                                mods.contains("companion") || content.contains("companion object") -> "" // already handled in name
-                                                mods.contains("object") || content.contains("object") -> "object "
-                                                mods.contains("data") || content.contains("data class") -> "data class "
+                                                mods.contains("interface") || contentName.contains("interface") -> "interface "
+                                                mods.contains("enum") || contentName.contains("enum") -> "enum "
+                                                mods.contains("companion") || contentName.contains("companion object") -> "" // already handled in name
+                                                mods.contains("object") || contentName.contains("object") -> "object "
+                                                mods.contains("data") || contentName.contains("data class") -> "data class "
                                                 else -> "class "
                                             }
                                         }

@@ -778,7 +778,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
                 if (formatted.isNotEmpty() && formatted != text) {
                     withContext(Dispatchers.Main) {
-                        content.replace(0, content.length, formatted)
+                        // FIX: Use line-column based replace to avoid StringIndexOutOfBoundsException
+                        // Some versions of SORA Content might have a safe replace or we use full range
+                        val endLine = content.lineCount - 1
+                        val endColumn = content.getColumnCount(endLine)
+                        content.replace(0, 0, endLine, endColumn, formatted)
                         updateUndoRedoStatus()
                     }
                 }

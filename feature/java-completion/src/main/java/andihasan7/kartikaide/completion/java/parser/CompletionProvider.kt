@@ -22,6 +22,7 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.CombinedTypeSol
 import com.intellij.core.JavaCoreApplicationEnvironment
 import com.intellij.core.JavaCoreProjectEnvironment
 import com.intellij.lang.java.JavaLanguage
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.extensions.ExtensionPoint
 import com.intellij.openapi.extensions.Extensions
 import com.intellij.openapi.extensions.impl.ExtensionsAreaImpl
@@ -155,41 +156,52 @@ class CompletionProvider {
                     ExtensionPoint.Kind.INTERFACE
                 )
             }
-            val rootArea = Extensions.getRootArea()
-            if (rootArea.hasExtensionPoint("com.intellij.treeCopyHandler").not()) {
-                rootArea.registerExtensionPoint(
-                    "com.intellij.treeCopyHandler",
-                    TreeCopyHandler::class.java.name,
-                    ExtensionPoint.Kind.INTERFACE
-                )
+            val rootArea = try {
+                Extensions.getRootArea()
+            } catch (e: Throwable) {
+                null
+            } ?: try {
+                ApplicationManager.getApplication()?.extensionArea
+            } catch (e: Throwable) {
+                null
             }
-            if (rootArea.hasExtensionPoint("com.intellij.codeStyleManager").not()) {
-                rootArea.registerExtensionPoint(
-                    "com.intellij.codeStyleManager",
-                    CodeStyleManager::class.java.name,
-                    ExtensionPoint.Kind.INTERFACE
-                )
-            }
-            if (rootArea.hasExtensionPoint("com.intellij.psiElementFactory").not()) {
-                rootArea.registerExtensionPoint(
-                    "com.intellij.psiElementFactory",
-                    PsiElementFactory::class.java.name,
-                    ExtensionPoint.Kind.INTERFACE
-                )
-            }
-            if (rootArea.hasExtensionPoint("com.intellij.lang.psiAugmentProvider").not()) {
-                rootArea.registerExtensionPoint(
-                    "com.intellij.lang.psiAugmentProvider",
-                    PsiAugmentProvider::class.java.name,
-                    ExtensionPoint.Kind.INTERFACE
-                )
-            }
-            if (rootArea.hasExtensionPoint("com.intellij.psiElementFinder").not()) {
-                rootArea.registerExtensionPoint(
-                    "com.intellij.psiElementFinder",
-                    PsiElementFinder::class.java.name,
-                    ExtensionPoint.Kind.INTERFACE
-                )
+
+            if (rootArea != null) {
+                if (rootArea.hasExtensionPoint("com.intellij.treeCopyHandler").not()) {
+                    rootArea.registerExtensionPoint(
+                        "com.intellij.treeCopyHandler",
+                        TreeCopyHandler::class.java.name,
+                        ExtensionPoint.Kind.INTERFACE
+                    )
+                }
+                if (rootArea.hasExtensionPoint("com.intellij.codeStyleManager").not()) {
+                    rootArea.registerExtensionPoint(
+                        "com.intellij.codeStyleManager",
+                        CodeStyleManager::class.java.name,
+                        ExtensionPoint.Kind.INTERFACE
+                    )
+                }
+                if (rootArea.hasExtensionPoint("com.intellij.psiElementFactory").not()) {
+                    rootArea.registerExtensionPoint(
+                        "com.intellij.psiElementFactory",
+                        PsiElementFactory::class.java.name,
+                        ExtensionPoint.Kind.INTERFACE
+                    )
+                }
+                if (rootArea.hasExtensionPoint("com.intellij.lang.psiAugmentProvider").not()) {
+                    rootArea.registerExtensionPoint(
+                        "com.intellij.lang.psiAugmentProvider",
+                        PsiAugmentProvider::class.java.name,
+                        ExtensionPoint.Kind.INTERFACE
+                    )
+                }
+                if (rootArea.hasExtensionPoint("com.intellij.psiElementFinder").not()) {
+                    rootArea.registerExtensionPoint(
+                        "com.intellij.psiElementFinder",
+                        PsiElementFinder::class.java.name,
+                        ExtensionPoint.Kind.INTERFACE
+                    )
+                }
             }
         }
     }
