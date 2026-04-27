@@ -691,7 +691,8 @@ data class KotlinEnvironment(
                             override fun info(message: String?, t: Throwable?) = baseLogger.info(message, t)
                             override fun warn(message: String?, t: Throwable?) = baseLogger.warn(message, t)
                             override fun error(message: String?, t: Throwable?, vararg details: String?) {
-                                if (message?.contains("Listeners not allowed") == true) {
+                                if (message?.contains("Listeners not allowed") == true || 
+                                    message?.contains("Missing extension point") == true) {
                                     Log.w("KotlinEnvironment", "Suppressed EP Error: $message")
                                     return
                                 }
@@ -707,7 +708,7 @@ data class KotlinEnvironment(
             }
         }
 
-        private fun registerExtensionPoints() {
+        private fun registerExtensionPoints(additionalArea: com.intellij.openapi.extensions.ExtensionsArea? = null) {
             val areas = mutableSetOf<com.intellij.openapi.extensions.ExtensionsArea>()
             try {
                 @Suppress("DEPRECATION")
@@ -718,12 +719,16 @@ data class KotlinEnvironment(
                 ApplicationManager.getApplication()?.extensionArea?.let { areas.add(it) }
             } catch (e: Throwable) {}
 
+            additionalArea?.let { areas.add(it) }
+
             for (area in areas) {
                 registerEP(area, "com.intellij.psi.classFileDecompiler", "com.intellij.psi.ClassFileDecompiler")
                 registerEP(area, "com.intellij.psi.treeCopyHandler", "com.intellij.psi.impl.PsiTreeCopyHandler")
                 registerEP(area, "com.intellij.lang.meta.documentationKindProvider", "com.intellij.lang.meta.DocumentationKindProvider")
                 registerEP(area, "com.intellij.openapi.fileTypes.FileTypeDetector", "com.intellij.openapi.fileTypes.FileTypeDetector")
                 registerEP(area, "com.intellij.lang.braceMatcher", "com.intellij.lang.PairedBraceMatcher")
+                registerEP(area, "com.intellij.psi.clsCustomNavigationPolicy", "com.intellij.psi.impl.compiled.ClsCustomNavigationPolicy")
+                registerEP(area, "com.intellij.psi.augmentProvider", "com.intellij.psi.augment.PsiAugmentProvider")
             }
         }
 
@@ -879,8 +884,8 @@ data class KotlinEnvironment(
                 configFiles = EnvironmentConfigFiles.JVM_CONFIG_FILES
             )
 
-            // Register extension points again AFTER creating the environment
-            registerExtensionPoints()
+            // Register extension points again AFTER creating the environment, including Project area
+            registerExtensionPoints(kotlinCoreEnv.project.extensionArea)
 
             // Register services AFTER creating the environment
             registerKotlinServices()
