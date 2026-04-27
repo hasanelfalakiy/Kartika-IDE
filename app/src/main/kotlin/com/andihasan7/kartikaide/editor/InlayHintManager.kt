@@ -11,7 +11,6 @@ import android.graphics.Color
 import android.util.Log
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.lang.styling.inlayHint.TextInlayHint
-import io.github.rosemoe.sora.lang.styling.inlayHint.InlayHint
 import io.github.rosemoe.sora.lang.styling.inlayHint.InlayHintsContainer
 import io.github.rosemoe.sora.graphics.inlayHint.TextInlayHintRenderer
 import andihasan7.kartikaide.project.Project
@@ -23,6 +22,9 @@ import java.io.File
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.ContentListener
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
+import io.github.rosemoe.sora.event.ColorSchemeUpdateEvent
+import io.github.rosemoe.sora.widget.subscribeEvent
+import io.github.rosemoe.sora.event.SubscriptionReceipt
 import kotlinx.coroutines.*
 
 /**
@@ -35,42 +37,56 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
     private var lastProject: Project? = null
     private var updateJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var colorSchemeReceiver: SubscriptionReceipt<ColorSchemeUpdateEvent>? = null
 
     init {
         try {
             // Register the default text inlay hint renderer to the editor
             editor.registerInlayHintRenderer(TextInlayHintRenderer.DefaultInstance)
             updateHintColors()
+            
+            // Listen for theme changes to keep inlay hints consistent
+            colorSchemeReceiver = editor.subscribeEvent(ColorSchemeUpdateEvent::class.java) { _, _ ->
+                editor.post { updateHintColors() }
+            }
         } catch (e: Throwable) {
-            Log.e("InlayHintManager", "Failed to register TextInlayHintRenderer", e)
+            Log.e("InlayHintManager", "Failed to initialize InlayHintManager", e)
         }
     }
 
     /**
      * Updates the colors of the inlay hints to match the current theme.
+     * This ensures the hints are always visible regardless of theme changes.
      */
-    private fun updateHintColors() {
+    fun updateHintColors() {
         val scheme = editor.colorScheme
-        val isDark = scheme.isDark
-        
         val commentColor = scheme.getColor(EditorColorScheme.COMMENT)
+        val normalTextColor = scheme.getColor(EditorColorScheme.TEXT_NORMAL)
         
-        // Warna teks: Gunakan warna komentar, jika tidak ada/hitam di tema gelap, gunakan Abu-abu terang
-        val finalFgColor = if (isDark) {
-            if (commentColor != 0 && commentColor != Color.BLACK) commentColor else Color.parseColor("#A0A0A0")
-        } else {
-            if (commentColor != 0 && commentColor != Color.WHITE) commentColor else Color.GRAY
+        // Foreground color: Prefer comment color, then normal text, fallback to light gray
+        var fg = if (commentColor != 0) commentColor else normalTextColor
+        if (fg == 0) fg = Color.LTGRAY
+        
+        // Ensure foreground is fully opaque for clarity
+        fg = fg or 0xFF000000.toInt()
+        
+        // Background color: Try line number background or whole background
+        var bg = scheme.getColor(EditorColorScheme.LINE_NUMBER_BACKGROUND)
+        if (bg == 0) bg = scheme.getColor(EditorColorScheme.WHOLE_BACKGROUND)
+        
+        if (bg == 0) {
+            // Fallback for dark themes
+            bg = Color.DKGRAY
         }
         
-        // Background: Putih transparan pekat untuk tema gelap agar terlihat seperti highlight abu-abu
-        val bgColor = if (isDark) {
-            Color.argb(110, 255, 255, 255) 
-        } else {
-            Color.argb(40, 0, 0, 0)
-        }
+        // Apply a consistent alpha to the background for better contrast
+        val finalBg = Color.argb(160, Color.red(bg), Color.green(bg), Color.blue(bg))
         
-        scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_BACKGROUND, bgColor)
-        scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_FOREGROUND, finalFgColor)
+        scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_BACKGROUND, finalBg)
+        scheme.setColor(EditorColorScheme.TEXT_INLAY_HINT_FOREGROUND, fg)
+        
+        // Request a redraw to apply color changes to existing hints
+        editor.invalidate()
     }
 
     /**
@@ -84,6 +100,8 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
         editor.text.removeContentListener(this)
         editor.text.addContentListener(this)
         
+        // Update colors immediately during setup
+        updateHintColors()
         updateHints()
     }
 
@@ -92,13 +110,12 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
      */
     fun updateHints() {
         val file = lastFile ?: return
-        val project = lastProject ?: return
         val text = editor.text.toString()
         val extension = file.extension
 
         updateJob?.cancel()
         updateJob = scope.launch {
-            // Debounce lebih cepat (200ms) agar lebih responsif saat mengetik
+            // Debounce updates to avoid excessive analysis
             delay(200)
             
             val symbols = mutableListOf<NavigationProvider.NavigationItem>()
@@ -122,75 +139,77 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
                     }
                 }
             } catch (e: Exception) {
-                // Ignore parsing errors during typing
+                // Silently ignore analysis errors
             }
 
-            if (symbols.isEmpty()) {
-                withContext(Dispatchers.Main) {
+            if (!isActive) return@launch
+
+            withContext(Dispatchers.Main) {
+                // Re-apply colors before setting hints
+                updateHintColors()
+                
+                if (symbols.isEmpty()) {
                     editor.setInlayHints(null)
+                    return@withContext
                 }
-                return@launch
-            }
 
-            val container = InlayHintsContainer()
-            val indexer = editor.text.indexer
+                val container = InlayHintsContainer()
+                val indexer = editor.text.indexer
 
-            symbols.forEach { item ->
-                if (item.kind == NavigationProvider.NavigationItemKind.CLASS || 
-                    item.kind == NavigationProvider.NavigationItemKind.METHOD) {
-                    
-                    val endOffset = item.endPosition
-                    if (endOffset > 0 && endOffset <= text.length) {
-                        // Check if the character at endOffset - 1 is a closing brace '}'
-                        val charBefore = text.getOrNull(endOffset - 1)
-                        if (charBefore == '}') {
-                            val pos = indexer.getCharPosition(endOffset)
-                            val startPos = indexer.getCharPosition(item.startPosition)
-                            
-                            // Show hint only if the block spans more than 2 lines
-                            if (pos.line - startPos.line > 2) {
-                                var rawName = item.name.substringBefore('(')
-                                    .substringBefore(" :")
-                                    .substringBefore(" implements")
-                                    .substringBefore(" ->")
-                                    .trim()
-                                    .substringAfterLast('.')
+                symbols.forEach { item ->
+                    if (item.kind == NavigationProvider.NavigationItemKind.CLASS || 
+                        item.kind == NavigationProvider.NavigationItemKind.METHOD) {
+                        
+                        val endOffset = item.endPosition
+                        if (endOffset > 0 && endOffset <= text.length) {
+                            // Check if the character at endOffset - 1 is a closing brace '}'
+                            val charBefore = text.getOrNull(endOffset - 1)
+                            if (charBefore == '}') {
+                                val pos = indexer.getCharPosition(endOffset)
+                                val startPos = indexer.getCharPosition(item.startPosition)
                                 
-                                // Fix for "companion object" which might not have a proper name in symbols
-                                if (rawName.isEmpty() && item.modifiers.contains("companion", ignoreCase = true)) {
-                                    rawName = "companion object"
-                                }
-
-                                val prefix = when (item.kind) {
-                                    NavigationProvider.NavigationItemKind.CLASS -> {
-                                        val mods = item.modifiers.lowercase()
-                                        val content = item.name.lowercase()
-                                        when {
-                                            mods.contains("interface") || content.contains("interface") -> "interface "
-                                            mods.contains("enum") || content.contains("enum") -> "enum "
-                                            mods.contains("companion") || content.contains("companion object") -> "" // already handled in name
-                                            mods.contains("object") || content.contains("object") -> "object "
-                                            mods.contains("data") || content.contains("data class") -> "data class "
-                                            else -> "class "
-                                        }
+                                // Show hint only if the block spans more than 2 lines
+                                if (pos.line - startPos.line > 2) {
+                                    var rawName = item.name.substringBefore('(')
+                                        .substringBefore(" :")
+                                        .substringBefore(" implements")
+                                        .substringBefore(" ->")
+                                        .trim()
+                                        .substringAfterLast('.')
+                                    
+                                    // Fix for "companion object" which might not have a proper name in symbols
+                                    if (rawName.isEmpty() && item.modifiers.contains("companion", ignoreCase = true)) {
+                                        rawName = "companion object"
                                     }
-                                    NavigationProvider.NavigationItemKind.METHOD -> "fun "
-                                    else -> ""
-                                }
 
-                                if (rawName.isNotEmpty()) {
-                                    val label = "$prefix$rawName"
-                                    container.add(TextInlayHint(pos.line, pos.column, label))
+                                    val prefix = when (item.kind) {
+                                        NavigationProvider.NavigationItemKind.CLASS -> {
+                                            val mods = item.modifiers.lowercase()
+                                            val content = item.name.lowercase()
+                                            when {
+                                                mods.contains("interface") || content.contains("interface") -> "interface "
+                                                mods.contains("enum") || content.contains("enum") -> "enum "
+                                                mods.contains("companion") || content.contains("companion object") -> "" // already handled in name
+                                                mods.contains("object") || content.contains("object") -> "object "
+                                                mods.contains("data") || content.contains("data class") -> "data class "
+                                                else -> "class "
+                                            }
+                                        }
+                                        NavigationProvider.NavigationItemKind.METHOD -> "fun "
+                                        else -> ""
+                                    }
+
+                                    if (rawName.isNotEmpty()) {
+                                        val label = "$prefix$rawName"
+                                        container.add(TextInlayHint(pos.line, pos.column, label))
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            withContext(Dispatchers.Main) {
                 try {
-                    updateHintColors()
                     editor.setInlayHints(container)
                 } catch (e: Exception) {
                     Log.e("InlayHintManager", "Failed to set inlay hints", e)
@@ -215,6 +234,7 @@ class InlayHintManager(private val editor: CodeEditor) : ContentListener {
     fun release() {
         updateJob?.cancel()
         scope.cancel()
+        colorSchemeReceiver?.unsubscribe()
         try {
             editor.text.removeContentListener(this)
         } catch (e: Exception) {}
