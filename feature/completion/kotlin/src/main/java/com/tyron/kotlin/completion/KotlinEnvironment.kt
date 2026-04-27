@@ -225,6 +225,10 @@ data class KotlinEnvironment(
     var currentItemCount = 0
 
     fun complete(file: KotlinFile, line: Int, character: Int): List<CompletionItem> {
+        // Ensure extension points are registered for this project area specifically
+        // sometimes they are lost when switching between files/tabs
+        registerExtensionPoints(kotlinEnvironment.project.extensionArea)
+        
         currentItemCount = 0
         val originalFile = file.kotlinFile
         val inserted = file.insert(COMPLETION_SUFFIX, line, character)
@@ -692,8 +696,8 @@ data class KotlinEnvironment(
                             override fun warn(message: String?, t: Throwable?) = baseLogger.warn(message, t)
                             override fun error(message: String?, t: Throwable?, vararg details: String?) {
                                 if (message?.contains("Listeners not allowed") == true || 
-                                    message?.contains("Missing extension point") == true) {
-                                    Log.w("KotlinEnvironment", "Suppressed EP Error: $message")
+                                    message?.contains("Missing extension point") == true ||
+                                    message?.contains("KotlinBinaryClassCache") == true) {
                                     return
                                 }
                                 baseLogger.error(message, t, *details)
@@ -729,6 +733,7 @@ data class KotlinEnvironment(
                 registerEP(area, "com.intellij.lang.braceMatcher", "com.intellij.lang.PairedBraceMatcher")
                 registerEP(area, "com.intellij.psi.clsCustomNavigationPolicy", "com.intellij.psi.impl.compiled.ClsCustomNavigationPolicy")
                 registerEP(area, "com.intellij.psi.augmentProvider", "com.intellij.psi.augment.PsiAugmentProvider")
+                registerEP(area, "com.intellij.psi.shortNamesCache", "com.intellij.psi.search.PsiShortNamesCache")
             }
         }
 
@@ -745,17 +750,17 @@ data class KotlinEnvironment(
                         }
                         if (method != null) {
                             method.invoke(area, name, className, ExtensionPoint.Kind.INTERFACE, true)
-                            Log.i("KotlinEnvironment", "Registered $name with allowListeners=true")
+                            Log.i("KotlinEnvironment", "Registered $name with allowListeners=true in area ${area.javaClass.simpleName}")
                         } else {
                             area.registerExtensionPoint(name, className, ExtensionPoint.Kind.INTERFACE)
                             forceAllowListeners(area.getExtensionPoint<Any>(name))
                         }
                     } catch (e: Throwable) {
-                        Log.e("KotlinEnvironment", "Failed to register EP $name", e)
+                        Log.e("KotlinEnvironment", "Failed to register EP $name in area ${area.javaClass.simpleName}", e)
                     }
                 }
             } catch (e: Throwable) {
-                Log.e("KotlinEnvironment", "Error in registerEP for $name", e)
+                Log.e("KotlinEnvironment", "Error in registerEP for $name in area ${area.javaClass.simpleName}", e)
             }
         }
 
@@ -767,41 +772,42 @@ data class KotlinEnvironment(
                         if (field.name == "myAllowListeners" || field.name == "allowListeners") {
                             field.isAccessible = true
                             field.set(ep, true)
-                            Log.i("KotlinEnvironment", "Forced ${field.name}=true via reflection in ${current.name}")
                         }
                     }
                     current = current.superclass
                 }
-            } catch (e: Throwable) {
-                Log.e("KotlinEnvironment", "Failed to force allow listeners", e)
-            }
+            } catch (e: Throwable) {}
         }
 
-        private fun registerKotlinServices() {
+        private fun registerKotlinServices(project: com.intellij.openapi.project.Project) {
             val application = ApplicationManager.getApplication()
             if (application != null) {
-                if (application.getService(KotlinBinaryClassCache::class.java) == null) {
-                    try {
-                        val registerServiceMethod = application.javaClass.methods.find {
-                            it.name == "registerService" && it.parameterCount >= 2 &&
-                                    it.parameterTypes[0] == Class::class.java &&
-                                    it.parameterTypes[1] == Class::class.java
-                        }
-
-                        if (registerServiceMethod != null) {
-                            registerServiceMethod.isAccessible = true
-                            val args = if (registerServiceMethod.parameterCount == 2) {
-                                arrayOf(KotlinBinaryClassCache::class.java, KotlinBinaryClassCache::class.java)
-                            } else {
-                                arrayOf(KotlinBinaryClassCache::class.java, KotlinBinaryClassCache::class.java, false)
-                            }
-                            registerServiceMethod.invoke(application, *args)
-                            Log.i("KotlinEnvironment", "Registered KotlinBinaryClassCache application service")
-                        }
-                    } catch (e: Exception) {
-                        Log.e("KotlinEnvironment", "Failed to register KotlinBinaryClassCache service", e)
-                    }
+                registerServiceSafe(application, KotlinBinaryClassCache::class.java, KotlinBinaryClassCache())
+            }
+            registerServiceSafe(project, KotlinBinaryClassCache::class.java, KotlinBinaryClassCache())
+        }
+        
+        private fun registerServiceSafe(container: Any, serviceInterface: Class<*>, instance: Any) {
+            try {
+                val getServiceMethod = container.javaClass.getMethod("getService", Class::class.java)
+                if (getServiceMethod.invoke(container, serviceInterface) != null) return
+                
+                val registerMethod = container.javaClass.methods.find { 
+                    it.name == "registerService" && it.parameterCount >= 2 && 
+                    it.parameterTypes[0] == Class::class.java 
                 }
+                
+                if (registerMethod != null) {
+                    registerMethod.isAccessible = true
+                    val args = arrayOfNulls<Any>(registerMethod.parameterCount)
+                    args[0] = serviceInterface
+                    args[1] = if (registerMethod.parameterTypes[1].isInstance(instance)) instance else instance.javaClass
+                    if (registerMethod.parameterCount > 2) args[2] = false
+                    registerMethod.invoke(container, *args)
+                    Log.i("KotlinEnvironment", "Registered ${serviceInterface.simpleName} service in ${container.javaClass.simpleName}")
+                }
+            } catch (e: Exception) {
+                Log.e("KotlinEnvironment", "Failed to register service ${serviceInterface.name}", e)
             }
         }
 
@@ -888,7 +894,7 @@ data class KotlinEnvironment(
             registerExtensionPoints(kotlinCoreEnv.project.extensionArea)
 
             // Register services AFTER creating the environment
-            registerKotlinServices()
+            registerKotlinServices(kotlinCoreEnv.project)
 
             return KotlinEnvironment(kotlinCoreEnv)
         }
