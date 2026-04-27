@@ -24,6 +24,10 @@ object PreferenceKeys {
     // Compiler
     const val COMPILER_USE_FJFS = CommonKeys.COMPILER_USE_FJFS
     const val COMPILER_USE_K2 = CommonKeys.COMPILER_USE_K2
+
+    const val COMPILER_INCREMENTAL = CommonKeys.COMPILER_INCREMENTAL
+
+    const val COMPILER_USE_LIGHT_TREE = CommonKeys.COMPILER_USE_LIGHT_TREE
     const val COMPILER_USE_SSVM = CommonKeys.COMPILER_USE_SSVM
     const val COMPILER_JAVA_VERSIONS = CommonKeys.COMPILER_JAVA_VERSIONS
     const val COMPILER_JAVAC_FLAGS = CommonKeys.COMPILER_JAVAC_FLAGS

@@ -74,12 +74,23 @@ class IdeEditor @JvmOverloads constructor(
     }
 
     override fun commitText(text: CharSequence, applyAutoIndent: Boolean) {
-        if (text.length == 1) {
-            val currentChar = text.toString().getOrNull(cursor.left)
+        // Optimized auto-pair skipping
+        if (text.length == 1 && !cursor.isSelected) {
             val c = text[0]
-            if (ignoredPairEnds.contains(c) && c == currentChar) {
-                setSelection(cursor.leftLine, cursor.leftColumn + 1)
-                return
+            if (ignoredPairEnds.contains(c)) {
+                val left = cursor.left
+                val editorText = getText()
+                if (left >= 0 && left < editorText.length) {
+                    val pos = editorText.indexer.getCharPosition(left)
+                    if (editorText.charAt(pos.line, pos.column) == c) {
+                        val line = cursor.leftLine
+                        val col = cursor.leftColumn
+                        if (col + 1 <= editorText.getColumnCount(line)) {
+                            setSelection(line, col + 1)
+                            return
+                        }
+                    }
+                }
             }
         }
         super.commitText(text, applyAutoIndent)
@@ -87,15 +98,13 @@ class IdeEditor @JvmOverloads constructor(
 
     fun appendText(text: String): Int {
         val content = getText()
-        if (lineCount <= 0) {
+        val line = content.lineCount - 1
+        if (line < 0) {
             return 0
         }
-        var col = content.getColumnCount(lineCount - 1)
-        if (col < 0) {
-            col = 0
-        }
-        content.insert(lineCount - 1, col, text)
-        return lineCount - 1
+        val col = content.getColumnCount(line)
+        content.insert(line, col, text)
+        return line
     }
 
     private fun updateTextSize() {

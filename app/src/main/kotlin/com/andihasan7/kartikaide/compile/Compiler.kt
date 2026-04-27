@@ -60,19 +60,26 @@ class Compiler(
                 val application = ApplicationManager.getApplication()
                 if (application != null) {
                     if (application.getService(KotlinBinaryClassCache::class.java) == null) {
-                        val componentManagerClass = Class.forName("com.intellij.openapi.components.ComponentManager")
-                        val registerServiceMethod = componentManagerClass.getDeclaredMethod(
-                            "registerService", 
-                            Class::class.java, 
-                            Class::class.java
-                        )
-                        registerServiceMethod.isAccessible = true
-                        registerServiceMethod.invoke(
-                            application, 
-                            KotlinBinaryClassCache::class.java, 
-                            KotlinBinaryClassCache::class.java
-                        )
-                        Log.i(TAG, "Successfully registered KotlinBinaryClassCache via reflection")
+                        // Fix: Use implementation class instead of interface to find registerService method
+                        // as it might not be defined in the ComponentManager interface in some versions.
+                        val registerServiceMethod = application.javaClass.methods.find {
+                            it.name == "registerService" && it.parameterCount >= 2 &&
+                                    it.parameterTypes[0] == Class::class.java &&
+                                    it.parameterTypes[1] == Class::class.java
+                        }
+
+                        if (registerServiceMethod != null) {
+                            registerServiceMethod.isAccessible = true
+                            val args = if (registerServiceMethod.parameterCount == 2) {
+                                arrayOf(KotlinBinaryClassCache::class.java, KotlinBinaryClassCache::class.java)
+                            } else {
+                                arrayOf(KotlinBinaryClassCache::class.java, KotlinBinaryClassCache::class.java, false)
+                            }
+                            registerServiceMethod.invoke(application, *args)
+                            Log.i(TAG, "Successfully registered KotlinBinaryClassCache via reflection")
+                        } else {
+                            Log.w(TAG, "registerService method not found on ${application.javaClass.name}")
+                        }
                     }
                 }
             } catch (e: Exception) {
