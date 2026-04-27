@@ -28,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.OutputStream
 import java.io.PrintStream
 import java.lang.reflect.Method
@@ -93,7 +94,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
     fun checkClasses() {
         val dex = project.binDir.resolve("classes.dex")
         if (!dex.exists()) {
-            binding.infoEditor.setText("classes.dex not found")
+            binding.infoEditor.setText("Error: classes.dex not found")
             return
         }
 
@@ -105,7 +106,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                 df
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    binding.infoEditor.setText("Error reading dex: ${e.message}")
+                    binding.infoEditor.setText("Error: failed to read dex: ${e.message}")
                 }
                 return@launch
             }
@@ -121,7 +122,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
 
             withContext(Dispatchers.Main) {
                 if (mainClasses.isEmpty()) {
-                    binding.infoEditor.setText("No classes with main method found")
+                    binding.infoEditor.setText("Error: No classes with main method found")
                     return@withContext
                 }
 
@@ -147,7 +148,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                 if (index != null) {
                     runClass(index)
                 } else {
-                    binding.infoEditor.setText("Could not determine which class to run")
+                    binding.infoEditor.setText("Warning: Could not determine which class to run")
                 }
             }
         }
@@ -176,7 +177,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                     val line = text.lineCount - 1
                     val column = text.getColumnCount(line)
                     text.insert(line, column, s)
-                    
+
                     // Update offset di inputStream SETELAH teks dimasukkan ke editor
                     // agar input stream tahu bahwa teks ini adalah output program, bukan input user.
                     inputStream.updateOffset(text.length)
@@ -218,8 +219,18 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
             loader.loader.loadClass(className.replace('/', '.'))
         }.onSuccess { clazz ->
             isRunning = true
-            System.setProperty("project.dir", project.root.absolutePath)
             
+            // Set user.dir agar path relatif (seperti "output.csv") merujuk ke root proyek.
+            // Tanpa ini, user.dir default adalah "/", yang mana Read-Only di Android.
+            val oldUserDir = System.getProperty("user.dir")
+            val projectRootPath = project.root.absolutePath
+            
+            System.setProperty("user.dir", projectRootPath)
+            System.setProperty("project.dir", projectRootPath)
+            
+            systemOut.println("Info: Working directory set to $projectRootPath")
+            systemOut.println(" ")
+
             val mainMethod = findMainMethod(clazz)
             
             if (mainMethod != null) {
@@ -240,13 +251,23 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                     }
                 } catch (e: Throwable) {
                     val cause = e.cause ?: e
-                    systemOut.println("\n--- Execution Error ---\n")
+                    if (cause is java.io.FileNotFoundException && cause.message?.contains("EROFS") == true) {
+                        val fileName = cause.message?.substringBefore(":") ?: "file"
+                        systemOut.println("\nWarning: --- Tip: Android blocks relative paths to root. ---")
+                        systemOut.println("Warning: Use System.getProperty(\"user.dir\") to build absolute paths for \"$fileName\":")
+                        systemOut.println("Example: File(System.getProperty(\"user.dir\"), \"$fileName\")\n")
+                    }
+                    systemOut.println("\nError: --- Execution Error ---\n")
                     cause.printStackTrace(systemOut)
+                } finally {
+                    // Kembalikan user.dir lama setelah selesai.
+                    System.setProperty("user.dir", oldUserDir ?: "/")
                 }
             } else {
-                systemOut.println("No valid main method found in $className")
+                systemOut.println("Error: No valid main method found in $className")
             }
         }.onFailure { e ->
+            systemOut.println("Error: --- Execution Error ---")
             systemOut.println("Error loading class $className: ${e.message}")
             e.printStackTrace(systemOut)
         }.also {
