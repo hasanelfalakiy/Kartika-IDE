@@ -162,8 +162,9 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         val oldUserDir = props.getProperty("user.dir")
         val oldProjectDir = props.getProperty("project.dir")
         val oldTmpDir = props.getProperty("java.io.tmpdir")
+        val oldProjectRoot = props.getProperty("PROJECT_ROOT")
 
-        // Suntikkan Properti Kustom yang aman
+        // Suntikkan Properti Kustom yang aman dan stabil di Android
         props.setProperty("user.dir", projectRootPath)
         props.setProperty("project.dir", projectRootPath)
         props.setProperty("PROJECT_ROOT", projectRootPath)
@@ -208,7 +209,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         System.setIn(inputStream)
 
         systemOut.println("Info: Project Root -> $projectRootPath")
-        systemOut.println("Info: Environment properties initialized.")
+        systemOut.println("Info: PROJECT_ROOT is initialized for this session.")
         systemOut.println(" ")
 
         val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
@@ -236,8 +237,8 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
             
             if (mainMethod != null) {
                 // Pastikan properti tetap ada tepat sebelum pemanggilan main
-                System.setProperty("user.dir", projectRootPath)
                 System.setProperty("PROJECT_ROOT", projectRootPath)
+                System.setProperty("user.dir", projectRootPath)
                 
                 try {
                     if (Modifier.isStatic(mainMethod.modifiers)) {
@@ -258,9 +259,9 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                     val cause = e.cause ?: e
                     if (cause is java.io.FileNotFoundException && (cause.message?.contains("EROFS") == true || cause.message?.contains("Permission denied") == true)) {
                         val fileName = cause.message?.substringBefore(":")?.trim() ?: "file"
-                        systemOut.println("\nERROR: --- ANDROID RESTRICTION ---")
-                        systemOut.println("Android locks the process CWD to root '/'.")
-                        systemOut.println("\nFIX: Use the injected PROJECT_ROOT property:")
+                        systemOut.println("\nError:--- ANDROID RESTRICTION ---")
+                        systemOut.println("Android blocks relative writes to root '/'.")
+                        systemOut.println("\nFIX: Use the injected PROJECT_ROOT property in your code:")
                         systemOut.println("val root = System.getProperty(\"PROJECT_ROOT\")")
                         systemOut.println("val file = File(root, \"$fileName\")")
                         systemOut.println("\nThis will dynamically use your current project folder.\n")
@@ -280,6 +281,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
             System.setProperty("user.dir", oldUserDir ?: "/")
             System.setProperty("project.dir", oldProjectDir ?: "")
             System.setProperty("java.io.tmpdir", oldTmpDir ?: "/tmp")
+            if (oldProjectRoot != null) System.setProperty("PROJECT_ROOT", oldProjectRoot) else System.clearProperty("PROJECT_ROOT")
 
             systemOut.flush()
             System.setOut(oldOut)
