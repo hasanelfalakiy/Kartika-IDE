@@ -15,10 +15,12 @@ import android.util.Log
 import android.view.View
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
 import com.andihasan7.kartikaide.R
 import com.andihasan7.kartikaide.databinding.FragmentCompileInfoBinding
 import com.andihasan7.kartikaide.editor.EditorInputStream
 import com.andihasan7.kartikaide.extension.setFont
+import com.andihasan7.kartikaide.util.PreferenceKeys
 import com.andihasan7.kartikaide.util.ProjectHandler
 import com.andihasan7.kartikaide.util.makeDexReadOnlyIfNeeded
 import com.android.tools.smali.dexlib2.Opcodes
@@ -77,7 +79,6 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         binding.infoEditor.apply {
             setEditorLanguage(TextMateLanguage.create("source.build", false))
             setFont()
-            // Pastikan editor bisa diedit agar pengguna bisa mengetik input
             isEditable = true
         }
 
@@ -155,6 +156,24 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
     }
 
     fun runClass(className: String) = lifecycleScope.launch(Dispatchers.IO) {
+        // Set properti SECEPAT MUNGKIN, sebelum memuat kelas apa pun
+        val projectRootPath = project.root.absolutePath
+        
+        // Simpan state lama
+        val props = System.getProperties()
+        val oldUserDir = props.getProperty("user.dir")
+        val oldProjectDir = props.getProperty("project.dir")
+        val oldTmpDir = props.getProperty("java.io.tmpdir")
+        val oldProjectRoot = props.getProperty("PROJECT_ROOT")
+
+        // Suntikkan Properti Kustom yang aman dan stabil di Android
+        props.setProperty("user.dir", projectRootPath)
+        props.setProperty("project.dir", projectRootPath)
+        props.setProperty("PROJECT_ROOT", projectRootPath)
+        
+        if (!project.cacheDir.exists()) project.cacheDir.mkdirs()
+        props.setProperty("java.io.tmpdir", project.cacheDir.absolutePath)
+
         val inputStream = EditorInputStream(binding.infoEditor)
         val systemOut = PrintStream(object : OutputStream() {
             private val bos = ByteArrayOutputStream()
@@ -177,9 +196,6 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                     val line = text.lineCount - 1
                     val column = text.getColumnCount(line)
                     text.insert(line, column, s)
-
-                    // Update offset di inputStream SETELAH teks dimasukkan ke editor
-                    // agar input stream tahu bahwa teks ini adalah output program, bukan input user.
                     inputStream.updateOffset(text.length)
                 }
             }
@@ -194,46 +210,41 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         System.setErr(systemOut)
         System.setIn(inputStream)
 
+        val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+        if (prefs.getBoolean(PreferenceKeys.CONSOLE_SHOW_ROOT_INFO, true)) {
+            systemOut.println("Info: Project Root -> $projectRootPath")
+            systemOut.println("Info: PROJECT_ROOT is initialized for this session.")
+            systemOut.println(" ")
+        }
+
         val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
 
-        // 1. Load project classes
         val mainDex = project.binDir.resolve("classes.dex")
         if (mainDex.exists()) {
             loader.loadDex(makeDexReadOnlyIfNeeded(mainDex))
         }
 
-        // 2. Load library dex files
         project.buildDir.resolve("libs").listFiles()?.filter { it.extension == "dex" }?.forEach {
             loader.loadDex(makeDexReadOnlyIfNeeded(it))
         }
         
-        // 3. ADD RESOURCE SUPPORT: Add the resources directory
         if (project.resourcesDir.exists()) {
             loader.addResourceDir(project.resourcesDir)
         }
 
-        // 4. Set context class loader for libraries that use it (crucial for resource loading)
         Thread.currentThread().contextClassLoader = loader.loader
 
         runCatching {
             loader.loader.loadClass(className.replace('/', '.'))
         }.onSuccess { clazz ->
             isRunning = true
-            
-            // Set user.dir agar path relatif (seperti "output.csv") merujuk ke root proyek.
-            // Tanpa ini, user.dir default adalah "/", yang mana Read-Only di Android.
-            val oldUserDir = System.getProperty("user.dir")
-            val projectRootPath = project.root.absolutePath
-            
-            System.setProperty("user.dir", projectRootPath)
-            System.setProperty("project.dir", projectRootPath)
-            
-            systemOut.println("Info: Working directory set to $projectRootPath")
-            systemOut.println(" ")
-
             val mainMethod = findMainMethod(clazz)
             
             if (mainMethod != null) {
+                // Pastikan properti tetap ada tepat sebelum pemanggilan main
+                System.setProperty("PROJECT_ROOT", projectRootPath)
+                System.setProperty("user.dir", projectRootPath)
+                
                 try {
                     if (Modifier.isStatic(mainMethod.modifiers)) {
                         if (mainMethod.parameterCount == 1) {
@@ -251,17 +262,17 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                     }
                 } catch (e: Throwable) {
                     val cause = e.cause ?: e
-                    if (cause is java.io.FileNotFoundException && cause.message?.contains("EROFS") == true) {
-                        val fileName = cause.message?.substringBefore(":") ?: "file"
-                        systemOut.println("\nWarning: --- Tip: Android blocks relative paths to root. ---")
-                        systemOut.println("Warning: Use System.getProperty(\"user.dir\") to build absolute paths for \"$fileName\":")
-                        systemOut.println("Example: File(System.getProperty(\"user.dir\"), \"$fileName\")\n")
+                    if (cause is java.io.FileNotFoundException && (cause.message?.contains("EROFS") == true || cause.message?.contains("Permission denied") == true)) {
+                        val fileName = cause.message?.substringBefore(":")?.trim() ?: "file"
+                        systemOut.println("\nError:--- ANDROID RESTRICTION ---")
+                        systemOut.println("Android blocks relative writes to root '/'.")
+                        systemOut.println("\nFIX: Use the injected PROJECT_ROOT property in your code:")
+                        systemOut.println("val root = System.getProperty(\"PROJECT_ROOT\")")
+                        systemOut.println("val file = File(root, \"$fileName\")")
+                        systemOut.println("\nThis will dynamically use your current project folder.\n")
                     }
                     systemOut.println("\nError: --- Execution Error ---\n")
                     cause.printStackTrace(systemOut)
-                } finally {
-                    // Kembalikan user.dir lama setelah selesai.
-                    System.setProperty("user.dir", oldUserDir ?: "/")
                 }
             } else {
                 systemOut.println("Error: No valid main method found in $className")
@@ -271,6 +282,12 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
             systemOut.println("Error loading class $className: ${e.message}")
             e.printStackTrace(systemOut)
         }.also {
+            // Restore original environment
+            System.setProperty("user.dir", oldUserDir ?: "/")
+            System.setProperty("project.dir", oldProjectDir ?: "")
+            System.setProperty("java.io.tmpdir", oldTmpDir ?: "/tmp")
+            if (oldProjectRoot != null) System.setProperty("PROJECT_ROOT", oldProjectRoot) else System.clearProperty("PROJECT_ROOT")
+
             systemOut.flush()
             System.setOut(oldOut)
             System.setErr(oldErr)

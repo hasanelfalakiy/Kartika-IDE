@@ -63,7 +63,7 @@ class EditorSettings(private val activity: FragmentActivity) : SettingsProvider 
             )) {
                 title = "Color Scheme"
                 summary = "Choose the editor color scheme"
-                initialSelection = "darcula"
+                initialSelection = "dracula_2"
             }
 
             switch(PreferenceKeys.EDITOR_EXP_JAVA_COMPLETION) {
@@ -111,7 +111,7 @@ class EditorSettings(private val activity: FragmentActivity) : SettingsProvider 
             switch(PreferenceKeys.EDITOR_LIGATURES_ENABLE) {
                 title = "Font ligatures"
                 summary = "Enable & disable font ligatures"
-                defaultValue = false
+                defaultValue = true
             }
 
             switch(PreferenceKeys.EDITOR_WORDWRAP_ENABLE) {
@@ -154,7 +154,13 @@ class EditorSettings(private val activity: FragmentActivity) : SettingsProvider 
             switch(PreferenceKeys.EDITOR_LINE_NUMBERS_SHOW) {
                 title = "Line numbers"
                 summary = "If enabled, shows editor line numbers"
-                defaultValue = false
+                defaultValue = true
+            }
+
+            switch(PreferenceKeys.EDITOR_PIN_LINE_NUMBER) {
+                title = "Pin line numbers"
+                summary = "If enabled, line numbers will stay visible when scrolling horizontally"
+                defaultValue = true
             }
 
             switch(PreferenceKeys.EDITOR_DOUBLE_CLICK_CLOSE) {

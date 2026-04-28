@@ -55,6 +55,7 @@ class IdeEditor @JvmOverloads constructor(
         setScrollBarEnabled(Prefs.scrollbarEnabled)
         isHardwareAcceleratedDrawAllowed = Prefs.hardwareAcceleration
         isLineNumberEnabled = Prefs.lineNumbers
+        setPinLineNumber(Prefs.pinLineNumber)
         props.deleteEmptyLineFast = Prefs.quickDelete
         props.stickyScroll = Prefs.stickyScroll
 

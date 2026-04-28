@@ -25,6 +25,9 @@ object PreferenceKeys {
     const val COMPILER_INCREMENTAL = "incremental_compilation"
     const val COMPILER_USE_LIGHT_TREE = "use_light_tree"
 
+    // Console
+    const val CONSOLE_SHOW_ROOT_INFO = "console_show_root_info"
+
     // Editor
     const val EDITOR_FONT_SIZE = "font_size"
     const val EDITOR_TAB_SIZE = "tab_size"
@@ -35,6 +38,7 @@ object PreferenceKeys {
     const val EDITOR_HW_ENABLE = "hardware_acceleration_enable"
     const val EDITOR_NON_PRINTABLE_SYMBOLS_SHOW = "non_printable_symbols_show"
     const val EDITOR_LINE_NUMBERS_SHOW = "line_numbers_show"
+    const val EDITOR_PIN_LINE_NUMBER = "pin_line_number"
     const val EDITOR_DOUBLE_CLICK_CLOSE = "double_click_close"
     const val EDITOR_EXP_JAVA_COMPLETION = "experimental_java_completion"
     const val KOTLIN_REALTIME_ERRORS = "kotlin_realtime_errors"

@@ -13,12 +13,16 @@ import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
 import android.annotation.SuppressLint
+import android.content.Context
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.annotation.MenuRes
 import androidx.appcompat.widget.PopupMenu
@@ -62,7 +66,10 @@ import dev.pranav.navigation.NavigationProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.cosmic.ide.dependency.resolver.api.Artifact
+import org.cosmic.ide.dependency.resolver.api.EventReciever
 import org.cosmic.ide.dependency.resolver.api.Repository
+import org.cosmic.ide.dependency.resolver.eventReciever
 import org.cosmic.ide.dependency.resolver.getArtifact
 import org.cosmic.ide.dependency.resolver.repositories
 import java.io.File
@@ -512,34 +519,81 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         val sheet = BottomSheetDialog(requireContext())
                         val binding = NewDependencyBinding.inflate(layoutInflater)
                         binding.apply {
+                            dependency.editText?.apply {
+                                setSingleLine()
+                                imeOptions = EditorInfo.IME_ACTION_DONE
+                                setOnEditorActionListener { v, actionId, _ ->
+                                    if (actionId == EditorInfo.IME_ACTION_DONE) {
+                                        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                        imm.hideSoftInputFromWindow(v.windowToken, 0)
+                                        download.performClick()
+                                        true
+                                    } else false
+                                }
+                            }
+
                             download.setOnClickListener {
-                                val newOut = object : OutputStream() {
-                                    override fun write(b: Int) {
+                                val dependencyText = dependency.editText?.text.toString().trim()
+                                if (dependencyText.isEmpty()) return@setOnClickListener
+
+                                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                imm.hideSoftInputFromWindow(dependency.editText?.windowToken, 0)
+
+                                eventReciever = object : EventReciever() {
+
+                                    private fun log(text: String) {
                                         lifecycleScope.launch(Dispatchers.Main) {
-                                            val text = editor.text
-                                            text.insert(
-                                                text.lineCount - 1,
-                                                text.getColumnCount(text.lineCount - 1),
-                                                b.toChar().toString()
-                                            )
+                                            editor.appendText(text + "\n")
                                         }
                                     }
-                                }
-                                System.setOut(PrintStream(newOut))
 
-                                val dependency = dependency.editText?.text.toString().trim()
-                                if (dependency.isNotEmpty()) {
-                                    val arr = dependency.split(":")
-                                    lifecycleScope.launch(Dispatchers.IO) {
+                                    override fun onDownloadStart(artifact: Artifact) {
+                                        log("⬇️ Start download: $artifact")
+                                    }
+
+                                    override fun onDownloadEnd(artifact: Artifact) {
+                                        log("✅ Finished: $artifact")
+                                    }
+
+                                    override fun onDownloadError(artifact: Artifact, error: Throwable) {
+                                        log("❌ Error: ${error.message}")
+                                    }
+
+                                    override fun onResolving(artifact: Artifact, dependency: Artifact) {
+                                        log("🔍 Resolving $dependency")
+                                    }
+
+                                    override fun onResolutionComplete(artifact: Artifact) {
+                                        log("✔ Resolved ${artifact.artifactId}")
+                                    }
+
+                                    override fun onDependenciesNotFound(artifact: Artifact) {
+                                        log("⚠ No dependencies for ${artifact.artifactId}")
+                                    }
+
+                                    override fun onInvalidPOM(artifact: Artifact) {
+                                        log("❌ Invalid POM for ${artifact.artifactId}")
+                                    }
+                                }
+
+                                val arr = dependencyText.split(":")
+                                if (arr.size < 3) {
+                                    Toast.makeText(context, "Invalid format. Use group:artifact:version", Toast.LENGTH_SHORT).show()
+                                    return@setOnClickListener
+                                }
+
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    try {
                                         repositories.apply s@{
                                             if (Prefs.repositories.isBlank()) {
                                                 return@s
                                             }
                                             clear()
 
-                                            Prefs.repositories.lines().forEach {
-                                                val split = it.split(":")
-                                                if (split.size != 2) return@forEach
+                                            Prefs.repositories.lines().forEach { line ->
+                                                if (line.isBlank()) return@forEach
+                                                val split = line.split(":", limit = 2)
+                                                if (split.size < 2) return@forEach
 
                                                 val name = split[0].trim()
                                                 val url = split[1].trim()
@@ -553,29 +607,31 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                         val artifact = try {
                                             getArtifact(arr[0], arr[1], arr[2])
                                         } catch (e: Exception) {
-                                            e.printStackTrace()
                                             withContext(Dispatchers.Main) {
-                                                binding.editor.setText(e.stackTraceToString())
+                                                editor.appendText("\nError: ${e.message}\n")
                                             }
                                             return@launch
                                         }
                                         if (artifact == null) {
                                             withContext(Dispatchers.Main) {
-                                                binding.editor.setText("Cannot find library")
+                                                editor.appendText("\nError: Cannot find library\n")
                                             }
                                             return@launch
                                         }
                                         try {
                                             artifact.downloadArtifact(project.libDir)
                                             project.libDir.walk().filter { it.extension != "jar" }.forEach { it.delete() }
-                                            sheet.dismiss()
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
                                             withContext(Dispatchers.Main) {
-                                                println(e.stackTraceToString())
+                                                Toast.makeText(requireContext(), "Dependency downloaded successfully", Toast.LENGTH_SHORT).show()
+                                                sheet.dismiss()
                                             }
-                                            return@launch
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) {
+                                                editor.appendText("\nException: ${e.message}\n")
+                                            }
                                         }
+                                    } finally {
+                                        eventReciever = EventReciever()
                                     }
                                 }
                             }
@@ -649,10 +705,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                                 arg += c
                                             } else {
                                                 if (arg.isNotEmpty()) {
-                                                    return@forEach
+                                                    argList.add(arg)
+                                                    arg = ""
                                                 }
-                                                argList.add(arg)
-                                                arg = ""
                                             }
                                         }
 
