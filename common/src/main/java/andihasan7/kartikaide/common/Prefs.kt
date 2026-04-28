@@ -86,6 +86,9 @@ object Prefs {
     val lineNumbers: Boolean
         get() = prefs.getBoolean(PreferenceKeys.EDITOR_LINE_NUMBERS_SHOW, true)
 
+    val pinLineNumber: Boolean
+        get() = prefs.getBoolean(PreferenceKeys.EDITOR_PIN_LINE_NUMBER, false)
+
     val useSpaces: Boolean
         get() = prefs.getBoolean(PreferenceKeys.EDITOR_USE_SPACES, false)
 
