@@ -25,6 +25,9 @@ object PreferenceKeys {
     const val COMPILER_INCREMENTAL = "incremental_compilation"
     const val COMPILER_USE_LIGHT_TREE = "use_light_tree"
 
+    // Console
+    const val CONSOLE_SHOW_ROOT_INFO = "console_show_root_info"
+
     // Editor
     const val EDITOR_FONT_SIZE = "font_size"
     const val EDITOR_TAB_SIZE = "tab_size"

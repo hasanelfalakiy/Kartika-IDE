@@ -48,6 +48,7 @@ class CompilerSettings(private val activity: FragmentActivity) : SettingsProvide
                 R.drawable.outline_build_24,
                 activity.theme
             )
+
             switch(PreferenceKeys.COMPILER_USE_FJFS) {
                 title = activity.getString(R.string.fast_jar_fs)
                 summary =

@@ -33,6 +33,9 @@ object PreferenceKeys {
     const val COMPILER_JAVAC_FLAGS = CommonKeys.COMPILER_JAVAC_FLAGS
     const val COMPILER_KOTLIN_VERSION = CommonKeys.COMPILER_KOTLIN_VERSION
 
+    // Console
+    const val CONSOLE_SHOW_ROOT_INFO = CommonKeys.CONSOLE_SHOW_ROOT_INFO
+
     // Editor
     const val EDITOR_FONT_SIZE = CommonKeys.EDITOR_FONT_SIZE
     const val EDITOR_TAB_SIZE = CommonKeys.EDITOR_TAB_SIZE

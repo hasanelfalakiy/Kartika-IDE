@@ -31,6 +31,7 @@ import com.andihasan7.kartikaide.databinding.FragmentSettingsBinding
 import com.andihasan7.kartikaide.fragment.settings.AboutSettings
 import com.andihasan7.kartikaide.fragment.settings.AppearanceSettings
 import com.andihasan7.kartikaide.fragment.settings.CompilerSettings
+import com.andihasan7.kartikaide.fragment.settings.ConsoleSettings
 import com.andihasan7.kartikaide.fragment.settings.EditorSettings
 import com.andihasan7.kartikaide.fragment.settings.FormatterSettings
 import com.andihasan7.kartikaide.fragment.settings.GeminiSettings
@@ -58,6 +59,8 @@ class SettingsFragment : BaseBindingFragment<FragmentSettingsBinding>() {
         val editorSettings = EditorSettings(requireActivity())
         val formatterSettings = FormatterSettings(requireActivity())
         val compilerSettings = CompilerSettings(requireActivity())
+
+        val consoleSettings = ConsoleSettings(requireActivity())
         val pluginsSettings = PluginSettingsProvider(requireActivity())
         val gitSettings = GitSettings(requireActivity())
         val aboutSettings = AboutSettings(requireActivity())
@@ -83,6 +86,13 @@ class SettingsFragment : BaseBindingFragment<FragmentSettingsBinding>() {
                 title = "Compiler"
                 summary = "Configure compiler options and build process"
                 compilerSettings.provideSettings(this)
+            }
+
+            subScreen {
+                collapseIcon = true
+                title = "Console"
+                summary = "Configure console output preferences"
+                consoleSettings.provideSettings(this)
             }
             subScreen {
                 collapseIcon = true

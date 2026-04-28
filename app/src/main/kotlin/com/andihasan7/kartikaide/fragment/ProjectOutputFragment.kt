@@ -15,10 +15,12 @@ import android.util.Log
 import android.view.View
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
 import com.andihasan7.kartikaide.R
 import com.andihasan7.kartikaide.databinding.FragmentCompileInfoBinding
 import com.andihasan7.kartikaide.editor.EditorInputStream
 import com.andihasan7.kartikaide.extension.setFont
+import com.andihasan7.kartikaide.util.PreferenceKeys
 import com.andihasan7.kartikaide.util.ProjectHandler
 import com.andihasan7.kartikaide.util.makeDexReadOnlyIfNeeded
 import com.android.tools.smali.dexlib2.Opcodes
@@ -208,9 +210,12 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         System.setErr(systemOut)
         System.setIn(inputStream)
 
-        systemOut.println("Info: Project Root -> $projectRootPath")
-        systemOut.println("Info: PROJECT_ROOT is initialized for this session.")
-        systemOut.println(" ")
+        val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+        if (prefs.getBoolean(PreferenceKeys.CONSOLE_SHOW_ROOT_INFO, true)) {
+            systemOut.println("Info: Project Root -> $projectRootPath")
+            systemOut.println("Info: PROJECT_ROOT is initialized for this session.")
+            systemOut.println(" ")
+        }
 
         val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
 
