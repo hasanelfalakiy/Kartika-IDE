@@ -537,9 +537,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                             }
                                             clear()
 
-                                            Prefs.repositories.lines().forEach {
-                                                val split = it.split(":")
-                                                if (split.size != 2) return@forEach
+                                            Prefs.repositories.lines().forEach { line ->
+                                                if (line.isBlank()) return@forEach
+                                                val split = line.split(":", limit = 2)
+                                                if (split.size < 2) return@forEach
 
                                                 val name = split[0].trim()
                                                 val url = split[1].trim()
