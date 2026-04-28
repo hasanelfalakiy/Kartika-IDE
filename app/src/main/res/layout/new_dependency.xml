@@ -23,6 +23,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginTop="8dp"
+        android:fillViewport="true"
         android:nestedScrollingEnabled="true">
 
         <LinearLayout
@@ -44,7 +45,7 @@
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
                     android:inputType="textNoSuggestions"
                     android:textAppearance="?attr/textAppearanceBody1" />
@@ -60,7 +61,7 @@
             <com.andihasan7.kartikaide.editor.IdeEditor
                 android:id="@+id/editor"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="250dp"
                 android:layout_marginTop="10dp"
                 app:lineNumberVisible="false" />
         </LinearLayout>

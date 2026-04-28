@@ -13,12 +13,16 @@ import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
 import android.annotation.SuppressLint
+import android.content.Context
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.annotation.MenuRes
 import androidx.appcompat.widget.PopupMenu
@@ -512,71 +516,109 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         val sheet = BottomSheetDialog(requireContext())
                         val binding = NewDependencyBinding.inflate(layoutInflater)
                         binding.apply {
+                            dependency.editText?.apply {
+                                setSingleLine()
+                                imeOptions = EditorInfo.IME_ACTION_DONE
+                                setOnEditorActionListener { v, actionId, _ ->
+                                    if (actionId == EditorInfo.IME_ACTION_DONE) {
+                                        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                        imm.hideSoftInputFromWindow(v.windowToken, 0)
+                                        download.performClick()
+                                        true
+                                    } else false
+                                }
+                            }
+
                             download.setOnClickListener {
+                                val dependencyText = dependency.editText?.text.toString().trim()
+                                if (dependencyText.isEmpty()) return@setOnClickListener
+
+                                val originalOut = System.out
+                                val originalErr = System.err
+                                
                                 val newOut = object : OutputStream() {
                                     override fun write(b: Int) {
+                                        val char = b.toChar().toString()
                                         lifecycleScope.launch(Dispatchers.Main) {
-                                            val text = editor.text
-                                            text.insert(
-                                                text.lineCount - 1,
-                                                text.getColumnCount(text.lineCount - 1),
-                                                b.toChar().toString()
-                                            )
+                                            editor.appendText(char)
+                                        }
+                                    }
+                                    
+                                    override fun write(b: ByteArray, off: Int, len: Int) {
+                                        val text = String(b, off, len)
+                                        lifecycleScope.launch(Dispatchers.Main) {
+                                            editor.appendText(text)
                                         }
                                     }
                                 }
-                                System.setOut(PrintStream(newOut))
+                                
+                                val ps = PrintStream(newOut, true)
+                                System.setOut(ps)
+                                System.setErr(ps)
 
-                                val dependency = dependency.editText?.text.toString().trim()
-                                if (dependency.isNotEmpty()) {
-                                    val arr = dependency.split(":")
-                                    lifecycleScope.launch(Dispatchers.IO) {
-                                        repositories.apply s@{
-                                            if (Prefs.repositories.isBlank()) {
-                                                return@s
-                                            }
-                                            clear()
+                                val arr = dependencyText.split(":")
+                                if (arr.size < 3) {
+                                    Toast.makeText(context, "Invalid format. Use group:artifact:version", Toast.LENGTH_SHORT).show()
+                                    System.setOut(originalOut)
+                                    System.setErr(originalErr)
+                                    return@setOnClickListener
+                                }
 
-                                            Prefs.repositories.lines().forEach { line ->
-                                                if (line.isBlank()) return@forEach
-                                                val split = line.split(":", limit = 2)
-                                                if (split.size < 2) return@forEach
-
-                                                val name = split[0].trim()
-                                                val url = split[1].trim()
-
-                                                add(object : Repository {
-                                                    override fun getName() = name
-                                                    override fun getURL() = url
-                                                })
-                                            }
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    repositories.apply s@{
+                                        if (Prefs.repositories.isBlank()) {
+                                            return@s
                                         }
-                                        val artifact = try {
-                                            getArtifact(arr[0], arr[1], arr[2])
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                            withContext(Dispatchers.Main) {
-                                                binding.editor.setText(e.stackTraceToString())
-                                            }
-                                            return@launch
+                                        clear()
+
+                                        Prefs.repositories.lines().forEach { line ->
+                                            if (line.isBlank()) return@forEach
+                                            val split = line.split(":", limit = 2)
+                                            if (split.size < 2) return@forEach
+
+                                            val name = split[0].trim()
+                                            val url = split[1].trim()
+
+                                            add(object : Repository {
+                                                override fun getName() = name
+                                                override fun getURL() = url
+                                            })
                                         }
-                                        if (artifact == null) {
-                                            withContext(Dispatchers.Main) {
-                                                binding.editor.setText("Cannot find library")
-                                            }
-                                            return@launch
+                                    }
+                                    val artifact = try {
+                                        getArtifact(arr[0], arr[1], arr[2])
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        withContext(Dispatchers.Main) {
+                                            binding.editor.setText(e.stackTraceToString())
                                         }
-                                        try {
-                                            artifact.downloadArtifact(project.libDir)
-                                            project.libDir.walk().filter { it.extension != "jar" }.forEach { it.delete() }
+                                        System.setOut(originalOut)
+                                        System.setErr(originalErr)
+                                        return@launch
+                                    }
+                                    if (artifact == null) {
+                                        withContext(Dispatchers.Main) {
+                                            binding.editor.setText("Cannot find library")
+                                        }
+                                        System.setOut(originalOut)
+                                        System.setErr(originalErr)
+                                        return@launch
+                                    }
+                                    try {
+                                        artifact.downloadArtifact(project.libDir)
+                                        project.libDir.walk().filter { it.extension != "jar" }.forEach { it.delete() }
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(requireContext(), "Dependency downloaded successfully", Toast.LENGTH_SHORT).show()
                                             sheet.dismiss()
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                            withContext(Dispatchers.Main) {
-                                                println(e.stackTraceToString())
-                                            }
-                                            return@launch
                                         }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        withContext(Dispatchers.Main) {
+                                            binding.editor.setText(e.stackTraceToString())
+                                        }
+                                    } finally {
+                                        System.setOut(originalOut)
+                                        System.setErr(originalErr)
                                     }
                                 }
                             }
