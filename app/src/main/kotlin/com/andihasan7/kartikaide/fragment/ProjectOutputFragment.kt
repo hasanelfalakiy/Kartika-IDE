@@ -155,6 +155,17 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
     }
 
     fun runClass(className: String) = lifecycleScope.launch(Dispatchers.IO) {
+        // Set properti SECEPAT MUNGKIN, sebelum memuat kelas apa pun
+        val projectRootPath = project.root.absolutePath
+        val oldUserDir = System.getProperty("user.dir")
+        val oldProjectDir = System.getProperty("project.dir")
+        val oldTmpDir = System.getProperty("java.io.tmpdir")
+
+        System.setProperty("user.dir", projectRootPath)
+        System.setProperty("project.dir", projectRootPath)
+        if (!project.cacheDir.exists()) project.cacheDir.mkdirs()
+        System.setProperty("java.io.tmpdir", project.cacheDir.absolutePath)
+
         val inputStream = EditorInputStream(binding.infoEditor)
         val systemOut = PrintStream(object : OutputStream() {
             private val bos = ByteArrayOutputStream()
@@ -194,6 +205,10 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         System.setErr(systemOut)
         System.setIn(inputStream)
 
+        systemOut.println("Info: Project Root -> $projectRootPath")
+        systemOut.println("Info: Current user.dir -> ${System.getProperty("user.dir")}")
+        systemOut.println(" ")
+
         val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
 
         // 1. Load project classes
@@ -219,18 +234,6 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
             loader.loader.loadClass(className.replace('/', '.'))
         }.onSuccess { clazz ->
             isRunning = true
-            
-            // Set user.dir agar path relatif (seperti "output.csv") merujuk ke root proyek.
-            // Tanpa ini, user.dir default adalah "/", yang mana Read-Only di Android.
-            val oldUserDir = System.getProperty("user.dir")
-            val projectRootPath = project.root.absolutePath
-            
-            System.setProperty("user.dir", projectRootPath)
-            System.setProperty("project.dir", projectRootPath)
-            
-            systemOut.println("Info: Working directory set to $projectRootPath")
-            systemOut.println(" ")
-
             val mainMethod = findMainMethod(clazz)
             
             if (mainMethod != null) {
@@ -252,16 +255,14 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                 } catch (e: Throwable) {
                     val cause = e.cause ?: e
                     if (cause is java.io.FileNotFoundException && cause.message?.contains("EROFS") == true) {
-                        val fileName = cause.message?.substringBefore(":") ?: "file"
-                        systemOut.println("\nWarning: --- Tip: Android blocks relative paths to root. ---")
-                        systemOut.println("Warning: Use System.getProperty(\"user.dir\") to build absolute paths for \"$fileName\":")
-                        systemOut.println("Example: File(System.getProperty(\"user.dir\"), \"$fileName\")\n")
+                        val fileName = cause.message?.substringBefore(":")?.trim() ?: "file"
+                        systemOut.println("\nERROR: --- ANDROID RESTRICTION ---")
+                        systemOut.println("Android blocks relative writes to root '/'.")
+                        systemOut.println("FIX: Use absolute paths based on project root.")
+                        systemOut.println("CODE FIX: val file = File(System.getProperty(\"user.dir\"), \"$fileName\")\n")
                     }
                     systemOut.println("\nError: --- Execution Error ---\n")
                     cause.printStackTrace(systemOut)
-                } finally {
-                    // Kembalikan user.dir lama setelah selesai.
-                    System.setProperty("user.dir", oldUserDir ?: "/")
                 }
             } else {
                 systemOut.println("Error: No valid main method found in $className")
@@ -271,6 +272,11 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
             systemOut.println("Error loading class $className: ${e.message}")
             e.printStackTrace(systemOut)
         }.also {
+            // Restore original environment
+            System.setProperty("user.dir", oldUserDir ?: "/")
+            System.setProperty("project.dir", oldProjectDir ?: "")
+            System.setProperty("java.io.tmpdir", oldTmpDir ?: "/tmp")
+
             systemOut.flush()
             System.setOut(oldOut)
             System.setErr(oldErr)
