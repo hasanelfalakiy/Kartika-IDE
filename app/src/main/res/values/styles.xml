@@ -9,4 +9,8 @@
         <item name="android:layout_marginHorizontal">16dp</item>
         <item name="android:layout_marginVertical">8dp</item>
     </style>
+
+    <style name="ShapeAppearance.KartikaIDE.Circle" parent="">
+        <item name="cornerSize">50%</item>
+    </style>
 </resources>

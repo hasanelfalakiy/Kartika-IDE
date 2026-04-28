@@ -34,6 +34,7 @@ import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
 import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
+import io.github.andihasan.colorktx.ColorKtx
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -69,7 +70,12 @@ class App : Application() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             HiddenApiBypass.addHiddenApiExemptions("L")
         }
-        DynamicColors.applyToActivitiesIfAvailable(this)
+        
+        // ColorKtx will handle theme and dynamic colors. 
+        // We remove DynamicColors.applyToActivitiesIfAvailable(this) to avoid conflicts
+        // that cause "faded" UI and prevent Pure Black from working.
+        ColorKtx.applyToActivities(this)
+        
         disableModules()
         setupNightMode()
 
@@ -142,7 +148,7 @@ class App : Application() {
     }
 
     fun getTheme(theme: String): Int {
-        return when (theme) {
+        return when (theme.lowercase(Locale.ROOT)) {
             "light" -> UiModeManager.MODE_NIGHT_NO
             "dark" -> UiModeManager.MODE_NIGHT_YES
             else -> UiModeManager.MODE_NIGHT_AUTO
@@ -205,7 +211,10 @@ class App : Application() {
 
         safeLoad("textmate/darcula.json", "darcula")
         safeLoad("textmate/dracula_2.json", "dracula_2")
+        safeLoad("textmate/dracula_clean.json", "dracula_clean")
         safeLoad("textmate/onedark.json", "onedark")
+        safeLoad("textmate/ayu_dark.json", "ayu_dark")
+        safeLoad("textmate/ayu_mirage.json", "ayu_mirage")
         
         if (assets.list("textmate")?.contains("QuietLight.tmTheme.json") == true) {
             safeLoad("textmate/QuietLight.tmTheme.json", "QuietLight")

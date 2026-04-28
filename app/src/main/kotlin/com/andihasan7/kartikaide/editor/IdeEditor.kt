@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.editor
 
 import android.content.Context
@@ -46,6 +39,9 @@ class IdeEditor @JvmOverloads constructor(
         setTooltipImprovements()
         updateSettings()
         setInterceptParentHorizontalScrollIfNeeded(true)
+        
+        // Aktifkan UndoManager di awal
+        isUndoEnabled = true
     }
 
     fun updateSettings() {
@@ -59,6 +55,7 @@ class IdeEditor @JvmOverloads constructor(
         setScrollBarEnabled(Prefs.scrollbarEnabled)
         isHardwareAcceleratedDrawAllowed = Prefs.hardwareAcceleration
         isLineNumberEnabled = Prefs.lineNumbers
+        setPinLineNumber(Prefs.pinLineNumber)
         props.deleteEmptyLineFast = Prefs.quickDelete
         props.stickyScroll = Prefs.stickyScroll
 
@@ -78,12 +75,23 @@ class IdeEditor @JvmOverloads constructor(
     }
 
     override fun commitText(text: CharSequence, applyAutoIndent: Boolean) {
-        if (text.length == 1) {
-            val currentChar = text.toString().getOrNull(cursor.left)
+        // Optimized auto-pair skipping
+        if (text.length == 1 && !cursor.isSelected) {
             val c = text[0]
-            if (ignoredPairEnds.contains(c) && c == currentChar) {
-                setSelection(cursor.leftLine, cursor.leftColumn + 1)
-                return
+            if (ignoredPairEnds.contains(c)) {
+                val left = cursor.left
+                val editorText = getText()
+                if (left >= 0 && left < editorText.length) {
+                    val pos = editorText.indexer.getCharPosition(left)
+                    if (editorText.charAt(pos.line, pos.column) == c) {
+                        val line = cursor.leftLine
+                        val col = cursor.leftColumn
+                        if (col + 1 <= editorText.getColumnCount(line)) {
+                            setSelection(line, col + 1)
+                            return
+                        }
+                    }
+                }
             }
         }
         super.commitText(text, applyAutoIndent)
@@ -91,15 +99,13 @@ class IdeEditor @JvmOverloads constructor(
 
     fun appendText(text: String): Int {
         val content = getText()
-        if (lineCount <= 0) {
+        val line = content.lineCount - 1
+        if (line < 0) {
             return 0
         }
-        var col = content.getColumnCount(lineCount - 1)
-        if (col < 0) {
-            col = 0
-        }
-        content.insert(lineCount - 1, col, text)
-        return lineCount - 1
+        val col = content.getColumnCount(line)
+        content.insert(line, col, text)
+        return line
     }
 
     private fun updateTextSize() {

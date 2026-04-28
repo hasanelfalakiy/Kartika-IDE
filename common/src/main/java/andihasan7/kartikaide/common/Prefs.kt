@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package andihasan7.kartikaide.common
 
 import android.content.Context
@@ -42,6 +35,12 @@ object Prefs {
 
     val useFastJarFs: Boolean
         get() = prefs.getBoolean(PreferenceKeys.COMPILER_USE_FJFS, true)
+
+    val incrementalCompilation: Boolean
+        get() = prefs.getBoolean(PreferenceKeys.COMPILER_INCREMENTAL, false)
+
+    val useLightTree: Boolean
+        get() = prefs.getBoolean(PreferenceKeys.COMPILER_USE_LIGHT_TREE, false)
 
     val stickyScroll: Boolean
         get() = prefs.getBoolean(PreferenceKeys.STICKY_SCROLL, true)
@@ -86,6 +85,9 @@ object Prefs {
         get() = prefs.getString(PreferenceKeys.FORMATTER_GJF_STYLE, "aosp") ?: "aosp"
     val lineNumbers: Boolean
         get() = prefs.getBoolean(PreferenceKeys.EDITOR_LINE_NUMBERS_SHOW, true)
+
+    val pinLineNumber: Boolean
+        get() = prefs.getBoolean(PreferenceKeys.EDITOR_PIN_LINE_NUMBER, false)
 
     val useSpaces: Boolean
         get() = prefs.getBoolean(PreferenceKeys.EDITOR_USE_SPACES, false)
@@ -157,8 +159,8 @@ object Prefs {
     val pluginRepository: String
         get() = prefs.getString(
             PreferenceKeys.PLUGIN_REPOSITORY,
-            "https://raw.githubusercontent.com/Cosmic-IDE/plugins-repo/main/plugins.json"
-        ) ?: "https://raw.githubusercontent.com/Cosmic-IDE/plugins-repo/main/plugins.json"
+            "https://raw.githubusercontent.com/hasanelfalakiy/plugins-repo/main/plugins.json"
+        ) ?: "https://raw.githubusercontent.com/hasanelfalakiy/plugins-repo/main/plugins.json"
 
     val editorFontSize: Float
         get() = runCatching {

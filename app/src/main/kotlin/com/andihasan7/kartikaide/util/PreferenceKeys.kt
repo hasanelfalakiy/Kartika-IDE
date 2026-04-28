@@ -5,13 +5,6 @@
  * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of Cosmic IDE.
- * Cosmic IDE is a free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
- * Cosmic IDE is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package com.andihasan7.kartikaide.util
 
 import andihasan7.kartikaide.common.PreferenceKeys as CommonKeys
@@ -24,14 +17,24 @@ object PreferenceKeys {
 
     // Appearance
     const val APP_THEME = CommonKeys.APP_THEME
+    const val COLOR_THEME = CommonKeys.COLOR_THEME
+    const val PURE_BLACK = CommonKeys.PURE_BLACK
+    const val DYNAMIC_COLOR = CommonKeys.DYNAMIC_COLOR
 
     // Compiler
     const val COMPILER_USE_FJFS = CommonKeys.COMPILER_USE_FJFS
     const val COMPILER_USE_K2 = CommonKeys.COMPILER_USE_K2
+
+    const val COMPILER_INCREMENTAL = CommonKeys.COMPILER_INCREMENTAL
+
+    const val COMPILER_USE_LIGHT_TREE = CommonKeys.COMPILER_USE_LIGHT_TREE
     const val COMPILER_USE_SSVM = CommonKeys.COMPILER_USE_SSVM
     const val COMPILER_JAVA_VERSIONS = CommonKeys.COMPILER_JAVA_VERSIONS
     const val COMPILER_JAVAC_FLAGS = CommonKeys.COMPILER_JAVAC_FLAGS
     const val COMPILER_KOTLIN_VERSION = CommonKeys.COMPILER_KOTLIN_VERSION
+
+    // Console
+    const val CONSOLE_SHOW_ROOT_INFO = CommonKeys.CONSOLE_SHOW_ROOT_INFO
 
     // Editor
     const val EDITOR_FONT_SIZE = CommonKeys.EDITOR_FONT_SIZE
@@ -43,6 +46,7 @@ object PreferenceKeys {
     const val EDITOR_HW_ENABLE = CommonKeys.EDITOR_HW_ENABLE
     const val EDITOR_NON_PRINTABLE_SYMBOLS_SHOW = CommonKeys.EDITOR_NON_PRINTABLE_SYMBOLS_SHOW
     const val EDITOR_LINE_NUMBERS_SHOW = CommonKeys.EDITOR_LINE_NUMBERS_SHOW
+    const val EDITOR_PIN_LINE_NUMBER = CommonKeys.EDITOR_PIN_LINE_NUMBER
     const val EDITOR_DOUBLE_CLICK_CLOSE = CommonKeys.EDITOR_DOUBLE_CLICK_CLOSE
     const val EDITOR_EXP_JAVA_COMPLETION = CommonKeys.EDITOR_EXP_JAVA_COMPLETION
     const val KOTLIN_REALTIME_ERRORS = CommonKeys.KOTLIN_REALTIME_ERRORS
@@ -52,6 +56,7 @@ object PreferenceKeys {
     const val QUICK_DELETE = CommonKeys.QUICK_DELETE
     const val STICKY_SCROLL = CommonKeys.STICKY_SCROLL
     const val DISABLE_SYMBOLS_VIEW = CommonKeys.DISABLE_SYMBOLS_VIEW
+    const val EDITOR_CUSTOM_SYMBOLS = CommonKeys.EDITOR_CUSTOM_SYMBOLS
 
     // Formatter
     const val FORMATTER_KTFMT_STYLE = CommonKeys.FORMATTER_KTFMT_STYLE

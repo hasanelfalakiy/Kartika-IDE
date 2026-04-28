@@ -36,6 +36,7 @@
                 android:layout_height="wrap_content"
                 android:background="?colorSurfaceContainerLow"
                 app:tabGravity="start"
+                app:tabInlineLabel="true"
                 app:tabMode="scrollable" />
 
         </com.google.android.material.appbar.AppBarLayout>

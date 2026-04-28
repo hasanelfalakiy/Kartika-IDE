@@ -7,18 +7,28 @@
 
 package com.andihasan7.kartikaide.fragment
 
-import andihasan7.kartikaide.build.dex.D8Task
+import andihasan7.kartikaide.buildtools.dex.D8Task
 import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
+import android.annotation.SuppressLint
+import android.content.Context
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.annotation.MenuRes
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.ContextCompat
+import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
@@ -47,8 +57,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
-import com.widget.treeview.Node
 import com.widget.treeview.OnTreeItemClickListener
+import com.widget.treeview.TreeIconProvider
 import com.widget.treeview.TreeUtils.toNodeList
 import com.widget.treeview.TreeViewAdapter
 import dev.pranav.navigation.KtNavigationProvider
@@ -56,7 +66,10 @@ import dev.pranav.navigation.NavigationProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.cosmic.ide.dependency.resolver.api.Artifact
+import org.cosmic.ide.dependency.resolver.api.EventReciever
 import org.cosmic.ide.dependency.resolver.api.Repository
+import org.cosmic.ide.dependency.resolver.eventReciever
 import org.cosmic.ide.dependency.resolver.getArtifact
 import org.cosmic.ide.dependency.resolver.repositories
 import java.io.File
@@ -74,6 +87,15 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     override fun getViewBinding() = FragmentEditorBinding.inflate(layoutInflater)
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Clear files from previous project session if this is a fresh entry
+        if (savedInstanceState == null) {
+            fileViewModel.removeAll()
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -98,23 +120,74 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             isSaveEnabled = true
         }
 
-        fileViewModel.updateFiles(fileIndex.getFiles())
+        // Only load saved files from index if the list is currently empty
+        if (fileViewModel.files.value.isNullOrEmpty()) {
+            fileViewModel.updateFiles(fileIndex.getFiles())
+        }
 
         binding.tabLayout.isSmoothScrollingEnabled = false
 
         binding.included.refresher.apply {
             setOnRefreshListener {
-                isRefreshing = true
                 lifecycleScope.launch {
                     initTreeView()
+
+                    // tunggu UI settle
+                    binding.included.recycler.post {
+                        updateDrawerLockState()
+                        binding.included.refresher.isRefreshing = false
+                    }
                 }
-                isRefreshing = false
+            }
+        }
+
+        // Handle Horizontal Scroll to Lock/Unlock Drawer
+        binding.drawer.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+            override fun onDrawerOpened(drawerView: View) {
+                updateDrawerLockState()
+            }
+
+            override fun onDrawerClosed(drawerView: View) {
+                binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+            }
+        })
+
+        binding.included.hScroll.apply {
+            setOnScrollChangeListener { _, _, _, _, _ ->
+                updateDrawerLockState()
+            }
+            
+            // Prioritaskan gestur geser ke TreeView daripada ke DrawerLayout
+            var lastX = 0f
+            setOnTouchListener { v, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        lastX = event.x
+                        v.parent.requestDisallowInterceptTouchEvent(true)
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val deltaX = event.x - lastX
+
+                        if (deltaX < 0 && v.canScrollHorizontally(1)) {
+                            // scroll ke kanan → tahan di TreeView
+                            v.parent.requestDisallowInterceptTouchEvent(true)
+                        } else if (deltaX > 0 && v.canScrollHorizontally(-1)) {
+                            // scroll ke kiri → tahan di TreeView
+                            v.parent.requestDisallowInterceptTouchEvent(true)
+                        } else {
+                            // sudah mentok → kasih DrawerLayout ambil gesture
+                            v.parent.requestDisallowInterceptTouchEvent(false)
+                        }
+                    }
+                }
+                false
             }
         }
 
         binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 fileViewModel.setCurrentPosition(tab.position)
+                updateUndoRedoStatus()
             }
 
             override fun onTabUnselected(tab: TabLayout.Tab) {
@@ -139,23 +212,16 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         if (drawer.isOpen) {
                             drawer.close()
                         } else {
-                            editorAdapter.saveAll()
-                            editorAdapter.releaseAll()
-
-                            fileIndex.putFiles(
-                                binding.pager.currentItem, fileViewModel.files.value!!
-                            )
-
-                            fileViewModel.files.removeObservers(viewLifecycleOwner)
-                            fileViewModel.removeAll()
-                            parentFragmentManager.popBackStack()
+                            exitProject()
                         }
                     }
                 }
             })
 
         TabLayoutMediator(binding.tabLayout, binding.pager, true, false) { tab, position ->
-            tab.text = fileViewModel.files.value!![position].name
+            val file = fileViewModel.files.value!![position]
+            tab.text = file.name
+            tab.icon = getFileIcon(file)
             tab.view.setOnLongClickListener {
                 showMenu(it, R.menu.tab_menu, position)
                 true
@@ -164,6 +230,74 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         parentFragmentManager.setFragmentResultListener("settings_changed", viewLifecycleOwner) { _, _ ->
             refreshAllEditors()
+        }
+    }
+
+    private fun getFileIcon(file: File): Drawable? {
+        val resId = when (file.extension.lowercase()) {
+            "kt" -> R.drawable.ic_kotlin
+            "kts" -> R.drawable.ic_kotlin_kts
+            "apk", "apks", "dex" -> R.drawable.ic_android
+            "bin" -> R.drawable.ic_bin_file
+            "cpp", "cxx", "cc" -> R.drawable.ic_cpp
+            "c" -> R.drawable.ic_c
+            "cs" -> R.drawable.ic_c_sharp
+            "html", "htm" -> R.drawable.ic_html
+            "css" -> R.drawable.ic_css
+            "jar" -> R.drawable.ic_jar_icon
+            "js" -> R.drawable.ic_javascript
+            "json" -> R.drawable.ic_json
+            "java", "class" -> R.drawable.ic_java
+            "gitignore" -> R.drawable.ic_git
+            "gradle" -> R.drawable.ic_gradle
+            "gradlew", "bat" -> R.drawable.ic_termux
+            "md" -> R.drawable.ic_markdown_m
+            "py", "pyw", "pyi", "pyx", "pxd" -> R.drawable.ic_python
+            "svg" -> R.drawable.ic_svg_icon
+            "properties", "env", "ini", "cfg", "conf", "toml", "yaml", "yml" -> R.drawable.ic_file_config
+            "xml", "xaml", "xsd", "xslt", "xsl", "plist", "rss", "atom" -> R.drawable.ic_xml
+            "zip" -> R.drawable.baseline_folder_zip_24
+            "license", "licence", "copying", "notice" -> R.drawable.baseline_copyright_24
+            else -> if (file.name.startsWith(".")) {
+                R.drawable.ic_git
+            } else if (file.name.startsWith("gradlew")) {
+                R.drawable.ic_termux
+            } else if (file.name.startsWith("LICENSE")) {
+                R.drawable.baseline_copyright_24
+            } else if (file.name.startsWith("license.")) {
+                R.drawable.baseline_copyright_24
+            } else R.drawable.ic_file
+        }
+        return ContextCompat.getDrawable(requireContext(), resId)
+    }
+
+    private fun exitProject() {
+        editorAdapter.saveAll()
+        editorAdapter.releaseAll()
+
+        fileIndex.putFiles(
+            binding.pager.currentItem, fileViewModel.files.value!!
+        )
+
+        fileViewModel.files.removeObservers(viewLifecycleOwner)
+        fileViewModel.currentPosition.removeObservers(viewLifecycleOwner)
+        fileViewModel.removeAll()
+        parentFragmentManager.popBackStack()
+    }
+
+    private fun updateDrawerLockState() {
+        binding.drawer.post {
+            if (binding.drawer.isDrawerOpen(GravityCompat.START)) {
+                val hScroll = binding.included.hScroll
+
+                // Kunci hanya jika masih bisa scroll ke kanan (artinya belum di posisi paling kanan)
+                if (hScroll.canScrollHorizontally(1)) {
+                    binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_OPEN)
+                } else {
+                    // Sudah mentok kanan → izinkan drawer ditutup
+                    binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+                }
+            }
         }
     }
 
@@ -177,26 +311,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         fileViewModel.currentPosition.observe(viewLifecycleOwner) { pos ->
             binding.toolbar.apply {
                 if (pos == -1) {
-                    menu.findItem(R.id.nav_items).apply {
-                        isVisible = false
-                    }
-                    menu.findItem(R.id.undo).apply {
-                        isVisible = false
-                    }
-                    menu.findItem(R.id.redo).apply {
-                        isVisible = false
-                    }
+                    menu.findItem(R.id.nav_items)?.isVisible = false
+                    menu.findItem(R.id.undo)?.isVisible = false
+                    menu.findItem(R.id.redo)?.isVisible = false
                     return@observe
                 } else {
-                    menu.findItem(R.id.nav_items).apply {
-                        isVisible = true
-                    }
-                    menu.findItem(R.id.undo).apply {
-                        isVisible = true
-                    }
-                    menu.findItem(R.id.redo).apply {
-                        isVisible = true
-                    }
+                    menu.findItem(R.id.nav_items)?.isVisible = true
+                    menu.findItem(R.id.undo)?.isVisible = true
+                    menu.findItem(R.id.redo)?.isVisible = true
                 }
             }
 
@@ -207,14 +329,41 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 tab.select()
                 binding.pager.currentItem = pos
             }
+            updateUndoRedoStatus()
         }
-        fileViewModel.setCurrentPosition(0)
+        
         if (fileViewModel.files.value!!.isEmpty()) {
             binding.viewContainer.displayedChild = 1
         }
     }
 
+    fun updateUndoRedoStatus() {
+        val editor = getCurrentFragment()?.editor
+        if (editor != null) {
+            val canUndo = editor.canUndo()
+            val canRedo = editor.canRedo()
+            Log.d("EditorFragment", "Updating status: undo=$canUndo, redo=$canRedo")
+            updateUndoRedoIcons(canUndo, canRedo)
+        } else {
+            updateUndoRedoIcons(canUndo = false, canRedo = false)
+        }
+    }
+
+    private fun updateUndoRedoIcons(canUndo: Boolean, canRedo: Boolean) {
+        binding.toolbar.menu.apply {
+            findItem(R.id.undo)?.let {
+                it.isEnabled = canUndo
+                it.icon?.alpha = if (canUndo) 255 else 100
+            }
+            findItem(R.id.redo)?.let {
+                it.isEnabled = canRedo
+                it.icon?.alpha = if (canRedo) 255 else 100
+            }
+        }
+    }
+
     private fun initTreeView() {
+        binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
         val recyclerView = binding.included.recycler
         val currentAdapter = recyclerView.adapter as? TreeViewAdapter
         val expandedPaths = mutableSetOf<String>()
@@ -225,16 +374,31 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }
 
+        val iconProvider = object : TreeIconProvider {
+            override fun getIconForFile(file: File): Drawable? {
+                return getFileIcon(file)
+            }
+
+            override fun getIconForFolder(file: File, isExpanded: Boolean): Drawable? {
+                val resId = if (isExpanded) R.drawable.ic_filled_open_folder else R.drawable.ic_filled_folder
+                return ContextCompat.getDrawable(requireContext(), resId)
+            }
+        }
+
         val nodes = project.root.toNodeList()
-        val adapter = TreeViewAdapter(requireContext(), nodes)
+        val adapter = TreeViewAdapter(requireContext(), nodes, iconProvider)
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         recyclerView.adapter = adapter
         
         adapter.setOnItemClickListener(object : OnTreeItemClickListener {
             override fun onItemClick(view: View, position: Int) {
-                val file = adapter.getNodes()[position].value
-                if (file.exists().not() || file.isDirectory) return
-                if (file.isFile) {
+                val node = adapter.getNodes()[position]
+                val file = node.value
+                
+                if (file.isDirectory) {
+                    // Update lock state after expansion/collapse
+                    updateDrawerLockState()
+                } else if (file.exists() && file.isFile) {
                     fileViewModel.addFile(file)
                 }
             }
@@ -246,6 +410,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         // Restore expanded state
         restoreExpandedState(adapter, expandedPaths)
+
+
+        // restore update drawer lock state
+        recyclerView.post {
+            updateDrawerLockState()
+        }
     }
 
     private fun restoreExpandedState(adapter: TreeViewAdapter, expandedPaths: Set<String>) {
@@ -273,12 +443,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     }
 
     override fun onDestroyView() {
-        editorAdapter.saveAll()
-
+        // Don't call exitProject() here because ganti tema triggers onDestroyView
+        // We only save to index but don't clear ViewModel
         fileIndex.putFiles(
             binding.pager.currentItem, fileViewModel.files.value!!
         )
-
         fileViewModel.files.removeObservers(viewLifecycleOwner)
         fileViewModel.currentPosition.removeObservers(viewLifecycleOwner)
         super.onDestroyView()
@@ -291,14 +460,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     private fun configureToolbar() {
         binding.toolbar.apply {
-            title = project.name
+            title = "" // Clear project name from toolbar
             setNavigationOnClickListener {
                 editorAdapter.saveAll()
                 binding.drawer.open()
             }
 
             if (Prefs.experimentsEnabled) {
-                menu.findItem(R.id.action_chat).isVisible = true
+                menu.findItem(R.id.action_chat)?.isVisible = true
             }
 
             setOnMenuItemClickListener { item ->
@@ -329,11 +498,13 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
                     R.id.undo -> {
                         getCurrentFragment()?.editor?.undo()
+                        updateUndoRedoStatus()
                         true
                     }
 
                     R.id.redo -> {
                         getCurrentFragment()?.editor?.redo()
+                        updateUndoRedoStatus()
                         true
                     }
 
@@ -348,34 +519,81 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         val sheet = BottomSheetDialog(requireContext())
                         val binding = NewDependencyBinding.inflate(layoutInflater)
                         binding.apply {
+                            dependency.editText?.apply {
+                                setSingleLine()
+                                imeOptions = EditorInfo.IME_ACTION_DONE
+                                setOnEditorActionListener { v, actionId, _ ->
+                                    if (actionId == EditorInfo.IME_ACTION_DONE) {
+                                        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                        imm.hideSoftInputFromWindow(v.windowToken, 0)
+                                        download.performClick()
+                                        true
+                                    } else false
+                                }
+                            }
+
                             download.setOnClickListener {
-                                val newOut = object : OutputStream() {
-                                    override fun write(b: Int) {
+                                val dependencyText = dependency.editText?.text.toString().trim()
+                                if (dependencyText.isEmpty()) return@setOnClickListener
+
+                                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                imm.hideSoftInputFromWindow(dependency.editText?.windowToken, 0)
+
+                                eventReciever = object : EventReciever() {
+
+                                    private fun log(text: String) {
                                         lifecycleScope.launch(Dispatchers.Main) {
-                                            val text = editor.text
-                                            text.insert(
-                                                text.lineCount - 1,
-                                                text.getColumnCount(text.lineCount - 1),
-                                                b.toChar().toString()
-                                            )
+                                            editor.appendText(text + "\n")
                                         }
                                     }
-                                }
-                                System.setOut(PrintStream(newOut))
 
-                                val dependency = dependency.editText?.text.toString().trim()
-                                if (dependency.isNotEmpty()) {
-                                    val arr = dependency.split(":")
-                                    lifecycleScope.launch(Dispatchers.IO) {
+                                    override fun onDownloadStart(artifact: Artifact) {
+                                        log("⬇️ Start download: $artifact")
+                                    }
+
+                                    override fun onDownloadEnd(artifact: Artifact) {
+                                        log("✅ Finished: $artifact")
+                                    }
+
+                                    override fun onDownloadError(artifact: Artifact, error: Throwable) {
+                                        log("❌ Error: ${error.message}")
+                                    }
+
+                                    override fun onResolving(artifact: Artifact, dependency: Artifact) {
+                                        log("🔍 Resolving $dependency")
+                                    }
+
+                                    override fun onResolutionComplete(artifact: Artifact) {
+                                        log("✔ Resolved ${artifact.artifactId}")
+                                    }
+
+                                    override fun onDependenciesNotFound(artifact: Artifact) {
+                                        log("⚠ No dependencies for ${artifact.artifactId}")
+                                    }
+
+                                    override fun onInvalidPOM(artifact: Artifact) {
+                                        log("❌ Invalid POM for ${artifact.artifactId}")
+                                    }
+                                }
+
+                                val arr = dependencyText.split(":")
+                                if (arr.size < 3) {
+                                    Toast.makeText(context, "Invalid format. Use group:artifact:version", Toast.LENGTH_SHORT).show()
+                                    return@setOnClickListener
+                                }
+
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    try {
                                         repositories.apply s@{
                                             if (Prefs.repositories.isBlank()) {
                                                 return@s
                                             }
                                             clear()
 
-                                            Prefs.repositories.lines().forEach {
-                                                val split = it.split(":")
-                                                if (split.size != 2) return@forEach
+                                            Prefs.repositories.lines().forEach { line ->
+                                                if (line.isBlank()) return@forEach
+                                                val split = line.split(":", limit = 2)
+                                                if (split.size < 2) return@forEach
 
                                                 val name = split[0].trim()
                                                 val url = split[1].trim()
@@ -389,29 +607,31 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                         val artifact = try {
                                             getArtifact(arr[0], arr[1], arr[2])
                                         } catch (e: Exception) {
-                                            e.printStackTrace()
                                             withContext(Dispatchers.Main) {
-                                                binding.editor.setText(e.stackTraceToString())
+                                                editor.appendText("\nError: ${e.message}\n")
                                             }
                                             return@launch
                                         }
                                         if (artifact == null) {
                                             withContext(Dispatchers.Main) {
-                                                binding.editor.setText("Cannot find library")
+                                                editor.appendText("\nError: Cannot find library\n")
                                             }
                                             return@launch
                                         }
                                         try {
                                             artifact.downloadArtifact(project.libDir)
                                             project.libDir.walk().filter { it.extension != "jar" }.forEach { it.delete() }
-                                            sheet.dismiss()
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
                                             withContext(Dispatchers.Main) {
-                                                println(e.stackTraceToString())
+                                                Toast.makeText(requireContext(), "Dependency downloaded successfully", Toast.LENGTH_SHORT).show()
+                                                sheet.dismiss()
                                             }
-                                            return@launch
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) {
+                                                editor.appendText("\nException: ${e.message}\n")
+                                            }
                                         }
+                                    } finally {
+                                        eventReciever = EventReciever()
                                     }
                                 }
                             }
@@ -485,10 +705,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                                 arg += c
                                             } else {
                                                 if (arg.isNotEmpty()) {
-                                                    return@forEach
+                                                    argList.add(arg)
+                                                    arg = ""
                                                 }
-                                                argList.add(arg)
-                                                arg = ""
                                             }
                                         }
 
@@ -614,7 +833,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
                 if (formatted.isNotEmpty() && formatted != text) {
                     withContext(Dispatchers.Main) {
-                        content.replace(0, content.length, formatted)
+                        // FIX: Use line-column based replace to avoid StringIndexOutOfBoundsException
+                        // Some versions of SORA Content might have a safe replace or we use full range
+                        val endLine = content.lineCount - 1
+                        val endColumn = content.getColumnCount(endLine)
+                        content.replace(0, 0, endLine, endColumn, formatted)
+                        updateUndoRedoStatus()
                     }
                 }
             } catch (e: Exception) {
@@ -837,7 +1061,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                 if (file == project.root) {
                                     project.root = newFile
                                     this.binding.included.projectName.text = name
-                                    this.binding.toolbar.title = name
+                                    this.binding.toolbar.title = "" // Keep title empty after rename
                                     projectViewModel.loadProjects()
                                 }
                                 

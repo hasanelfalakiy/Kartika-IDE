@@ -15,10 +15,12 @@ import android.util.Log
 import android.view.View
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
 import com.andihasan7.kartikaide.R
 import com.andihasan7.kartikaide.databinding.FragmentCompileInfoBinding
 import com.andihasan7.kartikaide.editor.EditorInputStream
 import com.andihasan7.kartikaide.extension.setFont
+import com.andihasan7.kartikaide.util.PreferenceKeys
 import com.andihasan7.kartikaide.util.ProjectHandler
 import com.andihasan7.kartikaide.util.makeDexReadOnlyIfNeeded
 import com.android.tools.smali.dexlib2.Opcodes
@@ -28,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.OutputStream
 import java.io.PrintStream
 import java.lang.reflect.Method
@@ -76,6 +79,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         binding.infoEditor.apply {
             setEditorLanguage(TextMateLanguage.create("source.build", false))
             setFont()
+            isEditable = true
         }
 
         binding.toolbar.title = "Running ${project.name}"
@@ -91,7 +95,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
     fun checkClasses() {
         val dex = project.binDir.resolve("classes.dex")
         if (!dex.exists()) {
-            binding.infoEditor.setText("classes.dex not found")
+            binding.infoEditor.setText("Error: classes.dex not found")
             return
         }
 
@@ -103,7 +107,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                 df
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    binding.infoEditor.setText("Error reading dex: ${e.message}")
+                    binding.infoEditor.setText("Error: failed to read dex: ${e.message}")
                 }
                 return@launch
             }
@@ -119,7 +123,7 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
 
             withContext(Dispatchers.Main) {
                 if (mainClasses.isEmpty()) {
-                    binding.infoEditor.setText("No classes with main method found")
+                    binding.infoEditor.setText("Error: No classes with main method found")
                     return@withContext
                 }
 
@@ -145,13 +149,31 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                 if (index != null) {
                     runClass(index)
                 } else {
-                    binding.infoEditor.setText("Could not determine which class to run")
+                    binding.infoEditor.setText("Warning: Could not determine which class to run")
                 }
             }
         }
     }
 
     fun runClass(className: String) = lifecycleScope.launch(Dispatchers.IO) {
+        // Set properti SECEPAT MUNGKIN, sebelum memuat kelas apa pun
+        val projectRootPath = project.root.absolutePath
+        
+        // Simpan state lama
+        val props = System.getProperties()
+        val oldUserDir = props.getProperty("user.dir")
+        val oldProjectDir = props.getProperty("project.dir")
+        val oldTmpDir = props.getProperty("java.io.tmpdir")
+        val oldProjectRoot = props.getProperty("PROJECT_ROOT")
+
+        // Suntikkan Properti Kustom yang aman dan stabil di Android
+        props.setProperty("user.dir", projectRootPath)
+        props.setProperty("project.dir", projectRootPath)
+        props.setProperty("PROJECT_ROOT", projectRootPath)
+        
+        if (!project.cacheDir.exists()) project.cacheDir.mkdirs()
+        props.setProperty("java.io.tmpdir", project.cacheDir.absolutePath)
+
         val inputStream = EditorInputStream(binding.infoEditor)
         val systemOut = PrintStream(object : OutputStream() {
             private val bos = ByteArrayOutputStream()
@@ -171,11 +193,9 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                 bos.reset()
                 lifecycleScope.launch(Dispatchers.Main) {
                     val text = binding.infoEditor.text
-                    text.insert(
-                        text.lineCount - 1,
-                        text.getColumnCount(text.lineCount - 1),
-                        s
-                    )
+                    val line = text.lineCount - 1
+                    val column = text.getColumnCount(line)
+                    text.insert(line, column, s)
                     inputStream.updateOffset(text.length)
                 }
             }
@@ -190,36 +210,41 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
         System.setErr(systemOut)
         System.setIn(inputStream)
 
+        val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+        if (prefs.getBoolean(PreferenceKeys.CONSOLE_SHOW_ROOT_INFO, true)) {
+            systemOut.println("Info: Project Root -> $projectRootPath")
+            systemOut.println("Info: PROJECT_ROOT is initialized for this session.")
+            systemOut.println(" ")
+        }
+
         val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
 
-        // 1. Load project classes
         val mainDex = project.binDir.resolve("classes.dex")
         if (mainDex.exists()) {
             loader.loadDex(makeDexReadOnlyIfNeeded(mainDex))
         }
 
-        // 2. Load library dex files
         project.buildDir.resolve("libs").listFiles()?.filter { it.extension == "dex" }?.forEach {
             loader.loadDex(makeDexReadOnlyIfNeeded(it))
         }
         
-        // 3. ADD RESOURCE SUPPORT: Add the resources directory
         if (project.resourcesDir.exists()) {
             loader.addResourceDir(project.resourcesDir)
         }
 
-        // 4. Set context class loader for libraries that use it (crucial for resource loading)
         Thread.currentThread().contextClassLoader = loader.loader
 
         runCatching {
             loader.loader.loadClass(className.replace('/', '.'))
         }.onSuccess { clazz ->
             isRunning = true
-            System.setProperty("project.dir", project.root.absolutePath)
-            
             val mainMethod = findMainMethod(clazz)
             
             if (mainMethod != null) {
+                // Pastikan properti tetap ada tepat sebelum pemanggilan main
+                System.setProperty("PROJECT_ROOT", projectRootPath)
+                System.setProperty("user.dir", projectRootPath)
+                
                 try {
                     if (Modifier.isStatic(mainMethod.modifiers)) {
                         if (mainMethod.parameterCount == 1) {
@@ -237,16 +262,32 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                     }
                 } catch (e: Throwable) {
                     val cause = e.cause ?: e
-                    systemOut.println("\n--- Execution Error ---\n")
+                    if (cause is java.io.FileNotFoundException && (cause.message?.contains("EROFS") == true || cause.message?.contains("Permission denied") == true)) {
+                        val fileName = cause.message?.substringBefore(":")?.trim() ?: "file"
+                        systemOut.println("\nError:--- ANDROID RESTRICTION ---")
+                        systemOut.println("Android blocks relative writes to root '/'.")
+                        systemOut.println("\nFIX: Use the injected PROJECT_ROOT property in your code:")
+                        systemOut.println("val root = System.getProperty(\"PROJECT_ROOT\")")
+                        systemOut.println("val file = File(root, \"$fileName\")")
+                        systemOut.println("\nThis will dynamically use your current project folder.\n")
+                    }
+                    systemOut.println("\nError: --- Execution Error ---\n")
                     cause.printStackTrace(systemOut)
                 }
             } else {
-                systemOut.println("No valid main method found in $className")
+                systemOut.println("Error: No valid main method found in $className")
             }
         }.onFailure { e ->
+            systemOut.println("Error: --- Execution Error ---")
             systemOut.println("Error loading class $className: ${e.message}")
             e.printStackTrace(systemOut)
         }.also {
+            // Restore original environment
+            System.setProperty("user.dir", oldUserDir ?: "/")
+            System.setProperty("project.dir", oldProjectDir ?: "")
+            System.setProperty("java.io.tmpdir", oldTmpDir ?: "/tmp")
+            if (oldProjectRoot != null) System.setProperty("PROJECT_ROOT", oldProjectRoot) else System.clearProperty("PROJECT_ROOT")
+
             systemOut.flush()
             System.setOut(oldOut)
             System.setErr(oldErr)

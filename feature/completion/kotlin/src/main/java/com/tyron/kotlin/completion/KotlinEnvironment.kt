@@ -7,9 +7,7 @@
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
- *  CodeAssist is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  CodeAssist is distributed in the hope that it under the terms of the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
@@ -32,14 +30,13 @@ import com.tyron.kotlin.completion.util.logTime
 import com.tyron.kotlin_completion.util.PsiUtils
 import io.github.rosemoe.sora.lang.completion.CompletionItem
 import io.github.rosemoe.sora.lang.completion.CompletionItemKind
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.editor.EditorCompletionItem
 import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.FileUtil
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.DefaultLogger
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.extensions.ExtensionPoint
 import com.intellij.openapi.extensions.Extensions
 import com.intellij.openapi.progress.ProcessCanceledException
@@ -80,7 +77,6 @@ import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
 import org.jetbrains.kotlin.descriptors.VariableDescriptor
 import org.jetbrains.kotlin.idea.FrontendInternals
-import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.lexer.KtKeywordToken
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.load.kotlin.KotlinBinaryClassCache
@@ -229,6 +225,10 @@ data class KotlinEnvironment(
     var currentItemCount = 0
 
     fun complete(file: KotlinFile, line: Int, character: Int): List<CompletionItem> {
+        // Ensure extension points are registered for this project area specifically
+        // sometimes they are lost when switching between files/tabs
+        registerExtensionPoints(kotlinEnvironment.project.extensionArea)
+        
         currentItemCount = 0
         val originalFile = file.kotlinFile
         val inserted = file.insert(COMPLETION_SUFFIX, line, character)
@@ -256,7 +256,7 @@ data class KotlinEnvironment(
                 Log.d("KotlinEnvironment", "No element found at $line:$character")
             }
 
-            val keywords = keywordsCompletionVariants(KtTokens.KEYWORDS, prefix)
+            val keywords = keywordsCompletionVariants(prefix)
             items.addAll(keywords)
             
             val totalItems = items.sortedWith { a, b ->
@@ -336,7 +336,7 @@ data class KotlinEnvironment(
 
         val colonPosition = completionText.indexOf(":")
         if (colonPosition != -1) {
-            completionText = completionText.substring(0, colonPosition - 1)
+            completionText = completionText.take(colonPosition - 1)
         }
 
         var tailName = tail
@@ -363,7 +363,6 @@ data class KotlinEnvironment(
     }
 
     private fun keywordsCompletionVariants(
-        keywords: TokenSet,
         prefix: String
     ): List<CompletionItem> {
         // Return an empty list if the prefix is empty
@@ -372,7 +371,7 @@ data class KotlinEnvironment(
         val result = mutableListOf<CompletionItem>()
 
         // Iterate over the keywords and add the ones that match the prefix to the result
-        for (token in keywords.types) {
+        for (token in KtTokens.KEYWORDS.types) {
             if (token is KtKeywordToken && token.value.startsWith(prefix, ignoreCase = true)) {
                 result.add(
                     EditorCompletionItem(
@@ -494,13 +493,15 @@ data class KotlinEnvironment(
                         }
                     )
                 }
+                
+                val cp = componentProvider!!
                 logTime("analyzeDeclarations") {
-                    analysis = componentProvider!!
+                    analysis = cp
                         .getService(LazyTopDownAnalyzer::class.java)
                         .analyzeDeclarations(TopDownAnalysisMode.TopLevelDeclarations, files)
                 }
 
-                val moduleDescriptor = componentProvider!!.getService(ModuleDescriptor::class.java)
+                val moduleDescriptor = cp.getService(ModuleDescriptor::class.java)
                 AnalysisHandlerExtension.getInstances(project).find {
                     it.analysisCompleted(
                         project,
@@ -512,7 +513,7 @@ data class KotlinEnvironment(
 
                 return@analyzeAndReport AnalysisResult.success(
                     bindingTrace.bindingContext,
-                    componentProvider!!.getService(ModuleDescriptor::class.java)
+                    moduleDescriptor
                 )
             }
             
@@ -529,7 +530,7 @@ data class KotlinEnvironment(
             
             // KotlinFrontEndException can be common with invalid/incomplete code, log as warning
             if (e is KotlinFrontEndException || e.toString().contains("KotlinFrontEndException")) {
-                Log.w("KotlinEnvironment", "Kotlin analysis failed (FrontEndException): ${e.message}")
+                Log.w("KotlinEnvironment", "Kotlin analysis failed (FrontEndException): ${e.message}", e.cause ?: e)
             } else {
                 Log.e("KotlinEnvironment", "Exception during analysisOf", e)
             }
@@ -628,7 +629,7 @@ data class KotlinEnvironment(
                         }
         }
 
-    private inner class VisibilityFilter(
+    private class VisibilityFilter(
         private val inDescriptor: DeclarationDescriptor,
         private val bindingContext: BindingContext,
         private val element: KtElement,
@@ -674,10 +675,150 @@ data class KotlinEnvironment(
                 "kotlin.reflect.jvm.internal"
             )
 
+        private fun suppressLoggerErrors() {
+            try {
+                val factoryField = Logger::class.java.getDeclaredField("ourFactory")
+                factoryField.isAccessible = true
+                val originalFactory = factoryField.get(null) as? Logger.Factory
+                
+                val newFactory = object : Logger.Factory {
+                    override fun getLoggerInstance(category: String): Logger {
+                        val baseLogger = originalFactory?.getLoggerInstance(category) 
+                            ?: DefaultLogger(category)
+                        
+                        return object : DefaultLogger(category) {
+                            override fun isDebugEnabled(): Boolean = baseLogger.isDebugEnabled
+                            override fun debug(message: String?) = baseLogger.debug(message)
+                            override fun debug(t: Throwable?) = baseLogger.debug(t)
+                            override fun debug(message: String?, t: Throwable?) = baseLogger.debug(message, t)
+                            override fun info(message: String?) = baseLogger.info(message)
+                            override fun info(message: String?, t: Throwable?) = baseLogger.info(message, t)
+                            override fun warn(message: String?, t: Throwable?) = baseLogger.warn(message, t)
+                            override fun error(message: String?, t: Throwable?, vararg details: String?) {
+                                if (message?.contains("Listeners not allowed") == true || 
+                                    message?.contains("Missing extension point") == true ||
+                                    message?.contains("KotlinBinaryClassCache") == true) {
+                                    return
+                                }
+                                baseLogger.error(message, t, *details)
+                            }
+                        }
+                    }
+                }
+                factoryField.set(null, newFactory)
+                Log.i("KotlinEnvironment", "Injected custom Logger factory to suppress EP errors")
+            } catch (e: Throwable) {
+                Log.e("KotlinEnvironment", "Failed to suppress logger errors", e)
+            }
+        }
+
+        private fun registerExtensionPoints(additionalArea: com.intellij.openapi.extensions.ExtensionsArea? = null) {
+            val areas = mutableSetOf<com.intellij.openapi.extensions.ExtensionsArea>()
+            try {
+                @Suppress("DEPRECATION")
+                Extensions.getRootArea()?.let { areas.add(it) }
+            } catch (e: Throwable) {}
+            
+            try {
+                ApplicationManager.getApplication()?.extensionArea?.let { areas.add(it) }
+            } catch (e: Throwable) {}
+
+            additionalArea?.let { areas.add(it) }
+
+            for (area in areas) {
+                registerEP(area, "com.intellij.psi.classFileDecompiler", "com.intellij.psi.ClassFileDecompiler")
+                registerEP(area, "com.intellij.psi.treeCopyHandler", "com.intellij.psi.impl.PsiTreeCopyHandler")
+                registerEP(area, "com.intellij.lang.meta.documentationKindProvider", "com.intellij.lang.meta.DocumentationKindProvider")
+                registerEP(area, "com.intellij.openapi.fileTypes.FileTypeDetector", "com.intellij.openapi.fileTypes.FileTypeDetector")
+                registerEP(area, "com.intellij.lang.braceMatcher", "com.intellij.lang.PairedBraceMatcher")
+                registerEP(area, "com.intellij.psi.clsCustomNavigationPolicy", "com.intellij.psi.impl.compiled.ClsCustomNavigationPolicy")
+                registerEP(area, "com.intellij.psi.augmentProvider", "com.intellij.psi.augment.PsiAugmentProvider")
+                registerEP(area, "com.intellij.psi.shortNamesCache", "com.intellij.psi.search.PsiShortNamesCache")
+            }
+        }
+
+        private fun registerEP(area: com.intellij.openapi.extensions.ExtensionsArea, name: String, className: String) {
+            try {
+                if (area.hasExtensionPoint(name)) {
+                    val ep = area.getExtensionPoint<Any>(name)
+                    forceAllowListeners(ep)
+                } else {
+                    try {
+                        val method = area.javaClass.methods.find {
+                            it.name == "registerExtensionPoint" && it.parameterCount == 4 &&
+                                    it.parameterTypes[3] == Boolean::class.javaPrimitiveType
+                        }
+                        if (method != null) {
+                            method.invoke(area, name, className, ExtensionPoint.Kind.INTERFACE, true)
+                            Log.i("KotlinEnvironment", "Registered $name with allowListeners=true in area ${area.javaClass.simpleName}")
+                        } else {
+                            area.registerExtensionPoint(name, className, ExtensionPoint.Kind.INTERFACE)
+                            forceAllowListeners(area.getExtensionPoint<Any>(name))
+                        }
+                    } catch (e: Throwable) {
+                        Log.e("KotlinEnvironment", "Failed to register EP $name in area ${area.javaClass.simpleName}", e)
+                    }
+                }
+            } catch (e: Throwable) {
+                Log.e("KotlinEnvironment", "Error in registerEP for $name in area ${area.javaClass.simpleName}", e)
+            }
+        }
+
+        private fun forceAllowListeners(ep: Any) {
+            try {
+                var current: Class<*>? = ep.javaClass
+                while (current != null) {
+                    for (field in current.declaredFields) {
+                        if (field.name == "myAllowListeners" || field.name == "allowListeners") {
+                            field.isAccessible = true
+                            field.set(ep, true)
+                        }
+                    }
+                    current = current.superclass
+                }
+            } catch (e: Throwable) {}
+        }
+
+        private fun registerKotlinServices(project: com.intellij.openapi.project.Project) {
+            val application = ApplicationManager.getApplication()
+            if (application != null) {
+                registerServiceSafe(application, KotlinBinaryClassCache::class.java, KotlinBinaryClassCache())
+            }
+            registerServiceSafe(project, KotlinBinaryClassCache::class.java, KotlinBinaryClassCache())
+        }
+        
+        private fun registerServiceSafe(container: Any, serviceInterface: Class<*>, instance: Any) {
+            try {
+                val getServiceMethod = container.javaClass.getMethod("getService", Class::class.java)
+                if (getServiceMethod.invoke(container, serviceInterface) != null) return
+                
+                val registerMethod = container.javaClass.methods.find { 
+                    it.name == "registerService" && it.parameterCount >= 2 && 
+                    it.parameterTypes[0] == Class::class.java 
+                }
+                
+                if (registerMethod != null) {
+                    registerMethod.isAccessible = true
+                    val args = arrayOfNulls<Any>(registerMethod.parameterCount)
+                    args[0] = serviceInterface
+                    args[1] = if (registerMethod.parameterTypes[1].isInstance(instance)) instance else instance.javaClass
+                    if (registerMethod.parameterCount > 2) args[2] = false
+                    registerMethod.invoke(container, *args)
+                    Log.i("KotlinEnvironment", "Registered ${serviceInterface.simpleName} service in ${container.javaClass.simpleName}")
+                }
+            } catch (e: Exception) {
+                Log.e("KotlinEnvironment", "Failed to register service ${serviceInterface.name}", e)
+            }
+        }
+
         fun with(classpath: List<File>): KotlinEnvironment {
+            suppressLoggerErrors()
             setIdeaIoUseFallback()
             setupIdeaStandaloneExecution()
             
+            // Register extension points BEFORE creating the environment
+            registerExtensionPoints()
+
             val disposable = Disposer.newDisposable()
 
             val config = CompilerConfiguration().apply {
@@ -699,17 +840,17 @@ data class KotlinEnvironment(
                         CommonConfigurationKeys.MODULE_NAME,
                         JvmProtoBufUtil.DEFAULT_MODULE_NAME
                     )
-                    // Use binary reading to avoid decompiler issues on Android.
-                    put(JVMConfigurationKeys.USE_PSI_CLASS_FILES_READING, false)
+                    // Fix: Use PSI instead of binary reading to avoid KotlinBinaryClassCache NPE on Android.
+                    put(JVMConfigurationKeys.USE_PSI_CLASS_FILES_READING, true)
                     put(JVMConfigurationKeys.VALIDATE_IR, false)
                     put(JVMConfigurationKeys.DISABLE_CALL_ASSERTIONS, true)
                     put(JVMConfigurationKeys.DISABLE_PARAM_ASSERTIONS, true)
                     put(JVMConfigurationKeys.DISABLE_RECEIVER_ASSERTIONS, true)
-                    put(CommonConfigurationKeys.INCREMENTAL_COMPILATION, false)
+                    put(CommonConfigurationKeys.INCREMENTAL_COMPILATION, Prefs.incrementalCompilation)
                     put(JVMConfigurationKeys.USE_FAST_JAR_FILE_SYSTEM, Prefs.useFastJarFs)
                     // Disable FIR for now as we are using FE1.0 APIs (BindingContext, etc.)
                     put(CommonConfigurationKeys.USE_FIR, false)
-                    put(CommonConfigurationKeys.USE_LIGHT_TREE, false)
+                    put(CommonConfigurationKeys.USE_LIGHT_TREE, Prefs.useLightTree)
                     put(CommonConfigurationKeys.PARALLEL_BACKEND_THREADS, 10)
                     put(CommonConfigurationKeys.USE_FIR_EXTENDED_CHECKERS, false)
 
@@ -749,60 +890,11 @@ data class KotlinEnvironment(
                 configFiles = EnvironmentConfigFiles.JVM_CONFIG_FILES
             )
 
-            // Fix: Initialize KotlinBinaryClassCache manually if not already present in the application
-            // We do this after creating the environment to ensure ApplicationManager.getApplication() is initialized
-            val application = ApplicationManager.getApplication()
-            if (application != null) {
-                if (application.getService(KotlinBinaryClassCache::class.java) == null) {
-                    try {
-                        val componentManagerClass = Class.forName("com.intellij.openapi.components.ComponentManager")
-                        val registerServiceMethod = try {
-                            componentManagerClass.getDeclaredMethod("registerService", Class::class.java, Class::class.java)
-                        } catch (e: Exception) {
-                            null
-                        }
-                        
-                        if (registerServiceMethod != null) {
-                            registerServiceMethod.isAccessible = true
-                            registerServiceMethod.invoke(application, KotlinBinaryClassCache::class.java, KotlinBinaryClassCache::class.java)
-                            Log.i("KotlinEnvironment", "Registered KotlinBinaryClassCache application service")
-                        }
-                    } catch (e: Exception) {
-                        Log.e("KotlinEnvironment", "Failed to register KotlinBinaryClassCache service", e)
-                    }
-                }
-                
-                // Fix: Register com.intellij.psi.classFileDecompiler extension point if it doesn't exist
-                // Use dynamic registration to try and allow listeners/iteration without errors
-                val rootArea = Extensions.getRootArea()
-                val epName = "com.intellij.psi.classFileDecompiler"
-                if (!rootArea.hasExtensionPoint(epName)) {
-                    try {
-                        val rootAreaClass = rootArea.javaClass
-                        val registerMethod = try {
-                            rootAreaClass.getDeclaredMethod(
-                                "registerExtensionPoint",
-                                String::class.java,
-                                String::class.java,
-                                ExtensionPoint.Kind::class.java,
-                                Boolean::class.javaPrimitiveType
-                            )
-                        } catch (e: Exception) {
-                            null
-                        }
+            // Register extension points again AFTER creating the environment, including Project area
+            registerExtensionPoints(kotlinCoreEnv.project.extensionArea)
 
-                        if (registerMethod != null) {
-                            registerMethod.invoke(rootArea, epName, "com.intellij.psi.ClassFileDecompiler", ExtensionPoint.Kind.INTERFACE, true)
-                            Log.i("KotlinEnvironment", "Registered $epName extension point (dynamic)")
-                        } else {
-                            rootArea.registerExtensionPoint(epName, "com.intellij.psi.ClassFileDecompiler", ExtensionPoint.Kind.INTERFACE)
-                            Log.i("KotlinEnvironment", "Registered $epName extension point (legacy)")
-                        }
-                    } catch (e: Exception) {
-                        Log.e("KotlinEnvironment", "Failed to register $epName extension point", e)
-                    }
-                }
-            }
+            // Register services AFTER creating the environment
+            registerKotlinServices(kotlinCoreEnv.project)
 
             return KotlinEnvironment(kotlinCoreEnv)
         }

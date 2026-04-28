@@ -18,7 +18,7 @@ object NavigationProvider {
         val navigationItems = mutableListOf<NavigationItem>()
         val name = buildString {
             append(javaFile.name)
-            if (javaFile.superClass != null) {
+            if (javaFile.superClass != null && javaFile.superClass?.qualifiedName != "java.lang.Object") {
                 append(" : ")
                 append(javaFile.superClass?.name)
             }
@@ -27,15 +27,18 @@ object NavigationProvider {
                 append(javaFile.implementsList?.referenceElements?.joinToString(", ") { it.text })
             }
         }
+        
+        // Use textRange for absolute offsets in the file
         val item = ClassNavigationKind(
             name,
-            javaFile.modifierList!!.text,
-            javaFile.textOffset,
-            javaFile.textOffset + javaFile.textLength,
+            javaFile.modifierList?.text ?: "",
+            javaFile.textRange.startOffset,
+            javaFile.textRange.endOffset,
             d
         )
         if (d == 0) navigationItems.add(item)
         d++
+        
         javaFile.children.forEach { child ->
             when (child) {
                 is PsiMethod -> {
@@ -47,8 +50,8 @@ object NavigationProvider {
                         it.typeElement?.text ?: "void"
                     } + ") : $returnType"
 
-                    val startPosition = child.textOffset
-                    val endPosition = startPosition + child.textLength
+                    val startPosition = child.textRange.startOffset
+                    val endPosition = child.textRange.endOffset
 
                     val methodItem =
                         MethodNavigationItem(
@@ -63,55 +66,22 @@ object NavigationProvider {
 
                 is PsiField -> {
                     val modifiers = child.modifierList ?: return@forEach
-                    val startPosition = child.textOffset
+                    val startPosition = child.textRange.startOffset
+                    val endPosition = child.textRange.endOffset
                     val type = child.typeElement?.text ?: "void"
                     val fieldName = child.name + " : $type"
 
                     val fieldItem =
-                        FieldNavigationItem(fieldName, modifiers.text, startPosition, depth = d)
+                        FieldNavigationItem(fieldName, modifiers.text, startPosition, endPosition, d)
                     navigationItems.add(fieldItem)
                 }
 
                 is PsiClass -> {
-                    val modifiers = child.modifierList
-                    val innerClassName = buildString {
-                        append(javaFile.name)
-                        if (javaFile.superClass != null) {
-                            append(" : ")
-                            append(javaFile.superClass?.name)
-                        }
-                        if (javaFile.implementsList != null && javaFile.implementsList!!.referenceElements.isNotEmpty()) {
-                            append(" implements ")
-                            append(javaFile.implementsList?.referenceElements?.joinToString(", ") { it.text })
-                        }
-                    }
-                    val startPosition = child.textOffset
-                    val endPosition = startPosition + child.textLength
-
-                    val innerClassItem =
-                        ClassNavigationKind(
-                            innerClassName,
-                            modifiers!!.text,
-                            startPosition,
-                            endPosition,
-                            d
-                        )
-                    navigationItems.add(innerClassItem)
-                    navigationItems.addAll(extractMethodsAndFields(child, d + 1))
+                    val innerItems = extractMethodsAndFields(child, d)
+                    navigationItems.addAll(innerItems)
                 }
             }
         }
-
-        """
-            class Main {
-                public void main() {}
-            	public static void k(String[] args) {}
-            	private class Test {
-            	private String h = "hi";
-            	public void j() {}
-            	}
-            }
-        """.trimIndent()
 
         return navigationItems
     }
@@ -139,7 +109,7 @@ object NavigationProvider {
         override val name: String,
         override val modifiers: String,
         override val startPosition: Int,
-        override val endPosition: Int = startPosition + name.length,
+        override val endPosition: Int,
         override val depth: Int,
         override val kind: NavigationItemKind = NavigationItemKind.FIELD,
     ) : NavigationItem

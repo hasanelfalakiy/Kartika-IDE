@@ -10,17 +10,15 @@ package com.andihasan7.kartikaide.compile
 import android.util.Log
 import com.andihasan7.kartikaide.App
 import com.andihasan7.kartikaide.R
-import andihasan7.kartikaide.build.BuildReporter
-import andihasan7.kartikaide.build.Task
-import andihasan7.kartikaide.build.dex.D8Task
-import andihasan7.kartikaide.build.java.JarTask
-import andihasan7.kartikaide.build.java.JavaCompileTask
-import andihasan7.kartikaide.build.kotlin.KotlinCompiler
-import com.andihasan7.kartikaide.util.CommonUtils
+import andihasan7.kartikaide.buildtools.BuildReporter
+import andihasan7.kartikaide.buildtools.Task
+import andihasan7.kartikaide.buildtools.dex.D8Task
+import andihasan7.kartikaide.buildtools.java.JarTask
+import andihasan7.kartikaide.buildtools.java.JavaCompileTask
+import andihasan7.kartikaide.buildtools.kotlin.KotlinCompiler
 import andihasan7.kartikaide.project.Project
 import com.intellij.openapi.application.ApplicationManager
 import org.jetbrains.kotlin.load.kotlin.KotlinBinaryClassCache
-import java.io.File
 
 /**
  * A class responsible for compiling Java and Kotlin code and converting class files to dex format.
@@ -62,19 +60,26 @@ class Compiler(
                 val application = ApplicationManager.getApplication()
                 if (application != null) {
                     if (application.getService(KotlinBinaryClassCache::class.java) == null) {
-                        val componentManagerClass = Class.forName("com.intellij.openapi.components.ComponentManager")
-                        val registerServiceMethod = componentManagerClass.getDeclaredMethod(
-                            "registerService", 
-                            Class::class.java, 
-                            Class::class.java
-                        )
-                        registerServiceMethod.isAccessible = true
-                        registerServiceMethod.invoke(
-                            application, 
-                            KotlinBinaryClassCache::class.java, 
-                            KotlinBinaryClassCache::class.java
-                        )
-                        Log.i(TAG, "Successfully registered KotlinBinaryClassCache via reflection")
+                        // Fix: Use implementation class instead of interface to find registerService method
+                        // as it might not be defined in the ComponentManager interface in some versions.
+                        val registerServiceMethod = application.javaClass.methods.find {
+                            it.name == "registerService" && it.parameterCount >= 2 &&
+                                    it.parameterTypes[0] == Class::class.java &&
+                                    it.parameterTypes[1] == Class::class.java
+                        }
+
+                        if (registerServiceMethod != null) {
+                            registerServiceMethod.isAccessible = true
+                            val args = if (registerServiceMethod.parameterCount == 2) {
+                                arrayOf(KotlinBinaryClassCache::class.java, KotlinBinaryClassCache::class.java)
+                            } else {
+                                arrayOf(KotlinBinaryClassCache::class.java, KotlinBinaryClassCache::class.java, false)
+                            }
+                            registerServiceMethod.invoke(application, *args)
+                            Log.i(TAG, "Successfully registered KotlinBinaryClassCache via reflection")
+                        } else {
+                            Log.w(TAG, "registerService method not found on ${application.javaClass.name}")
+                        }
                     }
                 }
             } catch (e: Exception) {

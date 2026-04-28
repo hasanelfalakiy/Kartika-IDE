@@ -11,7 +11,7 @@ plugins {
 }
 
 android {
-    namespace = "org.cosmicide.build"
+    namespace = "andihasan7.kartikaide.buildtools"
     compileSdk = 36
 
     defaultConfig {
@@ -24,7 +24,6 @@ android {
         }
     }
 
-
     flavorDimensions += "environment"
 
     productFlavors {
@@ -36,6 +35,7 @@ android {
             dimension = "environment"
         }
     }
+
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -52,9 +52,11 @@ dependencies {
     implementation(projects.feature.project)
     implementation(projects.util)
     implementation(projects.feature.javaCompletion)
-    implementation("com.github.Cosmic-Ide.kotlinc-android:kotlinc-android:fce2462f00")
-    implementation("io.github.rosemoe:editor:0.24.5")
-    implementation("io.github.itsaky:nb-javac-android:17.0.0.3")
+
     implementation("com.google.guava:guava:33.4.8-android")
+    implementation("com.github.Cosmic-Ide.kotlinc-android:kotlinc-android:fce2462f00")
+    implementation("io.github.itsaky:nb-javac-android:17.0.0.3")
+    implementation("io.github.rosemoe:editor:0.24.5")
     implementation("com.android.tools:r8:8.9.35")
+    implementation("androidx.core:core-ktx:1.16.0")
 }

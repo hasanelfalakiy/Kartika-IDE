@@ -5,7 +5,15 @@
   ~ You should have received a copy of the GNU General Public License along with Cosmic IDE. If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="oval">
-    <solid android:color="?attr/colorPrimaryContainer" />
-</shape>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:autoMirrored="true"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+
+    <path
+        android:fillColor="?colorOnSurfaceVariant"
+        android:pathData="M120,840L120,760L840,760L840,840L120,840ZM440,680L440,600L840,600L840,680L440,680ZM440,520L440,440L840,440L840,520L440,520ZM440,360L440,280L840,280L840,360L440,360ZM120,200L120,120L840,120L840,200L120,200ZM120,640L120,320L280,480L120,640Z" />
+
+</vector>
