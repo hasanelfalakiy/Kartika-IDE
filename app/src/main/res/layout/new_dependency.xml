@@ -48,6 +48,8 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
                     android:inputType="textNoSuggestions"
+                    android:singleLine="true"
+                    android:imeOptions="actionDone"
                     android:textAppearance="?attr/textAppearanceBody1" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -61,7 +63,7 @@
             <com.andihasan7.kartikaide.editor.IdeEditor
                 android:id="@+id/editor"
                 android:layout_width="match_parent"
-                android:layout_height="250dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 app:lineNumberVisible="false" />
         </LinearLayout>

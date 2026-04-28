@@ -66,7 +66,10 @@ import dev.pranav.navigation.NavigationProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.cosmic.ide.dependency.resolver.api.Artifact
+import org.cosmic.ide.dependency.resolver.api.EventReciever
 import org.cosmic.ide.dependency.resolver.api.Repository
+import org.cosmic.ide.dependency.resolver.eventReciever
 import org.cosmic.ide.dependency.resolver.getArtifact
 import org.cosmic.ide.dependency.resolver.repositories
 import java.io.File
@@ -533,92 +536,102 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                 val dependencyText = dependency.editText?.text.toString().trim()
                                 if (dependencyText.isEmpty()) return@setOnClickListener
 
-                                val originalOut = System.out
-                                val originalErr = System.err
-                                
-                                val newOut = object : OutputStream() {
-                                    override fun write(b: Int) {
-                                        val char = b.toChar().toString()
+                                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                imm.hideSoftInputFromWindow(dependency.editText?.windowToken, 0)
+
+                                eventReciever = object : EventReciever() {
+
+                                    private fun log(text: String) {
                                         lifecycleScope.launch(Dispatchers.Main) {
-                                            editor.appendText(char)
+                                            editor.appendText(text + "\n")
                                         }
                                     }
-                                    
-                                    override fun write(b: ByteArray, off: Int, len: Int) {
-                                        val text = String(b, off, len)
-                                        lifecycleScope.launch(Dispatchers.Main) {
-                                            editor.appendText(text)
-                                        }
+
+                                    override fun onDownloadStart(artifact: Artifact) {
+                                        log("⬇️ Start download: $artifact")
+                                    }
+
+                                    override fun onDownloadEnd(artifact: Artifact) {
+                                        log("✅ Finished: $artifact")
+                                    }
+
+                                    override fun onDownloadError(artifact: Artifact, error: Throwable) {
+                                        log("❌ Error: ${error.message}")
+                                    }
+
+                                    override fun onResolving(artifact: Artifact, dependency: Artifact) {
+                                        log("🔍 Resolving $dependency")
+                                    }
+
+                                    override fun onResolutionComplete(artifact: Artifact) {
+                                        log("✔ Resolved ${artifact.artifactId}")
+                                    }
+
+                                    override fun onDependenciesNotFound(artifact: Artifact) {
+                                        log("⚠ No dependencies for ${artifact.artifactId}")
+                                    }
+
+                                    override fun onInvalidPOM(artifact: Artifact) {
+                                        log("❌ Invalid POM for ${artifact.artifactId}")
                                     }
                                 }
-                                
-                                val ps = PrintStream(newOut, true)
-                                System.setOut(ps)
-                                System.setErr(ps)
 
                                 val arr = dependencyText.split(":")
                                 if (arr.size < 3) {
                                     Toast.makeText(context, "Invalid format. Use group:artifact:version", Toast.LENGTH_SHORT).show()
-                                    System.setOut(originalOut)
-                                    System.setErr(originalErr)
                                     return@setOnClickListener
                                 }
 
                                 lifecycleScope.launch(Dispatchers.IO) {
-                                    repositories.apply s@{
-                                        if (Prefs.repositories.isBlank()) {
-                                            return@s
-                                        }
-                                        clear()
-
-                                        Prefs.repositories.lines().forEach { line ->
-                                            if (line.isBlank()) return@forEach
-                                            val split = line.split(":", limit = 2)
-                                            if (split.size < 2) return@forEach
-
-                                            val name = split[0].trim()
-                                            val url = split[1].trim()
-
-                                            add(object : Repository {
-                                                override fun getName() = name
-                                                override fun getURL() = url
-                                            })
-                                        }
-                                    }
-                                    val artifact = try {
-                                        getArtifact(arr[0], arr[1], arr[2])
-                                    } catch (e: Exception) {
-                                        e.printStackTrace()
-                                        withContext(Dispatchers.Main) {
-                                            binding.editor.setText(e.stackTraceToString())
-                                        }
-                                        System.setOut(originalOut)
-                                        System.setErr(originalErr)
-                                        return@launch
-                                    }
-                                    if (artifact == null) {
-                                        withContext(Dispatchers.Main) {
-                                            binding.editor.setText("Cannot find library")
-                                        }
-                                        System.setOut(originalOut)
-                                        System.setErr(originalErr)
-                                        return@launch
-                                    }
                                     try {
-                                        artifact.downloadArtifact(project.libDir)
-                                        project.libDir.walk().filter { it.extension != "jar" }.forEach { it.delete() }
-                                        withContext(Dispatchers.Main) {
-                                            Toast.makeText(requireContext(), "Dependency downloaded successfully", Toast.LENGTH_SHORT).show()
-                                            sheet.dismiss()
+                                        repositories.apply s@{
+                                            if (Prefs.repositories.isBlank()) {
+                                                return@s
+                                            }
+                                            clear()
+
+                                            Prefs.repositories.lines().forEach { line ->
+                                                if (line.isBlank()) return@forEach
+                                                val split = line.split(":", limit = 2)
+                                                if (split.size < 2) return@forEach
+
+                                                val name = split[0].trim()
+                                                val url = split[1].trim()
+
+                                                add(object : Repository {
+                                                    override fun getName() = name
+                                                    override fun getURL() = url
+                                                })
+                                            }
                                         }
-                                    } catch (e: Exception) {
-                                        e.printStackTrace()
-                                        withContext(Dispatchers.Main) {
-                                            binding.editor.setText(e.stackTraceToString())
+                                        val artifact = try {
+                                            getArtifact(arr[0], arr[1], arr[2])
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) {
+                                                editor.appendText("\nError: ${e.message}\n")
+                                            }
+                                            return@launch
+                                        }
+                                        if (artifact == null) {
+                                            withContext(Dispatchers.Main) {
+                                                editor.appendText("\nError: Cannot find library\n")
+                                            }
+                                            return@launch
+                                        }
+                                        try {
+                                            artifact.downloadArtifact(project.libDir)
+                                            project.libDir.walk().filter { it.extension != "jar" }.forEach { it.delete() }
+                                            withContext(Dispatchers.Main) {
+                                                Toast.makeText(requireContext(), "Dependency downloaded successfully", Toast.LENGTH_SHORT).show()
+                                                sheet.dismiss()
+                                            }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) {
+                                                editor.appendText("\nException: ${e.message}\n")
+                                            }
                                         }
                                     } finally {
-                                        System.setOut(originalOut)
-                                        System.setErr(originalErr)
+                                        eventReciever = EventReciever()
                                     }
                                 }
                             }
@@ -692,10 +705,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                                 arg += c
                                             } else {
                                                 if (arg.isNotEmpty()) {
-                                                    return@forEach
+                                                    argList.add(arg)
+                                                    arg = ""
                                                 }
-                                                argList.add(arg)
-                                                arg = ""
                                             }
                                         }
 
