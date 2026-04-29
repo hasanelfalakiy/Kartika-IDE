@@ -58,7 +58,7 @@ If you find any bugs, please report them on our [Telegram Group](https://t.me/mo
 - Material You Design
 - Modern UI with prebuilt themes
 - Dark mode (and light mode)
-- Build speed optimization is better than the previous version which has been discontinued
+- Build speed optimization
 
 ## Benefits
 
