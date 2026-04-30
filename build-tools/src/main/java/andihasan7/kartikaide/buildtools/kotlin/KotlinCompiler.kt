@@ -35,7 +35,22 @@ class KotlinCompiler(val project: Project) : Task {
     }
 
     override fun execute(reporter: BuildReporter) {
-        val sourceFiles = project.srcDir.getSourceFiles("kt")
+        val allSrcDirs = mutableListOf(project.srcDir)
+        
+        // Tambahkan folder test ke daftar kompilasi
+        val testPaths = listOf(
+            "src/test/java", "src/test/kotlin",
+            "app/src/test/java", "app/src/test/kotlin",
+            "lib/src/test/java", "lib/src/test/kotlin"
+        )
+        testPaths.forEach { path ->
+            val f = project.root.resolve(path)
+            if (f.exists() && f.isDirectory && f !in allSrcDirs) {
+                allSrcDirs.add(f)
+            }
+        }
+
+        val sourceFiles = allSrcDirs.flatMap { it.getSourceFiles("kt") }
         if (sourceFiles.isEmpty()) {
             reporter.reportInfo("No Kotlin files are present. Skipping Kotlin compilation.")
             return
@@ -53,7 +68,7 @@ class KotlinCompiler(val project: Project) : Task {
             kotlinHome = kotlinHomeDir.absolutePath
             destination = classOutput.absolutePath
             javaSourceRoots =
-                sourceFiles.filter { it.isJavaFile() }.map { it.absolutePath }.toTypedArray()
+                allSrcDirs.flatMap { dir -> dir.walkTopDown().filter { it.isJavaFile() }.map { it.absolutePath }.toList() }.toTypedArray()
             moduleName = project.name
             pluginClasspaths = enabledPlugins
             useFastJarFileSystem = Prefs.useFastJarFs
@@ -65,7 +80,7 @@ class KotlinCompiler(val project: Project) : Task {
 
         val collector = createMessageCollector(reporter)
 
-        makeJvmIncrementally(kotlinHomeDir, listOf(project.srcDir), args, collector)
+        makeJvmIncrementally(kotlinHomeDir, allSrcDirs, args, collector)
     }
 
     fun collectClasspathFiles(): List<File> {
@@ -115,6 +130,6 @@ class KotlinCompiler(val project: Project) : Task {
         val location: CompilerMessageSourceLocation?
     ) {
         override fun toString() =
-            location?.toString()?.substringAfter("src/main/").orEmpty() + " " + message
+            location?.toString()?.substringAfter("src/").orEmpty() + " " + message
     }
 }

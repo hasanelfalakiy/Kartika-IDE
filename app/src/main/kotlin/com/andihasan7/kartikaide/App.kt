@@ -26,6 +26,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.andihasan7.kartikaide.fragment.PluginsFragment
+import com.andihasan7.kartikaide.BuildConfig
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.config.JavacConfigProvider
 import de.robv.android.xposed.XC_MethodHook
@@ -165,6 +166,14 @@ class App : Application() {
         extractAsset("android.jar", FileUtil.classpathDir.resolve("android.jar"), forceUpdate)
         extractAsset("core-lambda-stubs.jar", FileUtil.classpathDir.resolve("core-lambda-stubs.jar"), forceUpdate)
         
+        // Extract JUnit for Unit Testing support
+        extractAsset("junit-4.13.2.jar", FileUtil.classpathDir.resolve("junit-4.13.2.jar"), forceUpdate)
+        extractAsset("hamcrest-3.0.jar", FileUtil.classpathDir.resolve("hamcrest-3.0.jar"), forceUpdate)
+        
+        // Extract Kotlin Test for idiomatic Kotlin testing
+        extractAsset("kotlin-test-1.9.0.jar", FileUtil.classpathDir.resolve("kotlin-test-1.9.0.jar"), forceUpdate)
+        extractAsset("kotlin-test-junit-1.9.0-Beta.jar", FileUtil.classpathDir.resolve("kotlin-test-junit-1.9.0-Beta.jar"), forceUpdate)
+
         if (forceUpdate) {
             Prefs.lastExtractedVersion = currentVersion
         }
@@ -176,9 +185,13 @@ class App : Application() {
                 targetFile.delete()
             }
             if (!targetFile.exists()) {
-                assets.open(assetName).use { inputStream ->
-                    targetFile.outputStream().use { outputStream ->
-                        inputStream.copyTo(outputStream)
+                // Check if asset exists before trying to open it
+                val assetList = assets.list("") ?: emptyArray()
+                if (assetList.contains(assetName)) {
+                    assets.open(assetName).use { inputStream ->
+                        targetFile.outputStream().use { outputStream ->
+                            inputStream.copyTo(outputStream)
+                        }
                     }
                 }
             }
