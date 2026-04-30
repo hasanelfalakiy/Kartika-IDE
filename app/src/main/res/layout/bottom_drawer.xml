@@ -6,20 +6,24 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?colorSurface"
-    android:elevation="8dp"
+    android:elevation="16dp"
     android:orientation="vertical"
+    android:clickable="true"
+    android:focusable="true"
     app:behavior_hideable="false"
     app:behavior_peekHeight="60dp"
+    app:behavior_fitToContents="true"
+    app:behavior_skipCollapsed="false"
     app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
     <!-- Header: ViewFlipper (Peek Area) -->
-    <!-- Tinggi disesuaikan dengan peekHeight agar pas saat tertutup -->
     <ViewFlipper
         android:id="@+id/header_flipper"
         android:layout_width="match_parent"
-        android:layout_height="60dp">
+        android:layout_height="60dp"
+        android:background="?colorSurface">
 
-        <!-- Index 0: Status Build (Tampilan Default saat Keyboard Inaktif) -->
+        <!-- Index 0: Status Build -->
         <LinearLayout
             android:id="@+id/header_status"
             android:layout_width="match_parent"
@@ -29,6 +33,7 @@
             android:padding="4dp"
             android:clickable="true"
             android:focusable="true"
+            android:background="?colorSurface"
             android:foreground="?attr/selectableItemBackground">
             <TextView
                 android:id="@+id/tv_build_status"
@@ -47,9 +52,9 @@
                 android:typeface="monospace" />
         </LinearLayout>
 
-        <!-- Index 1: Symbol View (Tampilan saat Keyboard Aktif) -->
+        <!-- Index 1: Symbol View -->
         <HorizontalScrollView
-            android:id="@+id/symbol_view_container"
+            android:id="@+id/symbol_view_container_sheet"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="?colorSurfaceContainerLow"
@@ -63,10 +68,11 @@
 
         </HorizontalScrollView>
 
-        <!-- Index 2: Full Header (Tampilan saat Bottom Sheet Terbuka Penuh) -->
+        <!-- Index 2: Full Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:background="?colorSurface"
             android:gravity="center">
             <TextView
                 android:layout_width="wrap_content"
@@ -83,7 +89,7 @@
         android:layout_height="1dp"
         android:background="?android:attr/dividerVertical" />
 
-    <!-- TabLayout: Ikon di samping teks (Inline Label) -->
+    <!-- TabLayout -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/bottom_drawer_tabs"
         android:layout_width="match_parent"
@@ -93,7 +99,8 @@
         app:tabInlineLabel="true"
         app:tabMode="fixed"
         app:tabSelectedTextColor="?colorPrimary"
-        app:tabTextColor="?colorOnSurfaceVariant">
+        app:tabTextColor="?colorOnSurfaceVariant"
+        >
 
         <com.google.android.material.tabs.TabItem
             android:layout_width="wrap_content"
@@ -114,12 +121,12 @@
             android:icon="@drawable/ic_search_results" />
     </com.google.android.material.tabs.TabLayout>
 
-    <!-- Kontainer Konten Tab -->
-    <!-- Pastikan Adapter ViewPager2 mengembalikan View dengan ScrollView/RecyclerView untuk log -->
+    <!-- Pager -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/bottom_drawer_pager"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:background="?colorSurface" />
 
 </LinearLayout>

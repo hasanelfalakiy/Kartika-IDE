@@ -86,26 +86,10 @@
                 </LinearLayout>
             </ViewFlipper>
 
-            <!-- Ruang kosong agar konten editor tidak tertutup Peek laci (60dp) -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="60dp"/>
-
         </LinearLayout>
 
         <!-- Pasang Laci Bawah ke Editor -->
         <include layout="@layout/bottom_drawer" />
-
-        <!-- FAB untuk membersihkan log (Anchor ke Bottom Sheet) -->
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fab_clean"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:src="@drawable/ic_delete_sweep"
-            app:fabSize="mini"
-            app:layout_anchor="@id/bottom_sheet"
-            app:layout_anchorGravity="top|end" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 

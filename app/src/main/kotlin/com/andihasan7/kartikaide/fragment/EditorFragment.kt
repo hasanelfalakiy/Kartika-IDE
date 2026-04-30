@@ -260,6 +260,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         
         bottomDrawerAdapter = BottomDrawerAdapter()
         pager.adapter = bottomDrawerAdapter
+        pager.isUserInputEnabled = false
         
         TabLayoutMediator(tabs, pager) { tab, position ->
             when(position) {
@@ -293,9 +294,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
         }
 
-        binding.fabClean.setOnClickListener {
-            bottomDrawerAdapter.clearLog(pager.currentItem)
-        }
     }
 
     private fun setupKeyboardListener() {
