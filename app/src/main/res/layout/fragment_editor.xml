@@ -12,75 +12,102 @@
     android:layout_height="match_parent"
     android:background="?colorSurfaceContainerLow">
 
-    <LinearLayout
+    <!-- CoordinatorLayout ditambahkan untuk mendukung BottomSheet -->
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:layout_height="match_parent">
 
-        <com.google.android.material.appbar.AppBarLayout
-            android:id="@+id/app_bar"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="?colorSurfaceContainerLow">
+            android:layout_height="match_parent"
+            android:orientation="vertical">
 
-            <com.google.android.material.appbar.MaterialToolbar
-                android:id="@+id/toolbar"
-                android:layout_width="match_parent"
-                android:layout_height="?attr/actionBarSize"
-                app:menu="@menu/menu_main"
-                app:navigationIcon="@drawable/ic_menu" />
-
-            <com.google.android.material.tabs.TabLayout
-                android:id="@+id/tab_layout"
+            <com.google.android.material.appbar.AppBarLayout
+                android:id="@+id/app_bar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="?colorSurfaceContainerLow"
-                app:tabGravity="start"
-                app:tabInlineLabel="true"
-                app:tabMode="scrollable" />
+                android:background="?colorSurfaceContainerLow">
 
-        </com.google.android.material.appbar.AppBarLayout>
+                <com.google.android.material.appbar.MaterialToolbar
+                    android:id="@+id/toolbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="?attr/actionBarSize"
+                    app:menu="@menu/menu_main"
+                    app:navigationIcon="@drawable/ic_menu" />
 
-        <ViewFlipper
-            android:id="@+id/view_container"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-
-            <androidx.viewpager2.widget.ViewPager2
-                android:id="@+id/pager"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:gravity="center"
-                android:orientation="vertical"
-                android:layout_height="match_parent">
-
-                <TextView
-                    android:id="@+id/no_editor"
-                    android:layout_width="wrap_content"
+                <com.google.android.material.tabs.TabLayout
+                    android:id="@+id/tab_layout"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif-medium"
-                    android:text="@string/no_open_files"
-                    android:textAppearance="?attr/textAppearanceTitleLarge" />
+                    android:background="?colorSurfaceContainerLow"
+                    app:tabGravity="start"
+                    app:tabInlineLabel="true"
+                    app:tabMode="scrollable" />
 
-                <TextView
-                    android:id="@+id/no_editor_desc"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginHorizontal="8dp"
+            </com.google.android.material.appbar.AppBarLayout>
+
+            <ViewFlipper
+                android:id="@+id/view_container"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
+
+                <androidx.viewpager2.widget.ViewPager2
+                    android:id="@+id/pager"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:gravity="center"
-                    android:text="@string/no_open_files_desc"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textAlignment="center"
-                    android:textColor="?android:attr/textColorSecondary" />
+                    android:orientation="vertical"
+                    android:layout_height="match_parent">
 
-            </LinearLayout>
-        </ViewFlipper>
+                    <TextView
+                        android:id="@+id/no_editor"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="@string/no_open_files"
+                        android:textAppearance="?attr/textAppearanceTitleLarge" />
 
-    </LinearLayout>
+                    <TextView
+                        android:id="@+id/no_editor_desc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginHorizontal="8dp"
+                        android:gravity="center"
+                        android:text="@string/no_open_files_desc"
+                        android:textAppearance="?attr/textAppearanceBodyMedium"
+                        android:textAlignment="center"
+                        android:textColor="?android:attr/textColorSecondary" />
+
+                </LinearLayout>
+            </ViewFlipper>
+
+            <!-- Ruang kosong agar konten editor tidak tertutup Peek laci (60dp) -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="60dp"/>
+
+        </LinearLayout>
+
+        <!-- Pasang Laci Bawah ke Editor -->
+        <include layout="@layout/bottom_drawer" />
+
+        <!-- FAB untuk membersihkan log (Anchor ke Bottom Sheet) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_clean"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            android:src="@drawable/ic_delete_sweep"
+            app:fabSize="mini"
+            app:layout_anchor="@id/bottom_sheet"
+            app:layout_anchorGravity="top|end" />
+
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
     <com.google.android.material.navigation.NavigationView
         android:layout_width="match_parent"

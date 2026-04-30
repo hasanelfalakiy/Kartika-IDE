@@ -7,13 +7,16 @@
 
 package com.andihasan7.kartikaide.fragment
 
+import andihasan7.kartikaide.buildtools.BuildReporter
 import andihasan7.kartikaide.buildtools.dex.D8Task
 import andihasan7.kartikaide.common.BaseBindingFragment
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
+import andihasan7.kartikaide.rewrite.util.MultipleDexClassLoader
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
@@ -32,16 +35,20 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.andihasan7.kartikaide.FileProvider.openFileWithExternalApp
 import com.andihasan7.kartikaide.R
+import com.andihasan7.kartikaide.adapter.BottomDrawerAdapter
 import com.andihasan7.kartikaide.adapter.EditorAdapter
 import com.andihasan7.kartikaide.adapter.NavAdapter
+import com.andihasan7.kartikaide.compile.Compiler
 import com.andihasan7.kartikaide.databinding.FragmentEditorBinding
 import com.andihasan7.kartikaide.databinding.NavigationElementsBinding
 import com.andihasan7.kartikaide.databinding.NewDependencyBinding
 import com.andihasan7.kartikaide.databinding.TextDialogBinding
 import com.andihasan7.kartikaide.databinding.TreeviewContextActionDialogItemBinding
+import com.andihasan7.kartikaide.editor.EditorInputStream
 import com.andihasan7.kartikaide.editor.IdeEditor
 import com.andihasan7.kartikaide.editor.formatter.GoogleJavaFormat
 import com.andihasan7.kartikaide.editor.formatter.ktfmtFormatter
@@ -51,7 +58,12 @@ import com.andihasan7.kartikaide.model.ProjectViewModel
 import com.andihasan7.kartikaide.util.CommonUtils
 import com.andihasan7.kartikaide.util.FileFactoryProvider
 import com.andihasan7.kartikaide.util.FileIndex
+import com.andihasan7.kartikaide.util.PreferenceKeys
 import com.andihasan7.kartikaide.util.ProjectHandler
+import com.andihasan7.kartikaide.util.makeDexReadOnlyIfNeeded
+import com.android.tools.smali.dexlib2.Opcodes
+import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
@@ -72,16 +84,23 @@ import org.cosmic.ide.dependency.resolver.api.Repository
 import org.cosmic.ide.dependency.resolver.eventReciever
 import org.cosmic.ide.dependency.resolver.getArtifact
 import org.cosmic.ide.dependency.resolver.repositories
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.OutputStream
 import java.io.PrintStream
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 
 class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private lateinit var fileIndex: FileIndex
     private val fileViewModel by activityViewModels<FileViewModel>()
     private val projectViewModel by activityViewModels<ProjectViewModel>()
     private lateinit var editorAdapter: EditorAdapter
+    private lateinit var bottomDrawerAdapter: BottomDrawerAdapter
+    private lateinit var bottomSheetBehavior: BottomSheetBehavior<View>
     private val project by lazy { requireArguments().getSerializable("project") as Project }
+
+    private var isExecutionRunning: Boolean = false
 
     override var isBackHandled = true
 
@@ -89,7 +108,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Clear files from previous project session if this is a fresh entry
         if (savedInstanceState == null) {
             fileViewModel.removeAll()
         }
@@ -105,8 +123,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         configureToolbar()
         initViewModelListeners()
         initTreeView()
+        initBottomDrawer()
+        setupKeyboardListener()
         
-        // Update project name in drawer header
         binding.included.projectName.text = project.name
         binding.included.drawerHeader.setOnLongClickListener {
             showTreeViewMenu(it, project.root)
@@ -120,7 +139,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             isSaveEnabled = true
         }
 
-        // Only load saved files from index if the list is currently empty
         if (fileViewModel.files.value.isNullOrEmpty()) {
             fileViewModel.updateFiles(fileIndex.getFiles())
         }
@@ -131,8 +149,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             setOnRefreshListener {
                 lifecycleScope.launch {
                     initTreeView()
-
-                    // tunggu UI settle
                     binding.included.recycler.post {
                         updateDrawerLockState()
                         binding.included.refresher.isRefreshing = false
@@ -141,7 +157,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }
 
-        // Handle Horizontal Scroll to Lock/Unlock Drawer
         binding.drawer.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
             override fun onDrawerOpened(drawerView: View) {
                 updateDrawerLockState()
@@ -157,7 +172,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 updateDrawerLockState()
             }
             
-            // Prioritaskan gestur geser ke TreeView daripada ke DrawerLayout
             var lastX = 0f
             setOnTouchListener { v, event ->
                 when (event.action) {
@@ -169,13 +183,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         val deltaX = event.x - lastX
 
                         if (deltaX < 0 && v.canScrollHorizontally(1)) {
-                            // scroll ke kanan → tahan di TreeView
                             v.parent.requestDisallowInterceptTouchEvent(true)
                         } else if (deltaX > 0 && v.canScrollHorizontally(-1)) {
-                            // scroll ke kiri → tahan di TreeView
                             v.parent.requestDisallowInterceptTouchEvent(true)
                         } else {
-                            // sudah mentok → kasih DrawerLayout ambil gesture
                             v.parent.requestDisallowInterceptTouchEvent(false)
                         }
                     }
@@ -188,6 +199,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 fileViewModel.setCurrentPosition(tab.position)
                 updateUndoRedoStatus()
+                // Bind SymbolInputView to the current editor
+                getCurrentFragment()?.editor?.let {
+                    view.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view)?.bindEditor(it)
+                }
             }
 
             override fun onTabUnselected(tab: TabLayout.Tab) {
@@ -211,6 +226,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     binding.apply {
                         if (drawer.isOpen) {
                             drawer.close()
+                        } else if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_EXPANDED) {
+                            bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
                         } else {
                             exitProject()
                         }
@@ -231,6 +248,83 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         parentFragmentManager.setFragmentResultListener("settings_changed", viewLifecycleOwner) { _, _ ->
             refreshAllEditors()
         }
+    }
+
+    private fun initBottomDrawer() {
+        val bottomSheet = binding.root.findViewById<View>(R.id.bottom_sheet)
+        bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet)
+        
+        val pager = bottomSheet.findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.bottom_drawer_pager)
+        val tabs = bottomSheet.findViewById<com.google.android.material.tabs.TabLayout>(R.id.bottom_drawer_tabs)
+        val flipper = bottomSheet.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
+        
+        bottomDrawerAdapter = BottomDrawerAdapter()
+        pager.adapter = bottomDrawerAdapter
+        
+        TabLayoutMediator(tabs, pager) { tab, position ->
+            when(position) {
+                0 -> { tab.text = "Build Log"; tab.setIcon(R.drawable.ic_build_log) }
+                1 -> { tab.text = "Output"; tab.setIcon(R.drawable.ic_output) }
+                2 -> { tab.text = "Search"; tab.setIcon(R.drawable.ic_search_results) }
+            }
+        }.attach()
+
+        bottomSheetBehavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
+            override fun onStateChanged(bottomSheet: View, newState: Int) {
+                when(newState) {
+                    BottomSheetBehavior.STATE_EXPANDED -> {
+                        flipper.displayedChild = 2 // Full Header
+                    }
+                    BottomSheetBehavior.STATE_COLLAPSED -> {
+                        // Check if keyboard is active via a flag or view height
+                        if (isKeyboardVisible()) {
+                            flipper.displayedChild = 1 // Symbol View
+                        } else {
+                            flipper.displayedChild = 0 // Status Build
+                        }
+                    }
+                }
+            }
+            override fun onSlide(bottomSheet: View, slideOffset: Float) {}
+        })
+
+        // Handle clicks on header status to expand
+        bottomSheet.findViewById<View>(R.id.header_status).setOnClickListener {
+            bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
+        }
+
+        binding.fabClean.setOnClickListener {
+            bottomDrawerAdapter.clearLog(pager.currentItem)
+        }
+    }
+
+    private fun setupKeyboardListener() {
+        val rootView = binding.root
+        rootView.viewTreeObserver.addOnGlobalLayoutListener {
+            val r = Rect()
+            rootView.getWindowVisibleDisplayFrame(r)
+            val screenHeight = rootView.rootView.height
+            val keypadHeight = screenHeight - r.bottom
+
+            val flipper = binding.root.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
+            
+            if (keypadHeight > screenHeight * 0.15) { // Keyboard is visible
+                if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED) {
+                    flipper.displayedChild = 1 // Symbol View
+                }
+            } else { // Keyboard is hidden
+                if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED) {
+                    flipper.displayedChild = 0 // Status Build
+                }
+            }
+        }
+    }
+
+    private fun isKeyboardVisible(): Boolean {
+        val r = Rect()
+        binding.root.getWindowVisibleDisplayFrame(r)
+        val screenHeight = binding.root.rootView.height
+        return (screenHeight - r.bottom) > screenHeight * 0.15
     }
 
     private fun getFileIcon(file: File): Drawable? {
@@ -289,12 +383,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         binding.drawer.post {
             if (binding.drawer.isDrawerOpen(GravityCompat.START)) {
                 val hScroll = binding.included.hScroll
-
-                // Kunci hanya jika masih bisa scroll ke kanan (artinya belum di posisi paling kanan)
                 if (hScroll.canScrollHorizontally(1)) {
                     binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_OPEN)
                 } else {
-                    // Sudah mentok kanan → izinkan drawer ditutup
                     binding.drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
                 }
             }
@@ -342,7 +433,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         if (editor != null) {
             val canUndo = editor.canUndo()
             val canRedo = editor.canRedo()
-            Log.d("EditorFragment", "Updating status: undo=$canUndo, redo=$canRedo")
             updateUndoRedoIcons(canUndo, canRedo)
         } else {
             updateUndoRedoIcons(canUndo = false, canRedo = false)
@@ -396,7 +486,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 val file = node.value
                 
                 if (file.isDirectory) {
-                    // Update lock state after expansion/collapse
                     updateDrawerLockState()
                 } else if (file.exists() && file.isFile) {
                     fileViewModel.addFile(file)
@@ -408,11 +497,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         })
 
-        // Restore expanded state
         restoreExpandedState(adapter, expandedPaths)
 
-
-        // restore update drawer lock state
         recyclerView.post {
             updateDrawerLockState()
         }
@@ -443,8 +529,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     }
 
     override fun onDestroyView() {
-        // Don't call exitProject() here because ganti tema triggers onDestroyView
-        // We only save to index but don't clear ViewModel
         fileIndex.putFiles(
             binding.pager.currentItem, fileViewModel.files.value!!
         )
@@ -460,7 +544,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     private fun configureToolbar() {
         binding.toolbar.apply {
-            title = "" // Clear project name from toolbar
+            title = ""
             setNavigationOnClickListener {
                 editorAdapter.saveAll()
                 binding.drawer.open()
@@ -484,7 +568,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                 if (mains.isNotEmpty() || tests.isNotEmpty()) {
                                     showSelectionDialog(mains, tests)
                                 } else {
-                                    navigateToCompileInfoFragment(null)
+                                    startCompilationAndExecution(null)
                                 }
                             }
                         }
@@ -817,25 +901,20 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             try {
                 val formatted = when (fileViewModel.currentFile?.extension) {
                     "java" -> {
-                        Log.i("MainActivity", "Formatting java code")
                         GoogleJavaFormat.formatCode(text)
                     }
 
                     "kt" -> {
-                        Log.i("MainActivity", "Formatting kotlin code")
                         ktfmtFormatter.formatCode(text)
                     }
 
                     else -> {
-                        Log.i("MainActivity", "Unsupported language")
                         ""
                     }
                 }
 
                 if (formatted.isNotEmpty() && formatted != text) {
                     withContext(Dispatchers.Main) {
-                        // FIX: Use line-column based replace to avoid StringIndexOutOfBoundsException
-                        // Some versions of SORA Content might have a safe replace or we use full range
                         val endLine = content.lineCount - 1
                         val endColumn = content.getColumnCount(endLine)
                         content.replace(0, 0, endLine, endColumn, formatted)
@@ -882,7 +961,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         mains.add(file.absolutePath.removePrefix(srcPath))
                     }
                 } catch (e: Exception) {
-                    // Ignore files we can't read
                 }
             }
         }
@@ -892,7 +970,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private fun findTestClasses(): List<String> {
         val tests = mutableListOf<String>()
         
-        // Lokasi-lokasi yang mungkin berisi file test
         val searchFolders = listOf(
             project.root.resolve("src/test/java"),
             project.root.resolve("src/test/kotlin"),
@@ -900,7 +977,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             project.root.resolve("app/src/test/kotlin"),
             project.root.resolve("lib/src/test/java"),
             project.root.resolve("lib/src/test/kotlin"),
-            project.srcDir // Tetap cari di srcDir utama (siapa tahu test ditaruh di sana)
+            project.srcDir 
         )
 
         searchFolders.filter { it.exists() }.forEach { folder ->
@@ -910,8 +987,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     try {
                         val content = file.readText()
                         if (content.contains("@Test")) {
-                            // Untuk test, kita butuh path relatif dari folder 'java' atau 'kotlin' 
-                            // agar bisa diubah menjadi nama paket/kelas.
                             val relativePath = if (file.absolutePath.contains("${File.separator}java${File.separator}")) {
                                 file.absolutePath.substringAfter("${File.separator}java${File.separator}")
                             } else if (file.absolutePath.contains("${File.separator}kotlin${File.separator}")) {
@@ -947,33 +1022,287 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 val selected = items[which]
                 if (selected.startsWith("---")) return@setItems
                 
-                // Jika itu test, tambahkan flag --test di args
                 if (tests.contains(selected)) {
                      project.args = listOf("--test")
                 } else {
                      project.args = emptyList()
                 }
-                navigateToCompileInfoFragment(selected)
+                startCompilationAndExecution(selected)
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
-    private fun showMainSelectionDialog(mains: List<String>) {
-        val items = mains.toTypedArray()
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select main function in class:")
-            .setItems(items) { _, which ->
-                navigateToCompileInfoFragment(mains[which])
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun navigateToCompileInfoFragment(clazz: String? = null) {
+    private fun startCompilationAndExecution(clazz: String? = null) {
         ProjectHandler.clazz = clazz
         editorAdapter.saveAll()
-        CompileInfoFragment().show(parentFragmentManager, "compile_info")
+        
+        // Show Bottom Sheet and switch to Build Log
+        bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
+        val pager = binding.root.findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.bottom_drawer_pager)
+        pager.currentItem = 0 
+        bottomDrawerAdapter.clearLog(0)
+        bottomDrawerAdapter.clearLog(1)
+
+        val reporter = BuildReporter { report ->
+            if (report.message.isEmpty()) return@BuildReporter
+            lifecycleScope.launch(Dispatchers.Main) {
+                bottomDrawerAdapter.appendLog(0, "${report.kind}: ${report.message}")
+            }
+        }
+
+        val compiler = Compiler(project, reporter)
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                compiler.compile()
+                withContext(Dispatchers.Main) {
+                    if (reporter.buildSuccess) {
+                        bottomDrawerAdapter.appendLog(0, "Build Successful!")
+                        // Switch to Output tab and run
+                        pager.currentItem = 1
+                        runAutoDetectedClass()
+                    } else {
+                        bottomDrawerAdapter.appendLog(0, "Build Failed.")
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    bottomDrawerAdapter.appendLog(0, "Error during compilation: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun runAutoDetectedClass() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val dex = project.binDir.resolve("classes.dex")
+            if (!dex.exists()) {
+                withContext(Dispatchers.Main) { bottomDrawerAdapter.appendLog(1, "Error: classes.dex not found") }
+                return@launch
+            }
+
+            val dexFile = try {
+                val bufferedInputStream = dex.inputStream().buffered()
+                val df = DexBackedDexFile.fromInputStream(Opcodes.forApi(33), bufferedInputStream)
+                bufferedInputStream.close()
+                df
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { bottomDrawerAdapter.appendLog(1, "Error: failed to read dex: ${e.message}") }
+                return@launch
+            }
+
+            val runnableClasses = dexFile.classes.filter { classDef ->
+                classDef.methods.any { method ->
+                    val isMain = method.name == "main" && (
+                        method.parameterTypes.isEmpty() || 
+                        (method.parameterTypes.size == 1 && method.parameterTypes[0] == "[Ljava/lang/String;")
+                    )
+                    val hasTestAnnotation = method.annotations.any { annot ->
+                        annot.type.contains("org/junit/Test") || annot.type.contains("org/junit/jupiter/api/Test")
+                    }
+                    isMain || hasTestAnnotation
+                }
+            }.map { it.type.substring(1, it.type.length - 1) }
+
+            withContext(Dispatchers.Main) {
+                var index: String? = null
+                val targetFile = ProjectHandler.clazz
+                
+                if (targetFile != null) {
+                    val targetName = targetFile.substringBeforeLast('.').replace('\\', '/')
+                    index = runnableClasses.find { it == targetName || it == "${targetName}Kt" }
+                        ?: runnableClasses.find { it.endsWith("/$targetName") || it.endsWith("/${targetName}Kt") }
+                    if (index == null) index = targetName.replace('/', '.')
+                }
+
+                if (index == null) {
+                    if (runnableClasses.isEmpty()) {
+                        bottomDrawerAdapter.appendLog(1, "Error: No runnable classes or tests found")
+                        return@withContext
+                    }
+                    index = runnableClasses.find { it.endsWith("/Main") || it == "Main" || it.endsWith("/MainKt") || it == "MainKt" }
+                        ?: runnableClasses.find { it.endsWith("Test") }
+                        ?: runnableClasses.firstOrNull()
+                }
+
+                if (index != null) {
+                    runClass(index)
+                } else {
+                    bottomDrawerAdapter.appendLog(1, "Warning: Could not determine which class to run")
+                }
+            }
+        }
+    }
+
+    private fun runClass(className: String) = lifecycleScope.launch(Dispatchers.IO) {
+        if (isExecutionRunning) return@launch
+        isExecutionRunning = true
+        
+        val projectRootPath = project.root.absolutePath
+        val props = System.getProperties()
+        val oldUserDir = props.getProperty("user.dir")
+        val oldProjectDir = props.getProperty("project.dir")
+        val oldTmpDir = props.getProperty("java.io.tmpdir")
+        val oldProjectRoot = props.getProperty("PROJECT_ROOT")
+
+        props.setProperty("user.dir", projectRootPath)
+        props.setProperty("project.dir", projectRootPath)
+        props.setProperty("PROJECT_ROOT", projectRootPath)
+        if (!project.cacheDir.exists()) project.cacheDir.mkdirs()
+        props.setProperty("java.io.tmpdir", project.cacheDir.absolutePath)
+
+        val outputEditor = withContext(Dispatchers.Main) { bottomDrawerAdapter.getEditor(1) }
+        if (outputEditor == null) {
+            isExecutionRunning = false
+            return@launch
+        }
+
+        val inputStream = EditorInputStream(outputEditor)
+        val systemOut = PrintStream(object : OutputStream() {
+            private val bos = ByteArrayOutputStream()
+            override fun write(p0: Int) { bos.write(p0) }
+            override fun write(b: ByteArray, off: Int, len: Int) { bos.write(b, off, len) }
+            override fun flush() {
+                val bytes = bos.toByteArray()
+                if (bytes.isEmpty()) return
+                val s = String(bytes, Charsets.UTF_8)
+                bos.reset()
+                lifecycleScope.launch(Dispatchers.Main) {
+                    bottomDrawerAdapter.appendLog(1, s, addNewLine = false)
+                    inputStream.updateOffset(outputEditor.text.length)
+                }
+            }
+        }, true)
+        
+        val oldOut = System.out
+        val oldErr = System.err
+        val oldIn = System.`in`
+        val oldContextClassLoader = Thread.currentThread().contextClassLoader
+        
+        System.setOut(systemOut)
+        System.setErr(systemOut)
+        System.setIn(inputStream)
+
+        val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+        if (prefs.getBoolean(PreferenceKeys.CONSOLE_SHOW_ROOT_INFO, true)) {
+            systemOut.println("Info: Project Root -> $projectRootPath")
+            systemOut.println("Info: PROJECT_ROOT is initialized for this session.")
+            systemOut.println(" ")
+        }
+
+        withContext(Dispatchers.Main) {
+            bottomDrawerAdapter.appendLog(1, "--- Running $className ---")
+        }
+
+        val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
+        val mainDex = project.binDir.resolve("classes.dex")
+        if (mainDex.exists()) loader.loadDex(makeDexReadOnlyIfNeeded(mainDex))
+        project.buildDir.resolve("libs").listFiles()?.filter { it.extension == "dex" }?.forEach {
+            loader.loadDex(makeDexReadOnlyIfNeeded(it))
+        }
+        if (project.resourcesDir.exists()) loader.addResourceDir(project.resourcesDir)
+
+        Thread.currentThread().contextClassLoader = loader.loader
+
+        runCatching {
+            loader.loader.loadClass(className.replace('/', '.'))
+        }.onSuccess { clazz ->
+            val hasTestAnnotation = clazz.methods.any { m -> 
+                m.annotations.any { 
+                    val name = it.annotationClass.java.name
+                    name.contains("org.junit.Test") || name.contains("org.junit.jupiter.api.Test") 
+                }
+            }
+            val isTest = project.args.contains("--test") || hasTestAnnotation
+            
+            if (isTest) {
+                systemOut.println("Running Unit Test: ${clazz.name}\n")
+                try {
+                    val junitCoreClass = loader.loader.loadClass("org.junit.runner.JUnitCore")
+                    val runClassesMethod = junitCoreClass.getMethod("runClasses", Class.forName("[Ljava.lang.Class;"))
+                    val result = runClassesMethod.invoke(null, arrayOf(clazz))
+                    
+                    val wasSuccessful = result.javaClass.getMethod("wasSuccessful").invoke(result) as Boolean
+                    val failureCount = result.javaClass.getMethod("getFailureCount").invoke(result) as Int
+                    val runCount = result.javaClass.getMethod("getRunCount").invoke(result) as Int
+                    val ignoreCount = result.javaClass.getMethod("getIgnoreCount").invoke(result) as Int
+                    val runTime = result.javaClass.getMethod("getRunTime").invoke(result) as Long
+                    
+                    systemOut.println("\n--- Test Results ---")
+                    systemOut.println("Run count: $runCount")
+                    systemOut.println("Failure count: $failureCount")
+                    systemOut.println("Ignore count: $ignoreCount")
+                    systemOut.println("Time: ${runTime}ms")
+                    
+                    if (!wasSuccessful) {
+                        systemOut.println("\nFailures:")
+                        val failures = result.javaClass.getMethod("getFailures").invoke(result) as List<*>
+                        for (failure in failures) {
+                            systemOut.println("- ${failure.toString()}")
+                            val exception = failure?.javaClass?.getMethod("getException")?.invoke(failure) as Throwable
+                            exception.printStackTrace(systemOut)
+                        }
+                    } else {
+                        systemOut.println("\nAll tests passed!")
+                    }
+                } catch (e: Exception) {
+                    systemOut.println("JUnit Error: ${e.message}")
+                }
+            } else {
+                val mainMethod = findMainMethod(clazz)
+                if (mainMethod != null) {
+                    try {
+                        if (Modifier.isStatic(mainMethod.modifiers)) {
+                            if (mainMethod.parameterCount == 1) mainMethod.invoke(null, project.args.toTypedArray())
+                            else mainMethod.invoke(null)
+                        } else {
+                            val instance = clazz.getDeclaredConstructor().newInstance()
+                            if (mainMethod.parameterCount == 1) mainMethod.invoke(instance, project.args.toTypedArray())
+                            else mainMethod.invoke(instance)
+                        }
+                    } catch (e: Throwable) {
+                        val cause = e.cause ?: e
+                        if (cause is java.io.FileNotFoundException && (cause.message?.contains("EROFS") == true || cause.message?.contains("Permission denied") == true)) {
+                            val fileName = cause.message?.substringBefore(":")?.trim() ?: "file"
+                            systemOut.println("\nError:--- ANDROID RESTRICTION ---")
+                            systemOut.println("Android blocks relative writes to root '/'.")
+                            systemOut.println("\nFIX: Use the injected PROJECT_ROOT property in your code:")
+                            systemOut.println("val root = System.getProperty(\"PROJECT_ROOT\")")
+                            systemOut.println("val file = File(root, \"$fileName\")")
+                        }
+                        cause.printStackTrace(systemOut)
+                    }
+                } else {
+                    systemOut.println("Error: No valid main method found in $className")
+                }
+            }
+        }.onFailure { e ->
+            systemOut.println("Load Error: ${e.message}")
+            e.printStackTrace(systemOut)
+        }
+
+        systemOut.flush()
+        System.setOut(oldOut)
+        System.setErr(oldErr)
+        System.setIn(oldIn)
+        Thread.currentThread().contextClassLoader = oldContextClassLoader
+        
+        System.setProperty("user.dir", oldUserDir ?: "/")
+        System.setProperty("project.dir", oldProjectDir ?: "")
+        System.setProperty("java.io.tmpdir", oldTmpDir ?: "/tmp")
+        if (oldProjectRoot != null) System.setProperty("PROJECT_ROOT", oldProjectRoot) else System.clearProperty("PROJECT_ROOT")
+        
+        isExecutionRunning = false
+        withContext(Dispatchers.Main) {
+            bottomDrawerAdapter.appendLog(1, "--- Finished ---")
+        }
+    }
+
+    private fun findMainMethod(clazz: Class<*>): Method? {
+        return clazz.declaredMethods.firstOrNull {
+            it.name == "main" && (it.parameterCount == 0 || (it.parameterCount == 1 && it.parameterTypes[0] == Array<String>::class.java))
+        }
     }
 
     private fun navigateToSettingsFragment() {
@@ -993,7 +1322,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
             when (it.itemId) {
                 R.id.close_tab -> {
-                    Log.d("EditorFragment", "Closing tab at $position")
                     editorAdapter.saveAll()
                     fileViewModel.removeFile(position)
                     if (pos > fileViewModel.currentPosition.value!!) {
@@ -1025,7 +1353,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }
         
-        // Don't allow deleting or renaming the root project folder from here
         if (file == project.root) {
             popup.menu.removeItem(R.id.delete)
             popup.menu.removeItem(R.id.rename)
@@ -1045,7 +1372,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 R.id.execute -> {
                     editorAdapter.saveAll()
                     getCurrentFragment()?.hideWindows()
-                    navigateToCompileInfoFragment(
+                    startCompilationAndExecution(
                         file.absolutePath.replace(
                             project.srcDir.absolutePath + File.separator, ""
                         )
@@ -1125,21 +1452,18 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                             val newFile = file.parentFile!!.resolve(name)
                             val newName = newFile.nameWithoutExtension
                             
-                            // 1. Save all files before rename to avoid saving to old path
                             editorAdapter.saveAll()
                             
                             if (file.renameTo(newFile)) {
                                 if (file == project.root) {
                                     project.root = newFile
                                     this.binding.included.projectName.text = name
-                                    this.binding.toolbar.title = "" // Keep title empty after rename
+                                    this.binding.toolbar.title = ""
                                     projectViewModel.loadProjects()
                                 }
                                 
-                                // 2. Update paths in ViewModel IMMEDIATELY for any renamed file/folder
                                 fileViewModel.updatePaths(oldPath, newFile.absolutePath)
                                 
-                                // Update packages and classes recursively
                                 lifecycleScope.launch(Dispatchers.IO) {
                                     if (newFile.isDirectory) {
                                         newFile.walkTopDown().forEach { child ->
@@ -1198,7 +1522,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 packageLineIndex = i
                 break
             }
-            // Stop if we see code (not comment or empty)
             if (line.isNotEmpty() && !line.startsWith("/") && !line.startsWith("*")) {
                 break
             }
@@ -1218,7 +1541,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
             file.writeText(lines.joinToString("\n"))
         } else if (newPackage.isNotEmpty()) {
-            // Insert at top, but after potential license comments
             var insertIndex = 0
             for (i in lines.indices) {
                 val line = lines[i].trim()
@@ -1247,11 +1569,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         }
 
         val newContent = if (file.extension == "java") {
-            // Java: match class, interface, enum, or @interface followed by oldName
             content.replace(Regex("""\b(class|interface|enum|@interface)\s+$oldName\b"""), "$1 $newName")
         } else {
-            // Kotlin: match class, interface, or object followed by oldName
-            // Note: data class and annotation class are handled by matching 'class'
             content.replace(Regex("""\b(class|interface|object)\s+$oldName\b"""), "$1 $newName")
         }
 
@@ -1271,7 +1590,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             val relativePath = filePath.substring(srcPath.length)
                 .removePrefix(File.separator)
             
-            // If it's the srcDir itself or a direct file in it, return empty
             if (relativePath.isEmpty()) return ""
             
             val parentPath = if (file.isDirectory) relativePath else File(relativePath).parent ?: ""

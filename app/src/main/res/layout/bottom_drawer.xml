@@ -1,88 +1,125 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Konten Laci Bawah (Bottom Sheet) -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/bottom_sheet"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="?colorSurface"
+    android:elevation="8dp"
+    android:orientation="vertical"
+    app:behavior_hideable="false"
+    app:behavior_peekHeight="60dp"
+    app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
-    <androidx.coordinatorlayout.widget.CoordinatorLayout
-        android:id="@+id/coordinator"
+    <!-- Header: ViewFlipper (Peek Area) -->
+    <!-- Tinggi disesuaikan dengan peekHeight agar pas saat tertutup -->
+    <ViewFlipper
+        android:id="@+id/header_flipper"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:animateLayoutChanges="true">
+        android:layout_height="60dp">
 
-        <EditText
+        <!-- Index 0: Status Build (Tampilan Default saat Keyboard Inaktif) -->
+        <LinearLayout
+            android:id="@+id/header_status"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:padding="8dp"
-            android:gravity="left|top"
-            android:textSize="8dp"
-            android:typeface="monospace"
-            android:textStyle="bold"
-            android:text="Your CodeEditor"
-            android:background="?colorSurfaceContainer" />
-
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="?colorSurface"
-            android:elevation="@dimen/mtrl_btn_elevation"
-            android:layout_gravity="bottom"
-            app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
-            app:behavior_peekHeight="60dp"
-            app:behavior_hideable="false">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:background="?colorSurface"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="2dp"
-                    android:gravity="center"
-                    android:textSize="10dp"
-                    android:textColor="?colorTertiary"
-                    android:typeface="monospace"
-                    android:text=". . ." />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="2dp"
-                    android:gravity="center"
-                    android:textSize="8dp"
-                    android:typeface="monospace"
-                    android:textStyle="bold"
-                    android:text="Swipe up/down" />
-
-            </LinearLayout>
-
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground">
             <TextView
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:padding="2dp"
-                android:gravity="center"
-                android:textSize="8dp"
-                android:typeface="monospace"
-                android:textStyle="bold"
-                android:text="Your view logger here" />
-
-            <com.google.android.material.floatingactionbutton.FloatingActionButton
-                android:id="@+id/fab_clean"
+                android:id="@+id/tv_build_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                android:src="@drawable/ic_delete_sweep"
-                android:layout_above="@+id/space_bottom"
-                android:layout_alignParentBottom="true"
-                android:layout_alignParentRight="true" />
+                android:text="Build Ready"
+                android:textColor="?colorTertiary"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:typeface="monospace" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Tap or swipe up to see the build log"
+                android:textSize="9sp"
+                android:typeface="monospace" />
+        </LinearLayout>
 
-        </RelativeLayout>
+        <!-- Index 1: Symbol View (Tampilan saat Keyboard Aktif) -->
+        <HorizontalScrollView
+            android:id="@+id/symbol_view_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?colorSurfaceContainerLow"
+            android:scrollbars="none">
 
-    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+            <io.github.rosemoe.sora.widget.SymbolInputView
+                android:id="@+id/symbol_view"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:backgroundTint="?colorSurfaceContainerLow" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        </HorizontalScrollView>
+
+        <!-- Index 2: Full Header (Tampilan saat Bottom Sheet Terbuka Penuh) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Console &amp; Logs"
+                android:textStyle="bold"
+                android:textSize="14sp"
+                android:typeface="monospace"/>
+        </LinearLayout>
+    </ViewFlipper>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?android:attr/dividerVertical" />
+
+    <!-- TabLayout: Ikon di samping teks (Inline Label) -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/bottom_drawer_tabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:tabIconTint="?colorPrimary"
+        app:tabIndicatorFullWidth="true"
+        app:tabInlineLabel="true"
+        app:tabMode="fixed"
+        app:tabSelectedTextColor="?colorPrimary"
+        app:tabTextColor="?colorOnSurfaceVariant">
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Build Log"
+            android:icon="@drawable/ic_build_log" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Output"
+            android:icon="@drawable/ic_output" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Search Result"
+            android:icon="@drawable/ic_search_results" />
+    </com.google.android.material.tabs.TabLayout>
+
+    <!-- Kontainer Konten Tab -->
+    <!-- Pastikan Adapter ViewPager2 mengembalikan View dengan ScrollView/RecyclerView untuk log -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/bottom_drawer_pager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+</LinearLayout>
