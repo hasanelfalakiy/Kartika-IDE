@@ -39,14 +39,28 @@ class JavaCompileTask(val project: Project) : Task {
             reporter.reportWarning(e.stackTraceToString())
         }
 
-        val javaFiles = project.srcDir.getSourceFiles("java")
+        // Kumpulkan semua folder sumber (utama + test)
+        val allSrcDirs = mutableListOf(project.srcDir)
+        val testPaths = listOf(
+            "src/test/java", "src/test/kotlin",
+            "app/src/test/java", "app/src/test/kotlin",
+            "lib/src/test/java", "lib/src/test/kotlin"
+        )
+        testPaths.forEach { path ->
+            val f = project.root.resolve(path)
+            if (f.exists() && f.isDirectory && f !in allSrcDirs) {
+                allSrcDirs.add(f)
+            }
+        }
+
+        val javaFiles = allSrcDirs.flatMap { it.getSourceFiles("java") }
 
         if (javaFiles.isEmpty()) {
             reporter.reportInfo("No java files found. Skipping compilation.")
             return
         }
 
-        reporter.reportInfo("Compilingg")
+        reporter.reportInfo("Compiling Java sources...")
 
         val size = javaFiles.size
         reporter.reportInfo("Compiling $size java ${if (size == 1) "file" else "files"}...")
@@ -63,7 +77,7 @@ class JavaCompileTask(val project: Project) : Task {
             fm.setLocation(StandardLocation.CLASS_OUTPUT, listOf(output))
             fm.setLocation(StandardLocation.PLATFORM_CLASS_PATH, getSystemClasspath())
             fm.setLocation(StandardLocation.CLASS_PATH, getClasspath(project))
-            fm.setLocation(StandardLocation.SOURCE_PATH, javaFiles)
+            fm.setLocation(StandardLocation.SOURCE_PATH, allSrcDirs)
 
             val flags = Prefs.javacFlags
 
@@ -81,13 +95,14 @@ class JavaCompileTask(val project: Project) : Task {
                     private val sb = StringBuilder()
                     override fun close() = flush()
                     override fun flush() {
-                        reporter.reportInfo(sb.toString())
-                        sb.clear()
+                        if (sb.isNotEmpty()) {
+                            reporter.reportInfo(sb.toString())
+                            sb.clear()
+                        }
                     }
 
                     override fun write(cbuf: CharArray?, off: Int, len: Int) {
                         sb.appendRange(cbuf!!, off, off + len)
-                        reporter.reportInfo(sb.toString())
                     }
                 },
                 fm,

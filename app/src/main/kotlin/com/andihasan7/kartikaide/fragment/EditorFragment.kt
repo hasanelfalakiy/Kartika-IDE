@@ -479,11 +479,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         
                         lifecycleScope.launch(Dispatchers.IO) {
                             val mains = findMainClasses()
+                            val tests = findTestClasses()
                             withContext(Dispatchers.Main) {
-                                when {
-                                    mains.size > 1 -> showMainSelectionDialog(mains)
-                                    mains.size == 1 -> navigateToCompileInfoFragment(mains[0])
-                                    else -> navigateToCompileInfoFragment(null)
+                                if (mains.isNotEmpty() || tests.isNotEmpty()) {
+                                    showSelectionDialog(mains, tests)
+                                } else {
+                                    navigateToCompileInfoFragment(null)
                                 }
                             }
                         }
@@ -886,6 +887,76 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }
         return mains
+    }
+
+    private fun findTestClasses(): List<String> {
+        val tests = mutableListOf<String>()
+        
+        // Lokasi-lokasi yang mungkin berisi file test
+        val searchFolders = listOf(
+            project.root.resolve("src/test/java"),
+            project.root.resolve("src/test/kotlin"),
+            project.root.resolve("app/src/test/java"),
+            project.root.resolve("app/src/test/kotlin"),
+            project.root.resolve("lib/src/test/java"),
+            project.root.resolve("lib/src/test/kotlin"),
+            project.srcDir // Tetap cari di srcDir utama (siapa tahu test ditaruh di sana)
+        )
+
+        searchFolders.filter { it.exists() }.forEach { folder ->
+            val folderPath = folder.absolutePath + File.separator
+            folder.walkTopDown().forEach { file ->
+                if (file.isFile && (file.extension == "java" || file.extension == "kt")) {
+                    try {
+                        val content = file.readText()
+                        if (content.contains("@Test")) {
+                            // Untuk test, kita butuh path relatif dari folder 'java' atau 'kotlin' 
+                            // agar bisa diubah menjadi nama paket/kelas.
+                            val relativePath = if (file.absolutePath.contains("${File.separator}java${File.separator}")) {
+                                file.absolutePath.substringAfter("${File.separator}java${File.separator}")
+                            } else if (file.absolutePath.contains("${File.separator}kotlin${File.separator}")) {
+                                file.absolutePath.substringAfter("${File.separator}kotlin${File.separator}")
+                            } else {
+                                file.absolutePath.removePrefix(project.srcDir.absolutePath + File.separator)
+                            }
+                            
+                            tests.add(relativePath)
+                        }
+                    } catch (e: Exception) {}
+                }
+            }
+        }
+        
+        return tests.distinct()
+    }
+
+    private fun showSelectionDialog(mains: List<String>, tests: List<String>) {
+        val items = mutableListOf<String>()
+        if (mains.isNotEmpty()) {
+            items.add("--- Main Functions ---")
+            items.addAll(mains)
+        }
+        if (tests.isNotEmpty()) {
+            items.add("--- Unit Tests ---")
+            items.addAll(tests)
+        }
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Select class to run:")
+            .setItems(items.toTypedArray()) { _, which ->
+                val selected = items[which]
+                if (selected.startsWith("---")) return@setItems
+                
+                // Jika itu test, tambahkan flag --test di args
+                if (tests.contains(selected)) {
+                     project.args = listOf("--test")
+                } else {
+                     project.args = emptyList()
+                }
+                navigateToCompileInfoFragment(selected)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showMainSelectionDialog(mains: List<String>) {

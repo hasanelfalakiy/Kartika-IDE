@@ -112,37 +112,52 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
                 return@launch
             }
 
-            val mainClasses = dexFile.classes.filter { classDef ->
+            // Mencari kelas yang memiliki main() ATAU metode dengan anotasi @Test
+            val runnableClasses = dexFile.classes.filter { classDef ->
                 classDef.methods.any { method ->
-                    method.name == "main" && (
+                    // Cek fungsi main
+                    val isMain = method.name == "main" && (
                         method.parameterTypes.isEmpty() || 
                         (method.parameterTypes.size == 1 && method.parameterTypes[0] == "[Ljava/lang/String;")
                     )
+                    
+                    // Cek anotasi @Test (JUnit 4: Lorg/junit/Test; JUnit 5: Lorg/junit/jupiter/api/Test;)
+                    val hasTestAnnotation = method.annotations.any { annot ->
+                        annot.type.contains("org/junit/Test") || annot.type.contains("org/junit/jupiter/api/Test")
+                    }
+
+                    isMain || hasTestAnnotation
                 }
             }.map { it.type.substring(1, it.type.length - 1) }
 
             withContext(Dispatchers.Main) {
-                if (mainClasses.isEmpty()) {
-                    binding.infoEditor.setText("Error: No classes with main method found")
-                    return@withContext
-                }
-
                 var index: String? = null
                 val targetFile = ProjectHandler.clazz
                 
                 if (targetFile != null) {
                     val targetName = targetFile.substringBeforeLast('.').replace('\\', '/')
-                    index = mainClasses.find { it == targetName || it == "${targetName}Kt" }
-                        ?: mainClasses.find { it.endsWith("/$targetName") || it.endsWith("/${targetName}Kt") }
+                    // Try exact match or with Kt suffix for Kotlin
+                    index = runnableClasses.find { it == targetName || it == "${targetName}Kt" }
+                        ?: runnableClasses.find { it.endsWith("/$targetName") || it.endsWith("/${targetName}Kt") }
                     
-                    if (index != null) {
-                        currentRunningClass = index
+                    // Jika tidak ditemukan di runnableClasses tapi user sedang membuka file tersebut, 
+                    // paksa gunakan itu (mungkin dex belum update atau ada alasan lain)
+                    if (index == null) {
+                        index = targetName.replace('/', '.')
                     }
+                    
+                    currentRunningClass = index
                 }
 
                 if (index == null) {
-                    index = mainClasses.find { it.endsWith("/Main") || it == "Main" || it.endsWith("/MainKt") || it == "MainKt" }
-                        ?: mainClasses.firstOrNull()
+                    if (runnableClasses.isEmpty()) {
+                        binding.infoEditor.setText("Error: No runnable classes or tests found")
+                        return@withContext
+                    }
+                    // Prioritas: Main, lalu Test, lalu apa saja
+                    index = runnableClasses.find { it.endsWith("/Main") || it == "Main" || it.endsWith("/MainKt") || it == "MainKt" }
+                        ?: runnableClasses.find { it.endsWith("Test") }
+                        ?: runnableClasses.firstOrNull()
                     currentRunningClass = index
                 }
 
@@ -238,44 +253,99 @@ class ProjectOutputFragment : BaseBindingFragment<FragmentCompileInfoBinding>() 
             loader.loader.loadClass(className.replace('/', '.'))
         }.onSuccess { clazz ->
             isRunning = true
-            val mainMethod = findMainMethod(clazz)
             
-            if (mainMethod != null) {
-                // Pastikan properti tetap ada tepat sebelum pemanggilan main
-                System.setProperty("PROJECT_ROOT", projectRootPath)
-                System.setProperty("user.dir", projectRootPath)
-                
+            // Anggap ini test jika parameter --test ada ATAU jika kelas mengandung anotasi @Test
+            val hasTestAnnotation = clazz.methods.any { m -> 
+                m.annotations.any { 
+                    val name = it.annotationClass.java.name
+                    name.contains("org.junit.Test") || name.contains("org.junit.jupiter.api.Test") 
+                }
+            }
+            val isTest = project.args.contains("--test") || hasTestAnnotation
+            
+            if (isTest) {
+                systemOut.println("Running Unit Test: ${clazz.name}\n")
                 try {
-                    if (Modifier.isStatic(mainMethod.modifiers)) {
-                        if (mainMethod.parameterCount == 1) {
-                            mainMethod.invoke(null, project.args.toTypedArray())
-                        } else {
-                            mainMethod.invoke(null)
+                    val junitCoreClass = loader.loader.loadClass("org.junit.runner.JUnitCore")
+                    val runClassesMethod = junitCoreClass.getMethod("runClasses", Class.forName("[Ljava.lang.Class;"))
+                    val result = runClassesMethod.invoke(null, arrayOf(clazz))
+                    
+                    val wasSuccessfulMethod = result.javaClass.getMethod("wasSuccessful")
+                    val getFailureCountMethod = result.javaClass.getMethod("getFailureCount")
+                    val getRunCountMethod = result.javaClass.getMethod("getRunCount")
+                    val getIgnoreCountMethod = result.javaClass.getMethod("getIgnoreCount")
+                    val getRunTimeMethod = result.javaClass.getMethod("getRunTime")
+                    val getFailuresMethod = result.javaClass.getMethod("getFailures")
+                    
+                    val wasSuccessful = wasSuccessfulMethod.invoke(result) as Boolean
+                    val failureCount = getFailureCountMethod.invoke(result) as Int
+                    val runCount = getRunCountMethod.invoke(result) as Int
+                    val ignoreCount = getIgnoreCountMethod.invoke(result) as Int
+                    val runTime = getRunTimeMethod.invoke(result) as Long
+                    
+                    systemOut.println("\n--- Test Results ---")
+                    systemOut.println("Run count: $runCount")
+                    systemOut.println("Failure count: $failureCount")
+                    systemOut.println("Ignore count: $ignoreCount")
+                    systemOut.println("Time: ${runTime}ms")
+                    
+                    if (!wasSuccessful) {
+                        systemOut.println("\nFailures:")
+                        val failures = getFailuresMethod.invoke(result) as List<*>
+                        for (failure in failures) {
+                            systemOut.println("- ${failure.toString()}")
+                            val getExceptionMethod = failure?.javaClass?.getMethod("getException")
+                            val exception = getExceptionMethod?.invoke(failure) as Throwable
+                            exception.printStackTrace(systemOut)
                         }
                     } else {
-                        val instance = clazz.getDeclaredConstructor().newInstance()
-                        if (mainMethod.parameterCount == 1) {
-                            mainMethod.invoke(instance, project.args.toTypedArray())
-                        } else {
-                            mainMethod.invoke(instance)
-                        }
+                        systemOut.println("\nAll tests passed!")
                     }
+                } catch (e: ClassNotFoundException) {
+                    systemOut.println("Error: JUnit not found in classpath.")
                 } catch (e: Throwable) {
-                    val cause = e.cause ?: e
-                    if (cause is java.io.FileNotFoundException && (cause.message?.contains("EROFS") == true || cause.message?.contains("Permission denied") == true)) {
-                        val fileName = cause.message?.substringBefore(":")?.trim() ?: "file"
-                        systemOut.println("\nError:--- ANDROID RESTRICTION ---")
-                        systemOut.println("Android blocks relative writes to root '/'.")
-                        systemOut.println("\nFIX: Use the injected PROJECT_ROOT property in your code:")
-                        systemOut.println("val root = System.getProperty(\"PROJECT_ROOT\")")
-                        systemOut.println("val file = File(root, \"$fileName\")")
-                        systemOut.println("\nThis will dynamically use your current project folder.\n")
-                    }
-                    systemOut.println("\nError: --- Execution Error ---\n")
-                    cause.printStackTrace(systemOut)
+                    systemOut.println("\nError: --- Test Execution Error ---\n")
+                    (e.cause ?: e).printStackTrace(systemOut)
                 }
             } else {
-                systemOut.println("Error: No valid main method found in $className")
+                val mainMethod = findMainMethod(clazz)
+                if (mainMethod != null) {
+                    // Pastikan properti tetap ada tepat sebelum pemanggilan main
+                    System.setProperty("PROJECT_ROOT", projectRootPath)
+                    System.setProperty("user.dir", projectRootPath)
+                    
+                    try {
+                        if (Modifier.isStatic(mainMethod.modifiers)) {
+                            if (mainMethod.parameterCount == 1) {
+                                mainMethod.invoke(null, project.args.toTypedArray())
+                            } else {
+                                mainMethod.invoke(null)
+                            }
+                        } else {
+                            val instance = clazz.getDeclaredConstructor().newInstance()
+                            if (mainMethod.parameterCount == 1) {
+                                mainMethod.invoke(instance, project.args.toTypedArray())
+                            } else {
+                                mainMethod.invoke(instance)
+                            }
+                        }
+                    } catch (e: Throwable) {
+                        val cause = e.cause ?: e
+                        if (cause is java.io.FileNotFoundException && (cause.message?.contains("EROFS") == true || cause.message?.contains("Permission denied") == true)) {
+                            val fileName = cause.message?.substringBefore(":")?.trim() ?: "file"
+                            systemOut.println("\nError:--- ANDROID RESTRICTION ---")
+                            systemOut.println("Android blocks relative writes to root '/'.")
+                            systemOut.println("\nFIX: Use the injected PROJECT_ROOT property in your code:")
+                            systemOut.println("val root = System.getProperty(\"PROJECT_ROOT\")")
+                            systemOut.println("val file = File(root, \"$fileName\")")
+                            systemOut.println("\nThis will dynamically use your current project folder.\n")
+                        }
+                        systemOut.println("\nError: --- Execution Error ---\n")
+                        cause.printStackTrace(systemOut)
+                    }
+                } else {
+                    systemOut.println("Error: No valid main method found in $className")
+                }
             }
         }.onFailure { e ->
             systemOut.println("Error: --- Execution Error ---")

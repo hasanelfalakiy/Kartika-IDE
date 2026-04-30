@@ -74,6 +74,7 @@ android {
         exclude(group = "org.jetbrains", module = "annotations-java5")
         exclude(group = "com.google.j2objc", module = "j2objc-annotations")
         exclude(group = "com.google.errorprone", module = "error_prone_annotations")
+        exclude(group = "org.hamcrest", module = "hamcrest-core")
     }
 
     packagingOptions.jniLibs.apply {
@@ -158,6 +159,7 @@ configurations.all {
     exclude(group = "commons-logging", module = "commons-logging")
     exclude(group = "org.apache.sshd", module = "sshd-osgi")
     exclude(group = "log4j", module = "log4j")
+    exclude(group = "org.hamcrest", module = "hamcrest-core")
 }
 
 dependencies {
@@ -256,7 +258,10 @@ dependencies {
     // jgit uses some methods like `transferTo` are only available from Android 13 onwards
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
-    testImplementation("junit:junit:4.13.2")
+    implementation("junit:junit:4.13.2")
+    implementation("org.hamcrest:hamcrest:3.0")
+    implementation("org.jetbrains.kotlin:kotlin-test:1.9.0")
+    implementation("org.jetbrains.kotlin:kotlin-test-junit:1.9.0")
 }
 
 // Fetches Android SDK root
