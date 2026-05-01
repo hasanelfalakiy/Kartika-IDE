@@ -24,6 +24,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -76,6 +77,7 @@ import com.widget.treeview.TreeViewAdapter
 import dev.pranav.navigation.KtNavigationProvider
 import dev.pranav.navigation.NavigationProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.cosmic.ide.dependency.resolver.api.Artifact
@@ -101,6 +103,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private val project by lazy { requireArguments().getSerializable("project") as Project }
 
     private var isExecutionRunning: Boolean = false
+    private var executionJob: Job? = null
+    private var currentRunningClass: String? = null
 
     override var isBackHandled = true
 
@@ -257,7 +261,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         val pager = bottomSheet.findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.bottom_drawer_pager)
         val tabs = bottomSheet.findViewById<com.google.android.material.tabs.TabLayout>(R.id.bottom_drawer_tabs)
         val flipper = bottomSheet.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
-        
+        val expandedContent = bottomSheet.findViewById<View>(R.id.expanded_content)
+
         bottomDrawerAdapter = BottomDrawerAdapter()
         pager.adapter = bottomDrawerAdapter
         pager.isUserInputEnabled = false
@@ -275,13 +280,19 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 when(newState) {
                     BottomSheetBehavior.STATE_EXPANDED -> {
                         flipper.displayedChild = 2 // Full Header
+                        expandedContent.visibility = View.VISIBLE
                     }
                     BottomSheetBehavior.STATE_COLLAPSED -> {
-                        // Check if keyboard is active via a flag or view height
+                        expandedContent.visibility = View.GONE
                         if (isKeyboardVisible()) {
                             flipper.displayedChild = 1 // Symbol View
                         } else {
                             flipper.displayedChild = 0 // Status Build
+                        }
+                    }
+                    else -> {
+                        if (newState == BottomSheetBehavior.STATE_DRAGGING || newState == BottomSheetBehavior.STATE_SETTLING) {
+                            expandedContent.visibility = View.VISIBLE
                         }
                     }
                 }
@@ -289,11 +300,46 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             override fun onSlide(bottomSheet: View, slideOffset: Float) {}
         })
 
-        // Handle clicks on header status to expand
         bottomSheet.findViewById<View>(R.id.header_status).setOnClickListener {
             bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
         }
 
+        bottomSheet.findViewById<ImageButton>(R.id.btn_clear_log).setOnClickListener {
+            bottomDrawerAdapter.clearLog(pager.currentItem)
+        }
+
+        bottomSheet.findViewById<ImageButton>(R.id.btn_stop_output).setOnClickListener {
+            stopExecution()
+        }
+
+        bottomSheet.findViewById<ImageButton>(R.id.btn_reload_output).setOnClickListener {
+            reloadExecution()
+        }
+    }
+
+    private fun stopExecution() {
+        if (isExecutionRunning) {
+            executionJob?.cancel()
+            isExecutionRunning = false
+            bottomDrawerAdapter.appendLog(1, "\n--- Execution Stopped ---\n")
+            updateOutputButtons(isRunning = false)
+        }
+    }
+
+    private fun reloadExecution() {
+        if (isExecutionRunning) {
+            stopExecution()
+        }
+        currentRunningClass?.let {
+            bottomDrawerAdapter.appendLog(1, "\n--- Restarting ---\n")
+            runClass(it)
+        } ?: runAutoDetectedClass()
+    }
+
+    private fun updateOutputButtons(isRunning: Boolean) {
+        val bottomSheet = binding.root.findViewById<View>(R.id.bottom_sheet)
+        bottomSheet.findViewById<ImageButton>(R.id.btn_stop_output).visibility = if (isRunning) View.VISIBLE else View.GONE
+        bottomSheet.findViewById<ImageButton>(R.id.btn_reload_output).visibility = if (isRunning) View.VISIBLE else View.VISIBLE // Always show reload
     }
 
     private fun setupKeyboardListener() {
@@ -1125,6 +1171,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 }
 
                 if (index != null) {
+                    currentRunningClass = index
                     runClass(index)
                 } else {
                     bottomDrawerAdapter.appendLog(1, "Warning: Could not determine which class to run")
@@ -1133,167 +1180,172 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         }
     }
 
-    private fun runClass(className: String) = lifecycleScope.launch(Dispatchers.IO) {
-        if (isExecutionRunning) return@launch
-        isExecutionRunning = true
-        
-        val projectRootPath = project.root.absolutePath
-        val props = System.getProperties()
-        val oldUserDir = props.getProperty("user.dir")
-        val oldProjectDir = props.getProperty("project.dir")
-        val oldTmpDir = props.getProperty("java.io.tmpdir")
-        val oldProjectRoot = props.getProperty("PROJECT_ROOT")
-
-        props.setProperty("user.dir", projectRootPath)
-        props.setProperty("project.dir", projectRootPath)
-        props.setProperty("PROJECT_ROOT", projectRootPath)
-        if (!project.cacheDir.exists()) project.cacheDir.mkdirs()
-        props.setProperty("java.io.tmpdir", project.cacheDir.absolutePath)
-
-        val outputEditor = withContext(Dispatchers.Main) { bottomDrawerAdapter.getEditor(1) }
-        if (outputEditor == null) {
-            isExecutionRunning = false
-            return@launch
-        }
-
-        val inputStream = EditorInputStream(outputEditor)
-        val systemOut = PrintStream(object : OutputStream() {
-            private val bos = ByteArrayOutputStream()
-            override fun write(p0: Int) { bos.write(p0) }
-            override fun write(b: ByteArray, off: Int, len: Int) { bos.write(b, off, len) }
-            override fun flush() {
-                val bytes = bos.toByteArray()
-                if (bytes.isEmpty()) return
-                val s = String(bytes, Charsets.UTF_8)
-                bos.reset()
-                lifecycleScope.launch(Dispatchers.Main) {
-                    bottomDrawerAdapter.appendLog(1, s, addNewLine = false)
-                    inputStream.updateOffset(outputEditor.text.length)
-                }
-            }
-        }, true)
-        
-        val oldOut = System.out
-        val oldErr = System.err
-        val oldIn = System.`in`
-        val oldContextClassLoader = Thread.currentThread().contextClassLoader
-        
-        System.setOut(systemOut)
-        System.setErr(systemOut)
-        System.setIn(inputStream)
-
-        val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
-        if (prefs.getBoolean(PreferenceKeys.CONSOLE_SHOW_ROOT_INFO, true)) {
-            systemOut.println("Info: Project Root -> $projectRootPath")
-            systemOut.println("Info: PROJECT_ROOT is initialized for this session.")
-            systemOut.println(" ")
-        }
-
-        withContext(Dispatchers.Main) {
-            bottomDrawerAdapter.appendLog(1, "--- Running $className ---")
-        }
-
-        val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
-        val mainDex = project.binDir.resolve("classes.dex")
-        if (mainDex.exists()) loader.loadDex(makeDexReadOnlyIfNeeded(mainDex))
-        project.buildDir.resolve("libs").listFiles()?.filter { it.extension == "dex" }?.forEach {
-            loader.loadDex(makeDexReadOnlyIfNeeded(it))
-        }
-        if (project.resourcesDir.exists()) loader.addResourceDir(project.resourcesDir)
-
-        Thread.currentThread().contextClassLoader = loader.loader
-
-        runCatching {
-            loader.loader.loadClass(className.replace('/', '.'))
-        }.onSuccess { clazz ->
-            val hasTestAnnotation = clazz.methods.any { m -> 
-                m.annotations.any { 
-                    val name = it.annotationClass.java.name
-                    name.contains("org.junit.Test") || name.contains("org.junit.jupiter.api.Test") 
-                }
-            }
-            val isTest = project.args.contains("--test") || hasTestAnnotation
+    private fun runClass(className: String) {
+        executionJob = lifecycleScope.launch(Dispatchers.IO) {
+            if (isExecutionRunning) return@launch
+            isExecutionRunning = true
+            withContext(Dispatchers.Main) { updateOutputButtons(true) }
             
-            if (isTest) {
-                systemOut.println("Running Unit Test: ${clazz.name}\n")
-                try {
-                    val junitCoreClass = loader.loader.loadClass("org.junit.runner.JUnitCore")
-                    val runClassesMethod = junitCoreClass.getMethod("runClasses", Class.forName("[Ljava.lang.Class;"))
-                    val result = runClassesMethod.invoke(null, arrayOf(clazz))
-                    
-                    val wasSuccessful = result.javaClass.getMethod("wasSuccessful").invoke(result) as Boolean
-                    val failureCount = result.javaClass.getMethod("getFailureCount").invoke(result) as Int
-                    val runCount = result.javaClass.getMethod("getRunCount").invoke(result) as Int
-                    val ignoreCount = result.javaClass.getMethod("getIgnoreCount").invoke(result) as Int
-                    val runTime = result.javaClass.getMethod("getRunTime").invoke(result) as Long
-                    
-                    systemOut.println("\n--- Test Results ---")
-                    systemOut.println("Run count: $runCount")
-                    systemOut.println("Failure count: $failureCount")
-                    systemOut.println("Ignore count: $ignoreCount")
-                    systemOut.println("Time: ${runTime}ms")
-                    
-                    if (!wasSuccessful) {
-                        systemOut.println("\nFailures:")
-                        val failures = result.javaClass.getMethod("getFailures").invoke(result) as List<*>
-                        for (failure in failures) {
-                            systemOut.println("- ${failure.toString()}")
-                            val exception = failure?.javaClass?.getMethod("getException")?.invoke(failure) as Throwable
-                            exception.printStackTrace(systemOut)
-                        }
-                    } else {
-                        systemOut.println("\nAll tests passed!")
+            val projectRootPath = project.root.absolutePath
+            val props = System.getProperties()
+            val oldUserDir = props.getProperty("user.dir")
+            val oldProjectDir = props.getProperty("project.dir")
+            val oldTmpDir = props.getProperty("java.io.tmpdir")
+            val oldProjectRoot = props.getProperty("PROJECT_ROOT")
+
+            props.setProperty("user.dir", projectRootPath)
+            props.setProperty("project.dir", projectRootPath)
+            props.setProperty("PROJECT_ROOT", projectRootPath)
+            if (!project.cacheDir.exists()) project.cacheDir.mkdirs()
+            props.setProperty("java.io.tmpdir", project.cacheDir.absolutePath)
+
+            val outputEditor = withContext(Dispatchers.Main) { bottomDrawerAdapter.getEditor(1) }
+            if (outputEditor == null) {
+                isExecutionRunning = false
+                withContext(Dispatchers.Main) { updateOutputButtons(false) }
+                return@launch
+            }
+
+            val inputStream = EditorInputStream(outputEditor)
+            val systemOut = PrintStream(object : OutputStream() {
+                private val bos = ByteArrayOutputStream()
+                override fun write(p0: Int) { bos.write(p0) }
+                override fun write(b: ByteArray, off: Int, len: Int) { bos.write(b, off, len) }
+                override fun flush() {
+                    val bytes = bos.toByteArray()
+                    if (bytes.isEmpty()) return
+                    val s = String(bytes, Charsets.UTF_8)
+                    bos.reset()
+                    lifecycleScope.launch(Dispatchers.Main) {
+                        bottomDrawerAdapter.appendLog(1, s, addNewLine = false)
+                        inputStream.updateOffset(outputEditor.text.length)
                     }
-                } catch (e: Exception) {
-                    systemOut.println("JUnit Error: ${e.message}")
                 }
-            } else {
-                val mainMethod = findMainMethod(clazz)
-                if (mainMethod != null) {
+            }, true)
+            
+            val oldOut = System.out
+            val oldErr = System.err
+            val oldIn = System.`in`
+            val oldContextClassLoader = Thread.currentThread().contextClassLoader
+            
+            System.setOut(systemOut)
+            System.setErr(systemOut)
+            System.setIn(inputStream)
+
+            val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+            if (prefs.getBoolean(PreferenceKeys.CONSOLE_SHOW_ROOT_INFO, true)) {
+                systemOut.println("Info: Project Root -> $projectRootPath")
+                systemOut.println("Info: PROJECT_ROOT is initialized for this session.")
+                systemOut.println(" ")
+            }
+
+            withContext(Dispatchers.Main) {
+                bottomDrawerAdapter.appendLog(1, "--- Running $className ---")
+            }
+
+            val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
+            val mainDex = project.binDir.resolve("classes.dex")
+            if (mainDex.exists()) loader.loadDex(makeDexReadOnlyIfNeeded(mainDex))
+            project.buildDir.resolve("libs").listFiles()?.filter { it.extension == "dex" }?.forEach {
+                loader.loadDex(makeDexReadOnlyIfNeeded(it))
+            }
+            if (project.resourcesDir.exists()) loader.addResourceDir(project.resourcesDir)
+
+            Thread.currentThread().contextClassLoader = loader.loader
+
+            runCatching {
+                loader.loader.loadClass(className.replace('/', '.'))
+            }.onSuccess { clazz ->
+                val hasTestAnnotation = clazz.methods.any { m -> 
+                    m.annotations.any { 
+                        val name = it.annotationClass.java.name
+                        name.contains("org.junit.Test") || name.contains("org.junit.jupiter.api.Test") 
+                    }
+                }
+                val isTest = project.args.contains("--test") || hasTestAnnotation
+                
+                if (isTest) {
+                    systemOut.println("Running Unit Test: ${clazz.name}\n")
                     try {
-                        if (Modifier.isStatic(mainMethod.modifiers)) {
-                            if (mainMethod.parameterCount == 1) mainMethod.invoke(null, project.args.toTypedArray())
-                            else mainMethod.invoke(null)
+                        val junitCoreClass = loader.loader.loadClass("org.junit.runner.JUnitCore")
+                        val runClassesMethod = junitCoreClass.getMethod("runClasses", Class.forName("[Ljava.lang.Class;"))
+                        val result = runClassesMethod.invoke(null, arrayOf(clazz))
+                        
+                        val wasSuccessful = result.javaClass.getMethod("wasSuccessful").invoke(result) as Boolean
+                        val failureCount = result.javaClass.getMethod("getFailureCount").invoke(result) as Int
+                        val runCount = result.javaClass.getMethod("getRunCount").invoke(result) as Int
+                        val ignoreCount = result.javaClass.getMethod("getIgnoreCount").invoke(result) as Int
+                        val runTime = result.javaClass.getMethod("getRunTime").invoke(result) as Long
+                        
+                        systemOut.println("\n--- Test Results ---")
+                        systemOut.println("Run count: $runCount")
+                        systemOut.println("Failure count: $failureCount")
+                        systemOut.println("Ignore count: $ignoreCount")
+                        systemOut.println("Time: ${runTime}ms")
+                        
+                        if (!wasSuccessful) {
+                            systemOut.println("\nFailures:")
+                            val failures = result.javaClass.getMethod("getFailures").invoke(result) as List<*>
+                            for (failure in failures) {
+                                systemOut.println("- ${failure.toString()}")
+                                val exception = failure?.javaClass?.getMethod("getException")?.invoke(failure) as Throwable
+                                exception.printStackTrace(systemOut)
+                            }
                         } else {
-                            val instance = clazz.getDeclaredConstructor().newInstance()
-                            if (mainMethod.parameterCount == 1) mainMethod.invoke(instance, project.args.toTypedArray())
-                            else mainMethod.invoke(instance)
+                            systemOut.println("\nAll tests passed!")
                         }
-                    } catch (e: Throwable) {
-                        val cause = e.cause ?: e
-                        if (cause is java.io.FileNotFoundException && (cause.message?.contains("EROFS") == true || cause.message?.contains("Permission denied") == true)) {
-                            val fileName = cause.message?.substringBefore(":")?.trim() ?: "file"
-                            systemOut.println("\nError:--- ANDROID RESTRICTION ---")
-                            systemOut.println("Android blocks relative writes to root '/'.")
-                            systemOut.println("\nFIX: Use the injected PROJECT_ROOT property in your code:")
-                            systemOut.println("val root = System.getProperty(\"PROJECT_ROOT\")")
-                            systemOut.println("val file = File(root, \"$fileName\")")
-                        }
-                        cause.printStackTrace(systemOut)
+                    } catch (e: Exception) {
+                        systemOut.println("JUnit Error: ${e.message}")
                     }
                 } else {
-                    systemOut.println("Error: No valid main method found in $className")
+                    val mainMethod = findMainMethod(clazz)
+                    if (mainMethod != null) {
+                        try {
+                            if (Modifier.isStatic(mainMethod.modifiers)) {
+                                if (mainMethod.parameterCount == 1) mainMethod.invoke(null, project.args.toTypedArray())
+                                else mainMethod.invoke(null)
+                            } else {
+                                val instance = clazz.getDeclaredConstructor().newInstance()
+                                if (mainMethod.parameterCount == 1) mainMethod.invoke(instance, project.args.toTypedArray())
+                                else mainMethod.invoke(instance)
+                            }
+                        } catch (e: Throwable) {
+                            val cause = e.cause ?: e
+                            if (cause is java.io.FileNotFoundException && (cause.message?.contains("EROFS") == true || cause.message?.contains("Permission denied") == true)) {
+                                val fileName = cause.message?.substringBefore(":")?.trim() ?: "file"
+                                systemOut.println("\nError:--- ANDROID RESTRICTION ---")
+                                systemOut.println("Android blocks relative writes to root '/'.")
+                                systemOut.println("\nFIX: Use the injected PROJECT_ROOT property in your code:")
+                                systemOut.println("val root = System.getProperty(\"PROJECT_ROOT\")")
+                                systemOut.println("val file = File(root, \"$fileName\")")
+                            }
+                            cause.printStackTrace(systemOut)
+                        }
+                    } else {
+                        systemOut.println("Error: No valid main method found in $className")
+                    }
                 }
+            }.onFailure { e ->
+                systemOut.println("Load Error: ${e.message}")
+                e.printStackTrace(systemOut)
             }
-        }.onFailure { e ->
-            systemOut.println("Load Error: ${e.message}")
-            e.printStackTrace(systemOut)
-        }
 
-        systemOut.flush()
-        System.setOut(oldOut)
-        System.setErr(oldErr)
-        System.setIn(oldIn)
-        Thread.currentThread().contextClassLoader = oldContextClassLoader
-        
-        System.setProperty("user.dir", oldUserDir ?: "/")
-        System.setProperty("project.dir", oldProjectDir ?: "")
-        System.setProperty("java.io.tmpdir", oldTmpDir ?: "/tmp")
-        if (oldProjectRoot != null) System.setProperty("PROJECT_ROOT", oldProjectRoot) else System.clearProperty("PROJECT_ROOT")
-        
-        isExecutionRunning = false
-        withContext(Dispatchers.Main) {
-            bottomDrawerAdapter.appendLog(1, "--- Finished ---")
+            systemOut.flush()
+            System.setOut(oldOut)
+            System.setErr(oldErr)
+            System.setIn(oldIn)
+            Thread.currentThread().contextClassLoader = oldContextClassLoader
+            
+            System.setProperty("user.dir", oldUserDir ?: "/")
+            System.setProperty("project.dir", oldProjectDir ?: "")
+            System.setProperty("java.io.tmpdir", oldTmpDir ?: "/tmp")
+            if (oldProjectRoot != null) System.setProperty("PROJECT_ROOT", oldProjectRoot) else System.clearProperty("PROJECT_ROOT")
+            
+            isExecutionRunning = false
+            withContext(Dispatchers.Main) {
+                updateOutputButtons(false)
+                bottomDrawerAdapter.appendLog(1, "--- Finished ---")
+            }
         }
     }
 

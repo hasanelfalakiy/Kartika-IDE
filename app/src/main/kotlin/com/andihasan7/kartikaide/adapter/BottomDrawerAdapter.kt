@@ -13,6 +13,8 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.andihasan7.kartikaide.databinding.LayoutLogViewBinding
 import com.andihasan7.kartikaide.editor.IdeEditor
+import com.andihasan7.kartikaide.extension.setFont
+import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 
 class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHolder>() {
 
@@ -29,6 +31,7 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
         val binding = LayoutLogViewBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         binding.logEditor.apply {
             isLineNumberEnabled = false
+            setFont()
         }
         return LogViewHolder(binding)
     }
@@ -40,7 +43,15 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
         holder.binding.tvEmptyLog.visibility = if (content.isEmpty()) View.VISIBLE else View.GONE
         
         // Tab Output (1) dibuat editable agar mendukung input (System.in)
-        holder.binding.logEditor.isEditable = (position == 1)
+        if (position == 0) {
+            holder.binding.logEditor.isEditable = false
+            holder.binding.logEditor.setEditorLanguage(TextMateLanguage.create("source.build", false))
+        } else if (position == 1) {
+            holder.binding.logEditor.isEditable = true
+            holder.binding.logEditor.setEditorLanguage(TextMateLanguage.create("source.build", false))
+        } else {
+            holder.binding.logEditor.isEditable = false
+        }
     }
 
     override fun getItemCount(): Int = 3
