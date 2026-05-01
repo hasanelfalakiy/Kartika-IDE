@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Konten Laci Bawah (Bottom Sheet) -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/bottom_sheet"
@@ -8,45 +7,70 @@
     android:background="?colorSurface"
     android:elevation="16dp"
     android:orientation="vertical"
-    android:clickable="true"
-    android:focusable="true"
     app:behavior_hideable="false"
     app:behavior_peekHeight="48dp"
     app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
-    <!-- Header: hanya status bar (Peek Area = 48dp) -->
-    <LinearLayout
-        android:id="@+id/header_status"
+    <!--
+        Peek area: ViewFlipper 48dp
+        Index 0 = header_status  (default, saat collapsed & keyboard tidak aktif)
+        Index 1 = symbol_view    (saat keyboard virtual aktif & collapsed)
+    -->
+    <ViewFlipper
+        android:id="@+id/header_flipper"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:paddingHorizontal="16dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?colorSurface"
-        android:foreground="?attr/selectableItemBackground">
+        android:layout_height="48dp">
 
-        <TextView
-            android:id="@+id/tv_build_status"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Build Ready"
-            android:textColor="?colorTertiary"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:typeface="monospace" />
+        <!-- Index 0: Status Build -->
+        <LinearLayout
+            android:id="@+id/header_status"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?colorSurface"
+            android:foreground="?attr/selectableItemBackground">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Tap or swipe up to see the build log"
-            android:textSize="9sp"
-            android:typeface="monospace" />
+            <TextView
+                android:id="@+id/tv_build_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Build Ready"
+                android:textColor="?colorTertiary"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:typeface="monospace" />
 
-    </LinearLayout>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Tap or swipe up to see the build log"
+                android:textSize="9sp"
+                android:typeface="monospace" />
 
-    <!-- Content: hanya muncul saat expanded -->
+        </LinearLayout>
+
+        <!-- Index 1: Symbol View (proxy — akan diisi dari editor_fragment via kode) -->
+        <HorizontalScrollView
+            android:id="@+id/symbol_view_container_sheet"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?colorSurfaceContainerLow"
+            android:scrollbars="none">
+
+            <io.github.rosemoe.sora.widget.SymbolInputView
+                android:id="@+id/symbol_view_sheet"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:backgroundTint="?colorSurfaceContainerLow" />
+
+        </HorizontalScrollView>
+
+    </ViewFlipper>
+
+    <!-- Expanded content: divider + toolbar + tab + pager -->
     <LinearLayout
         android:id="@+id/expanded_content"
         android:layout_width="match_parent"

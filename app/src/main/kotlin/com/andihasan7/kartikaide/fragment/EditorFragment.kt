@@ -22,7 +22,6 @@ import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.ImageButton
@@ -204,9 +203,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 fileViewModel.setCurrentPosition(tab.position)
                 updateUndoRedoStatus()
-                // Bind SymbolInputView to the current editor
-                getCurrentFragment()?.editor?.let {
-                    view.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view)?.bindEditor(it)
+                // Bind SymbolInputView editor (di editor_fragment) ke editor aktif
+                getCurrentFragment()?.editor?.let { editor ->
+                    view.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view)?.bindEditor(editor)
+                    // Bind juga symbol_view_sheet di bottom drawer agar sync
+                    binding.root.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)?.bindEditor(editor)
                 }
             }
 
@@ -261,6 +262,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         val pager = bottomSheet.findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.bottom_drawer_pager)
         val tabs = bottomSheet.findViewById<com.google.android.material.tabs.TabLayout>(R.id.bottom_drawer_tabs)
+        val flipper = bottomSheet.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
         val headerStatus = bottomSheet.findViewById<View>(R.id.header_status)
         val expandedContent = bottomSheet.findViewById<View>(R.id.expanded_content)
 
@@ -277,16 +279,16 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }.attach()
 
-        // Set kondisi awal
+        // Kondisi awal
         expandedContent.visibility = View.GONE
+        flipper.displayedChild = 0
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
 
-        // Hitung maxHeight setelah layout selesai agar laci tidak menutupi toolbar + tab file
+        // Hitung maxHeight agar laci tidak melebihi area di bawah AppBar (toolbar + tab file)
         binding.appBar.post {
-            val appBarBottom = binding.appBar.bottom // batas bawah AppBar (toolbar + tab file)
-            val screenHeight = binding.root.height
-            val maxSheetHeight = screenHeight - appBarBottom
-            bottomSheetBehavior.maxHeight = maxSheetHeight
+            val appBarBottom = binding.appBar.bottom
+            val totalHeight = binding.root.height
+            bottomSheetBehavior.maxHeight = totalHeight - appBarBottom
         }
 
         bottomSheetBehavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
@@ -294,21 +296,24 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 when (newState) {
                     BottomSheetBehavior.STATE_EXPANDED -> {
                         expandedContent.visibility = View.VISIBLE
-                        // Saat expanded, klik header → collapse
+                        // Header: kembali ke status (index 0) saat terbuka
+                        flipper.displayedChild = 0
+                        // Klik header saat expanded → collapse
                         headerStatus.setOnClickListener {
                             bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
                         }
                     }
                     BottomSheetBehavior.STATE_COLLAPSED -> {
                         expandedContent.visibility = View.GONE
-                        // Saat collapsed, klik header → expand
+                        // Tampilkan symbol view jika keyboard aktif, status jika tidak
+                        flipper.displayedChild = if (isKeyboardVisible()) 1 else 0
+                        // Klik header saat collapsed → expand
                         headerStatus.setOnClickListener {
                             bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
                         }
                     }
                     BottomSheetBehavior.STATE_DRAGGING,
                     BottomSheetBehavior.STATE_SETTLING -> {
-                        // Tampilkan konten saat sedang drag agar transisi mulus
                         expandedContent.visibility = View.VISIBLE
                     }
                     else -> {}
@@ -317,7 +322,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             override fun onSlide(bottomSheet: View, slideOffset: Float) {}
         })
 
-        // Klik awal: collapsed → expand
+        // Default klik header → expand
         headerStatus.setOnClickListener {
             bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
         }
@@ -374,22 +379,38 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             if (keyboardVisible == lastKeyboardVisible) return@addOnGlobalLayoutListener
             lastKeyboardVisible = keyboardVisible
 
-            // Hitung ulang maxHeight setiap kali keyboard muncul/hilang
-            // agar laci tidak menutupi toolbar + tab file editor
+            val bottomSheet = binding.root.findViewById<View>(R.id.bottom_sheet)
+            val flipper = bottomSheet.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
+            val symbolViewSheet = bottomSheet.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
+
+            if (keyboardVisible) {
+                // Keyboard muncul: bind symbol_view_sheet ke editor aktif, lalu tampilkan
+                getCurrentFragment()?.editor?.let { editor ->
+                    symbolViewSheet?.bindEditor(editor)
+                }
+                if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED) {
+                    flipper.displayedChild = 1 // Tampilkan symbol view
+                }
+            } else {
+                // Keyboard hilang: kembali ke header status jika collapsed
+                if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED) {
+                    flipper.displayedChild = 0
+                }
+            }
+
+            // Hitung ulang maxHeight setiap keyboard muncul/hilang
             binding.appBar.post {
                 val appBarBottom = binding.appBar.bottom
-                val visibleHeight = r.bottom // batas bawah area visible (di atas keyboard)
-                val maxHeight = visibleHeight - appBarBottom
-                if (maxHeight > 0) {
+                val visibleBottom = r.bottom
+                val maxHeight = visibleBottom - appBarBottom
+                if (maxHeight > 48.dpToPx()) {
                     bottomSheetBehavior.maxHeight = maxHeight
-                }
-                // Jika laci sedang expanded saat keyboard muncul, paksa recalculate
-                if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_EXPANDED) {
-                    bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
                 }
             }
         }
     }
+
+    private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density).toInt()
 
     private fun isKeyboardVisible(): Boolean {
         val r = Rect()
@@ -1107,7 +1128,13 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private fun startCompilationAndExecution(clazz: String? = null) {
         ProjectHandler.clazz = clazz
         editorAdapter.saveAll()
-        
+
+        // Tutup keyboard virtual sebelum menjalankan
+        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        val focusedView = requireActivity().currentFocus ?: binding.root
+        imm.hideSoftInputFromWindow(focusedView.windowToken, 0)
+        focusedView.clearFocus()
+
         // Show Bottom Sheet and switch to Build Log
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
         val pager = binding.root.findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.bottom_drawer_pager)
