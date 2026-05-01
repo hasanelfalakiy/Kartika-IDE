@@ -10,7 +10,6 @@ package com.andihasan7.kartikaide.adapter
 import andihasan7.kartikaide.buildtools.Javap
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.editor.analyzers.EditorDiagnosticsMarker
-import com.andihasan7.kartikaide.fragment.EditorFragment
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
@@ -26,6 +25,7 @@ import com.andihasan7.kartikaide.editor.InlayHintManager
 import com.andihasan7.kartikaide.editor.language.KotlinLanguage
 import com.andihasan7.kartikaide.editor.language.TsLanguageJava
 import com.andihasan7.kartikaide.extension.setFont
+import com.andihasan7.kartikaide.fragment.EditorFragment
 import com.andihasan7.kartikaide.model.FileViewModel
 import com.andihasan7.kartikaide.util.ProjectHandler
 import io.github.rosemoe.sora.event.ContentChangeEvent

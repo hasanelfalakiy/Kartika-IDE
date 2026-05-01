@@ -22,6 +22,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.ImageButton
@@ -257,51 +258,67 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private fun initBottomDrawer() {
         val bottomSheet = binding.root.findViewById<View>(R.id.bottom_sheet)
         bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet)
-        
+
         val pager = bottomSheet.findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.bottom_drawer_pager)
         val tabs = bottomSheet.findViewById<com.google.android.material.tabs.TabLayout>(R.id.bottom_drawer_tabs)
-        val flipper = bottomSheet.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
+        val headerStatus = bottomSheet.findViewById<View>(R.id.header_status)
         val expandedContent = bottomSheet.findViewById<View>(R.id.expanded_content)
 
         bottomDrawerAdapter = BottomDrawerAdapter()
         pager.adapter = bottomDrawerAdapter
         pager.offscreenPageLimit = 2
         pager.isUserInputEnabled = false
-        
+
         TabLayoutMediator(tabs, pager) { tab, position ->
-            when(position) {
+            when (position) {
                 0 -> { tab.text = "Build Log"; tab.setIcon(R.drawable.ic_build_log) }
                 1 -> { tab.text = "Output"; tab.setIcon(R.drawable.ic_output) }
                 2 -> { tab.text = "Search"; tab.setIcon(R.drawable.ic_search_results) }
             }
         }.attach()
 
+        // Set kondisi awal
+        expandedContent.visibility = View.GONE
+        bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+
+        // Hitung maxHeight setelah layout selesai agar laci tidak menutupi toolbar + tab file
+        binding.appBar.post {
+            val appBarBottom = binding.appBar.bottom // batas bawah AppBar (toolbar + tab file)
+            val screenHeight = binding.root.height
+            val maxSheetHeight = screenHeight - appBarBottom
+            bottomSheetBehavior.maxHeight = maxSheetHeight
+        }
+
         bottomSheetBehavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onStateChanged(bottomSheet: View, newState: Int) {
-                when(newState) {
+                when (newState) {
                     BottomSheetBehavior.STATE_EXPANDED -> {
-                        flipper.displayedChild = 2 // Full Header
                         expandedContent.visibility = View.VISIBLE
+                        // Saat expanded, klik header → collapse
+                        headerStatus.setOnClickListener {
+                            bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+                        }
                     }
                     BottomSheetBehavior.STATE_COLLAPSED -> {
                         expandedContent.visibility = View.GONE
-                        if (isKeyboardVisible()) {
-                            flipper.displayedChild = 1 // Symbol View
-                        } else {
-                            flipper.displayedChild = 0 // Status Build
+                        // Saat collapsed, klik header → expand
+                        headerStatus.setOnClickListener {
+                            bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
                         }
                     }
-                    else -> {
-                        if (newState == BottomSheetBehavior.STATE_DRAGGING || newState == BottomSheetBehavior.STATE_SETTLING) {
-                            expandedContent.visibility = View.VISIBLE
-                        }
+                    BottomSheetBehavior.STATE_DRAGGING,
+                    BottomSheetBehavior.STATE_SETTLING -> {
+                        // Tampilkan konten saat sedang drag agar transisi mulus
+                        expandedContent.visibility = View.VISIBLE
                     }
+                    else -> {}
                 }
             }
             override fun onSlide(bottomSheet: View, slideOffset: Float) {}
         })
 
-        bottomSheet.findViewById<View>(R.id.header_status).setOnClickListener {
+        // Klik awal: collapsed → expand
+        headerStatus.setOnClickListener {
             bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
         }
 
@@ -345,21 +362,30 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     private fun setupKeyboardListener() {
         val rootView = binding.root
+        var lastKeyboardVisible = false
+
         rootView.viewTreeObserver.addOnGlobalLayoutListener {
             val r = Rect()
             rootView.getWindowVisibleDisplayFrame(r)
             val screenHeight = rootView.rootView.height
             val keypadHeight = screenHeight - r.bottom
+            val keyboardVisible = keypadHeight > screenHeight * 0.15
 
-            val flipper = binding.root.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
-            
-            if (keypadHeight > screenHeight * 0.15) { // Keyboard is visible
-                if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED) {
-                    flipper.displayedChild = 1 // Symbol View
+            if (keyboardVisible == lastKeyboardVisible) return@addOnGlobalLayoutListener
+            lastKeyboardVisible = keyboardVisible
+
+            // Hitung ulang maxHeight setiap kali keyboard muncul/hilang
+            // agar laci tidak menutupi toolbar + tab file editor
+            binding.appBar.post {
+                val appBarBottom = binding.appBar.bottom
+                val visibleHeight = r.bottom // batas bawah area visible (di atas keyboard)
+                val maxHeight = visibleHeight - appBarBottom
+                if (maxHeight > 0) {
+                    bottomSheetBehavior.maxHeight = maxHeight
                 }
-            } else { // Keyboard is hidden
-                if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED) {
-                    flipper.displayedChild = 0 // Status Build
+                // Jika laci sedang expanded saat keyboard muncul, paksa recalculate
+                if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_EXPANDED) {
+                    bottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
                 }
             }
         }
