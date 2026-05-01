@@ -24,6 +24,7 @@
         android:layout_height="?minTouchTargetSize"
         android:background="?colorSurfaceContainerLow"
         android:scrollbars="none"
+        android:visibility="visible"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <io.github.rosemoe.sora.widget.SymbolInputView
