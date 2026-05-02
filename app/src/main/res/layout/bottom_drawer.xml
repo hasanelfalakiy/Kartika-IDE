@@ -1,20 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Konten Laci Bawah (Bottom Sheet) -->
+<!--
+    Bottom Drawer: RelativeLayout.
+    Tinggi dikontrol dari kode via layoutParams.height:
+      - Collapsed: 60dp (hanya header_flipper)
+      - Expanded : (tinggiLayar - appBarBottom)
+    Tidak ada BottomSheetBehavior, tidak ada translationY.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/bottom_sheet"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?colorSurface"
-    android:elevation="16dp"
-    android:orientation="vertical"
-    android:clickable="true"
-    android:focusable="true"
-    app:behavior_hideable="false"
-    app:behavior_peekHeight="60dp"
-    app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
+    android:elevation="8dp"
+    android:orientation="vertical">
 
-    <!-- Header: ViewFlipper (Peek Area) -->
+    <!--
+        PEEK BAR (60dp):
+        Index 0 = header_status    (collapsed, keyboard off)
+        Index 1 = symbol_view_sheet (collapsed, keyboard on)
+        Index 2 = toolbar_expanded  (expanded)
+    -->
     <ViewFlipper
         android:id="@+id/header_flipper"
         android:layout_width="match_parent"
@@ -33,6 +39,7 @@
             android:focusable="true"
             android:background="?colorSurface"
             android:foreground="?attr/selectableItemBackground">
+
             <TextView
                 android:id="@+id/tv_build_status"
                 android:layout_width="wrap_content"
@@ -42,12 +49,14 @@
                 android:textSize="11sp"
                 android:textStyle="bold"
                 android:typeface="monospace" />
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Tap or swipe up to see the build log"
                 android:textSize="9sp"
                 android:typeface="monospace" />
+
         </LinearLayout>
 
         <!-- Index 1: Symbol View -->
@@ -66,12 +75,16 @@
 
         </HorizontalScrollView>
 
-        <!-- Index 2: Full Header (Toolbar-like) -->
+        <!-- Index 2: Toolbar Expanded -->
         <RelativeLayout
+            android:id="@+id/toolbar_expanded"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:paddingHorizontal="12dp"
             android:background="?colorSurface"
-            android:paddingHorizontal="12dp">
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -79,8 +92,8 @@
                 android:layout_centerVertical="true"
                 android:text="Console &amp; Logs"
                 android:textStyle="bold"
-                android:textSize="14sp"
-                android:typeface="monospace"/>
+                android:textSize="13sp"
+                android:typeface="monospace" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -105,7 +118,8 @@
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:src="@drawable/baseline_close_24"
                     app:tint="?colorError"
-                    android:contentDescription="Stop" />
+                    android:contentDescription="Stop"
+                    android:visibility="gone" />
 
                 <ImageButton
                     android:id="@+id/btn_clear_log"
@@ -115,63 +129,56 @@
                     android:src="@drawable/ic_delete_sweep"
                     app:tint="?colorOnSurfaceVariant"
                     android:contentDescription="Clear" />
+
             </LinearLayout>
         </RelativeLayout>
+
     </ViewFlipper>
 
-    <!-- Content below peek area -->
-    <LinearLayout
-        android:id="@+id/expanded_content"
+    <!-- Divider -->
+    <View
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:visibility="gone">
+        android:layout_height="1dp"
+        android:background="?android:attr/dividerVertical" />
 
-        <View
-            android:id="@+id/bottom_divider"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="?android:attr/dividerVertical" />
+    <!-- TabLayout -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/bottom_drawer_tabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:tabIconTint="?colorPrimary"
+        app:tabIndicatorFullWidth="true"
+        app:tabInlineLabel="true"
+        app:tabMode="fixed"
+        app:tabSelectedTextColor="?colorPrimary"
+        app:tabTextColor="?colorOnSurfaceVariant">
 
-        <!-- TabLayout -->
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/bottom_drawer_tabs"
-            android:layout_width="match_parent"
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:tabIconTint="?colorPrimary"
-            app:tabIndicatorFullWidth="true"
-            app:tabInlineLabel="true"
-            app:tabMode="fixed"
-            app:tabSelectedTextColor="?colorPrimary"
-            app:tabTextColor="?colorOnSurfaceVariant"
-            >
+            android:text="Build Log"
+            android:icon="@drawable/ic_build_log" />
 
-            <com.google.android.material.tabs.TabItem
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Build Log"
-                android:icon="@drawable/ic_build_log" />
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Output"
+            android:icon="@drawable/ic_output" />
 
-            <com.google.android.material.tabs.TabItem
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Output"
-                android:icon="@drawable/ic_output" />
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Search Result"
+            android:icon="@drawable/ic_search_results" />
 
-            <com.google.android.material.tabs.TabItem
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Search Result"
-                android:icon="@drawable/ic_search_results" />
-        </com.google.android.material.tabs.TabLayout>
+    </com.google.android.material.tabs.TabLayout>
 
-        <!-- Pager -->
-        <androidx.viewpager2.widget.ViewPager2
-            android:id="@+id/bottom_drawer_pager"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:background="?colorSurface" />
-    </LinearLayout>
+    <!-- Pager mengisi semua sisa ruang -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/bottom_drawer_pager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="?colorSurface" />
 
 </LinearLayout>
