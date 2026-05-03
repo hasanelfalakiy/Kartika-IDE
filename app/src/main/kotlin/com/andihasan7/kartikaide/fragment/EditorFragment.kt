@@ -306,12 +306,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         toolbarExpanded.setOnClickListener { collapseBottomDrawer() }
 
         // Swipe gesture pada header_status: deteksi vertikal untuk expand/collapse
-        var dragStartX = 0f
         var dragStartY = 0f
         headerStatus.setOnTouchListener { _, event ->
             when (event.action) {
                 android.view.MotionEvent.ACTION_DOWN -> {
-                    dragStartX = event.rawX
                     dragStartY = event.rawY
                     true
                 }
@@ -329,30 +327,35 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }
 
-        // symbol_view_container_sheet: HANYA swipe vertikal yang memicu expand/collapse.
-        // Gerakan horizontal dibiarkan agar HorizontalScrollView bisa scroll normal.
-        bottomSheet.findViewById<View>(R.id.symbol_view_container_sheet)
-            .setOnTouchListener { _, event ->
-                when (event.action) {
-                    android.view.MotionEvent.ACTION_DOWN -> {
-                        dragStartX = event.rawX
-                        dragStartY = event.rawY
-                        false // biarkan HorizontalScrollView menerima DOWN
+        // symbol_view_container_sheet: gunakan GestureDetector untuk bedakan
+        // scroll horizontal (biarkan HorizontalScrollView) vs vertikal (expand/collapse)
+        val gestureDetector = android.view.GestureDetector(
+            requireContext(),
+            object : android.view.GestureDetector.SimpleOnGestureListener() {
+                override fun onScroll(
+                    e1: android.view.MotionEvent?,
+                    e2: android.view.MotionEvent,
+                    distanceX: Float,
+                    distanceY: Float
+                ): Boolean {
+                    // Hanya intercept jika gerakan vertikal lebih dominan dari horizontal
+                    if (kotlin.math.abs(distanceY) > kotlin.math.abs(distanceX)) {
+                        if (distanceY < -15f) expandBottomDrawer()   // scroll ke atas → expand
+                        else if (distanceY > 15f) collapseBottomDrawer() // scroll ke bawah → collapse
+                        return true
                     }
-                    android.view.MotionEvent.ACTION_UP -> {
-                        val dx = kotlin.math.abs(event.rawX - dragStartX)
-                        val dy = dragStartY - event.rawY
-                        // Hanya proses jika gerakan lebih vertikal dari horizontal
-                        if (dx < 30) {
-                            when {
-                                dy > 60  -> { expandBottomDrawer(); true }
-                                dy < -60 -> { collapseBottomDrawer(); true }
-                                else -> false
-                            }
-                        } else false // gerakan horizontal → biarkan scroll
-                    }
-                    else -> false
+                    return false // horizontal scroll → biarkan HorizontalScrollView
                 }
+            }
+        )
+
+        bottomSheet.findViewById<View>(R.id.symbol_view_container_sheet)
+            .setOnTouchListener { v, event ->
+                val consumed = gestureDetector.onTouchEvent(event)
+                if (!consumed) {
+                    v.onTouchEvent(event) // teruskan ke HorizontalScrollView
+                }
+                consumed
             }
 
         bottomSheet.findViewById<ImageButton>(R.id.btn_clear_log).setOnClickListener {
@@ -372,43 +375,19 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     private fun hideEditorSymbolView(fragView: android.view.View) {
         val symContainer = fragView.findViewById<View>(R.id.symbol_view_container) ?: return
-        // Simpan visibility asli (bisa saja sudah GONE dari Prefs)
+        // Simpan visibility asli sebelum disembunyikan
         symbolViewOriginalVisibility[fragView.hashCode()] = symContainer.visibility
-        // Hanya sembunyikan jika memang sedang terlihat
-        if (symContainer.visibility != View.GONE) {
-            symContainer.visibility = View.GONE
-            val container = fragView as? androidx.constraintlayout.widget.ConstraintLayout ?: return
-            val cs = androidx.constraintlayout.widget.ConstraintSet()
-            cs.clone(container)
-            cs.connect(R.id.editor, androidx.constraintlayout.widget.ConstraintSet.BOTTOM,
-                       androidx.constraintlayout.widget.ConstraintSet.PARENT_ID,
-                       androidx.constraintlayout.widget.ConstraintSet.BOTTOM, 0)
-            cs.connect(R.id.editor, androidx.constraintlayout.widget.ConstraintSet.TOP,
-                       androidx.constraintlayout.widget.ConstraintSet.PARENT_ID,
-                       androidx.constraintlayout.widget.ConstraintSet.TOP, 0)
-            cs.applyTo(container)
-        }
+        // Cukup set GONE — ConstraintLayout secara native akan memperluas editor
+        // ke bawah parent saat symbol_view_container GONE (karena editor punya
+        // layout_constraintBottom_toTopOf="@id/symbol_view_container" di XML)
+        symContainer.visibility = View.GONE
     }
 
     private fun showEditorSymbolView(fragView: android.view.View) {
         val symContainer = fragView.findViewById<View>(R.id.symbol_view_container) ?: return
-        // Kembalikan ke visibility asli (jangan paksa VISIBLE jika dari Prefs memang GONE)
-        val originalVisibility = symbolViewOriginalVisibility[fragView.hashCode()] ?: View.VISIBLE
+        // Kembalikan ke visibility asli (jangan paksa VISIBLE jika Prefs disable)
+        val originalVisibility = symbolViewOriginalVisibility.remove(fragView.hashCode()) ?: View.VISIBLE
         symContainer.visibility = originalVisibility
-        symbolViewOriginalVisibility.remove(fragView.hashCode())
-        // Kembalikan constraint editor hanya jika symbol_view_container memang terlihat
-        if (originalVisibility == View.VISIBLE) {
-            val container = fragView as? androidx.constraintlayout.widget.ConstraintLayout ?: return
-            val cs = androidx.constraintlayout.widget.ConstraintSet()
-            cs.clone(container)
-            cs.connect(R.id.editor, androidx.constraintlayout.widget.ConstraintSet.BOTTOM,
-                       R.id.symbol_view_container,
-                       androidx.constraintlayout.widget.ConstraintSet.TOP, 0)
-            cs.connect(R.id.editor, androidx.constraintlayout.widget.ConstraintSet.TOP,
-                       androidx.constraintlayout.widget.ConstraintSet.PARENT_ID,
-                       androidx.constraintlayout.widget.ConstraintSet.TOP, 0)
-            cs.applyTo(container)
-        }
     }
 
     private fun stopExecution() {
@@ -477,8 +456,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         val flipper   = binding.root.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
         val peekPx    = (PEEK_HEIGHT_DP * resources.displayMetrics.density).toInt()
 
-        flipper.displayedChild = if (isKeyboardVisible()) 1 else 0
         isBottomDrawerExpanded = false
+
+        // Tentukan child yang ditampilkan saat collapsed
+        val symShouldShow = !Prefs.disableSymbolsView && isKeyboardVisible()
+        flipper.displayedChild = if (symShouldShow) 1 else 0
 
         if (animate) {
             val anim = android.animation.ValueAnimator.ofInt(container.height, peekPx)
