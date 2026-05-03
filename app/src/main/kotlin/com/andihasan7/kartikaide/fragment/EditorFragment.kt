@@ -209,6 +209,19 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     binding.root.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
                         ?.bindEditor(editor)
                 }
+                // Jaga state symbol_view_container sesuai kondisi keyboard saat ini
+                if (isKeyboardVisible()) {
+                    getCurrentFragment()?.view?.let { fragView ->
+                        fragView.findViewById<View>(R.id.symbol_view_container)?.visibility = View.GONE
+                        (fragView.findViewById<View>(R.id.editor)?.layoutParams
+                                as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
+                            ?.let { lp ->
+                                lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
+                                lp.bottomToTop    = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                                fragView.findViewById<View>(R.id.editor)?.layoutParams = lp
+                            }
+                    }
+                }
             }
 
             override fun onTabUnselected(tab: TabLayout.Tab) {
@@ -429,46 +442,41 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             val symSheet = binding.root.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
 
             if (keyboardVisible) {
-                // 1. Bind symbol_view_sheet ke editor aktif
+                // Bind symbol_view_sheet ke editor aktif
                 getCurrentFragment()?.editor?.let { symSheet?.bindEditor(it) }
 
-                // 2. Sembunyikan symbol_view_container bawaan setiap editor tab
-                //    dan perluas editor mengisi ruangnya agar tidak ada gap kosong
-                for (i in 0 until editorAdapter.itemCount) {
-                    editorAdapter.getItem(i)?.view?.let { fragView ->
-                        val symContainer = fragView.findViewById<View>(R.id.symbol_view_container)
-                        val editorView   = fragView.findViewById<View>(R.id.editor)
-                        symContainer?.visibility = View.GONE
-                        // Perluas editor ke bawah parent (lepas constraint ke symbol_view_container)
-                        (editorView?.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
-                            ?.let { lp ->
-                                lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
-                                lp.bottomToTop    = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
-                                editorView.layoutParams = lp
-                            }
-                    }
+                // Sembunyikan symbol_view_container di fragment editor yang sedang aktif
+                // Gunakan getCurrentFragment() karena fragment lain mungkin belum di-attach
+                getCurrentFragment()?.view?.let { fragView ->
+                    val symContainer = fragView.findViewById<View>(R.id.symbol_view_container)
+                    val editorView   = fragView.findViewById<View>(R.id.editor)
+                    symContainer?.visibility = View.GONE
+                    (editorView?.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
+                        ?.let { lp ->
+                            lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
+                            lp.bottomToTop    = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                            editorView.layoutParams = lp
+                        }
                 }
 
-                // 3. Tampilkan symbol_view_sheet di flipper (hanya jika collapsed)
+                // Tampilkan symbol_view di flipper jika drawer collapsed
                 if (!isBottomDrawerExpanded) flipper.displayedChild = 1
 
             } else {
-                // 1. Tampilkan kembali symbol_view_container dan kembalikan constraint
-                for (i in 0 until editorAdapter.itemCount) {
-                    editorAdapter.getItem(i)?.view?.let { fragView ->
-                        val symContainer = fragView.findViewById<View>(R.id.symbol_view_container)
-                        val editorView   = fragView.findViewById<View>(R.id.editor)
-                        symContainer?.visibility = View.VISIBLE
-                        (editorView?.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
-                            ?.let { lp ->
-                                lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
-                                lp.bottomToTop    = R.id.symbol_view_container
-                                editorView.layoutParams = lp
-                            }
-                    }
+                // Tampilkan kembali symbol_view_container di fragment aktif
+                getCurrentFragment()?.view?.let { fragView ->
+                    val symContainer = fragView.findViewById<View>(R.id.symbol_view_container)
+                    val editorView   = fragView.findViewById<View>(R.id.editor)
+                    symContainer?.visibility = View.VISIBLE
+                    (editorView?.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
+                        ?.let { lp ->
+                            lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                            lp.bottomToTop    = R.id.symbol_view_container
+                            editorView.layoutParams = lp
+                        }
                 }
 
-                // 2. Kembali ke header_status jika collapsed
+                // Kembali ke header_status jika collapsed
                 if (!isBottomDrawerExpanded) flipper.displayedChild = 0
             }
 
@@ -1201,8 +1209,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             it.clearFocus()
         }
 
-        // Buka laci bawah dan switch ke Build Log
-        expandBottomDrawer()
+        // Delay expand agar keyboard benar-benar tutup terlebih dahulu
+        // sehingga kalkulasi tinggi drawer menggunakan area layar penuh
+        binding.root.postDelayed({
+            expandBottomDrawer()
+        }, 200)
+
         val pager = binding.root.findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.bottom_drawer_pager)
         pager.currentItem = 0 
         bottomDrawerAdapter.clearLog(0)
