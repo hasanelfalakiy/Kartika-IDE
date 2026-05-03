@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Bottom Drawer: RelativeLayout.
-    Tinggi dikontrol dari kode via layoutParams.height:
-      - Collapsed: 60dp (hanya header_flipper)
-      - Expanded : (tinggiLayar - appBarBottom)
-    Tidak ada BottomSheetBehavior, tidak ada translationY.
+    Bottom Drawer — LinearLayout dengan clipChildren.
+    Root height = match_parent, tapi parent (dari fragment_editor.xml)
+    yang mengontrol tinggi via layoutParams.height dan clipChildren=true.
+
+    Saat collapsed: parent height=60dp → hanya ViewFlipper yg terlihat.
+    Saat expanded : parent height=full → semua konten terlihat.
+    Tidak perlu visibility toggle sama sekali.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -16,8 +18,8 @@
     android:orientation="vertical">
 
     <!--
-        PEEK BAR (60dp):
-        Index 0 = header_status    (collapsed, keyboard off)
+        PEEK BAR (60dp tetap):
+        Index 0 = header_status     (collapsed, keyboard off)
         Index 1 = symbol_view_sheet (collapsed, keyboard on)
         Index 2 = toolbar_expanded  (expanded)
     -->
@@ -25,6 +27,7 @@
         android:id="@+id/header_flipper"
         android:layout_width="match_parent"
         android:layout_height="60dp"
+        android:measureAllChildren="false"
         android:background="?colorSurface">
 
         <!-- Index 0: Status Build -->
@@ -34,7 +37,6 @@
             android:layout_height="match_parent"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="4dp"
             android:clickable="true"
             android:focusable="true"
             android:background="?colorSurface"
@@ -173,7 +175,7 @@
 
     </com.google.android.material.tabs.TabLayout>
 
-    <!-- Pager mengisi semua sisa ruang -->
+    <!-- Pager mengisi sisa ruang -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/bottom_drawer_pager"
         android:layout_width="match_parent"

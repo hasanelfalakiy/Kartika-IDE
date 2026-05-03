@@ -276,6 +276,15 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         val flipper  = bottomSheet.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
         val headerStatus    = bottomSheet.findViewById<View>(R.id.header_status)
         val toolbarExpanded = bottomSheet.findViewById<View>(R.id.toolbar_expanded)
+        val symSheet = bottomSheet.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
+
+        // Setup simbol pada symbol_view_sheet (sama seperti symbol_view di editor_fragment)
+        symSheet?.addSymbols(
+            arrayOf("→", "=", "$", ";", "?", "(", ")", "{", "}", "[", "]", "<", ">",
+                    "+", "-", "*", "/", "%", "&", "|", "!", "\"", "'", ".", ",", "_", "#"),
+            arrayOf("→", "=", "$", ";", "?", "(", ")", "{", "}", "[", "]", "<", ">",
+                    "+", "-", "*", "/", "%", "&", "|", "!", "\"", "'", ".", ",", "_", "#")
+        )
 
         bottomDrawerAdapter = BottomDrawerAdapter()
         pager.adapter = bottomDrawerAdapter
@@ -300,8 +309,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         // Klik area kosong toolbar_expanded → collapse
         toolbarExpanded.setOnClickListener { collapseBottomDrawer() }
 
-        // Swipe gesture pada seluruh flipper (termasuk header_status dan symbol_view)
-        // Pasang di masing-masing child agar tidak konflik dengan ViewFlipper internal
+        // Swipe gesture — pasang di child view header_status dan symbol_view_container_sheet
         var dragStartY = 0f
         val swipeTouchListener = android.view.View.OnTouchListener { _, event ->
             when (event.action) {
@@ -314,7 +322,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     when {
                         dy > 80  -> expandBottomDrawer()
                         dy < -80 -> collapseBottomDrawer()
-                        // Tap biasa (tidak swipe) → toggle
                         kotlin.math.abs(dy) < 10 && !isBottomDrawerExpanded -> expandBottomDrawer()
                     }
                     true
@@ -324,7 +331,6 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }
         headerStatus.setOnTouchListener(swipeTouchListener)
-        // symbol_view_container_sheet juga bisa di-swipe
         bottomSheet.findViewById<View>(R.id.symbol_view_container_sheet)
             .setOnTouchListener(swipeTouchListener)
 
@@ -438,50 +444,49 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             if (keyboardHeight == lastKeyboardHeight) return@addOnGlobalLayoutListener
             lastKeyboardHeight = keyboardHeight
 
-            val flipper  = binding.root.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
-            val symSheet = binding.root.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
+            // Gunakan post agar layout sudah selesai di-measure sebelum kita ubah state
+            rootView.post {
+                val flipper  = binding.root.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
+                val symSheet = binding.root.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
 
-            if (keyboardVisible) {
-                // Bind symbol_view_sheet ke editor aktif
-                getCurrentFragment()?.editor?.let { symSheet?.bindEditor(it) }
+                if (keyboardVisible) {
+                    // Bind symbol_view_sheet ke editor aktif
+                    getCurrentFragment()?.editor?.let { symSheet?.bindEditor(it) }
 
-                // Sembunyikan symbol_view_container di fragment editor yang sedang aktif
-                // Gunakan getCurrentFragment() karena fragment lain mungkin belum di-attach
-                getCurrentFragment()?.view?.let { fragView ->
-                    val symContainer = fragView.findViewById<View>(R.id.symbol_view_container)
-                    val editorView   = fragView.findViewById<View>(R.id.editor)
-                    symContainer?.visibility = View.GONE
-                    (editorView?.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
-                        ?.let { lp ->
-                            lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
-                            lp.bottomToTop    = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
-                            editorView.layoutParams = lp
-                        }
+                    // Sembunyikan symbol_view_container editor aktif
+                    getCurrentFragment()?.view?.let { fragView ->
+                        fragView.findViewById<View>(R.id.symbol_view_container)?.visibility = View.GONE
+                        (fragView.findViewById<View>(R.id.editor)?.layoutParams
+                                as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
+                            ?.let { lp ->
+                                lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
+                                lp.bottomToTop    = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                                fragView.findViewById<View>(R.id.editor)?.layoutParams = lp
+                            }
+                    }
+
+                    // Tampilkan symbol_view di flipper jika drawer collapsed
+                    if (!isBottomDrawerExpanded) flipper?.displayedChild = 1
+
+                } else {
+                    // Kembalikan symbol_view_container editor aktif
+                    getCurrentFragment()?.view?.let { fragView ->
+                        fragView.findViewById<View>(R.id.symbol_view_container)?.visibility = View.VISIBLE
+                        (fragView.findViewById<View>(R.id.editor)?.layoutParams
+                                as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
+                            ?.let { lp ->
+                                lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                                lp.bottomToTop    = R.id.symbol_view_container
+                                fragView.findViewById<View>(R.id.editor)?.layoutParams = lp
+                            }
+                    }
+
+                    if (!isBottomDrawerExpanded) flipper?.displayedChild = 0
                 }
 
-                // Tampilkan symbol_view di flipper jika drawer collapsed
-                if (!isBottomDrawerExpanded) flipper.displayedChild = 1
-
-            } else {
-                // Tampilkan kembali symbol_view_container di fragment aktif
-                getCurrentFragment()?.view?.let { fragView ->
-                    val symContainer = fragView.findViewById<View>(R.id.symbol_view_container)
-                    val editorView   = fragView.findViewById<View>(R.id.editor)
-                    symContainer?.visibility = View.VISIBLE
-                    (editorView?.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
-                        ?.let { lp ->
-                            lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
-                            lp.bottomToTop    = R.id.symbol_view_container
-                            editorView.layoutParams = lp
-                        }
-                }
-
-                // Kembali ke header_status jika collapsed
-                if (!isBottomDrawerExpanded) flipper.displayedChild = 0
+                // Jika drawer expanded, recalculate tinggi sesuai area visible baru
+                if (isBottomDrawerExpanded) expandBottomDrawer(animate = false)
             }
-
-            // Jika drawer expanded, recalculate tinggi sesuai area visible baru
-            if (isBottomDrawerExpanded) expandBottomDrawer(animate = false)
         }
     }
 
