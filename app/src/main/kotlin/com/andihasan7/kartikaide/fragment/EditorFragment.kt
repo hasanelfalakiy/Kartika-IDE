@@ -277,25 +277,43 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }.attach()
 
+        // Kondisi awal: pastikan hanya header_status yang terlihat
+        flipper.displayedChild = 0
+        isBottomDrawerExpanded = false
+
         // Klik header_status → expand
         headerStatus.setOnClickListener { expandBottomDrawer() }
 
-        // Klik toolbar_expanded → collapse
+        // Klik area kosong toolbar_expanded → collapse
         toolbarExpanded.setOnClickListener { collapseBottomDrawer() }
 
-        // Swipe up/down pada header flipper
+        // Swipe gesture pada seluruh flipper (termasuk header_status dan symbol_view)
+        // Pasang di masing-masing child agar tidak konflik dengan ViewFlipper internal
         var dragStartY = 0f
-        flipper.setOnTouchListener { _, event ->
+        val swipeTouchListener = android.view.View.OnTouchListener { _, event ->
             when (event.action) {
-                android.view.MotionEvent.ACTION_DOWN  -> { dragStartY = event.rawY; false }
-                android.view.MotionEvent.ACTION_UP    -> {
-                    val dy = dragStartY - event.rawY
-                    if (dy > 80) expandBottomDrawer() else if (dy < -80) collapseBottomDrawer()
-                    false
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    dragStartY = event.rawY
+                    true
                 }
+                android.view.MotionEvent.ACTION_UP -> {
+                    val dy = dragStartY - event.rawY
+                    when {
+                        dy > 80  -> expandBottomDrawer()
+                        dy < -80 -> collapseBottomDrawer()
+                        // Tap biasa (tidak swipe) → toggle
+                        kotlin.math.abs(dy) < 10 && !isBottomDrawerExpanded -> expandBottomDrawer()
+                    }
+                    true
+                }
+                android.view.MotionEvent.ACTION_CANCEL -> true
                 else -> false
             }
         }
+        headerStatus.setOnTouchListener(swipeTouchListener)
+        // symbol_view_container_sheet juga bisa di-swipe
+        bottomSheet.findViewById<View>(R.id.symbol_view_container_sheet)
+            .setOnTouchListener(swipeTouchListener)
 
         bottomSheet.findViewById<ImageButton>(R.id.btn_clear_log).setOnClickListener {
             bottomDrawerAdapter.clearLog(pager.currentItem)
@@ -407,20 +425,55 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             if (keyboardHeight == lastKeyboardHeight) return@addOnGlobalLayoutListener
             lastKeyboardHeight = keyboardHeight
 
-            val flipper   = binding.root.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
-            val symSheet  = binding.root.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
+            val flipper  = binding.root.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
+            val symSheet = binding.root.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
 
             if (keyboardVisible) {
+                // 1. Bind symbol_view_sheet ke editor aktif
                 getCurrentFragment()?.editor?.let { symSheet?.bindEditor(it) }
+
+                // 2. Sembunyikan symbol_view_container bawaan setiap editor tab
+                //    dan perluas editor mengisi ruangnya agar tidak ada gap kosong
+                for (i in 0 until editorAdapter.itemCount) {
+                    editorAdapter.getItem(i)?.view?.let { fragView ->
+                        val symContainer = fragView.findViewById<View>(R.id.symbol_view_container)
+                        val editorView   = fragView.findViewById<View>(R.id.editor)
+                        symContainer?.visibility = View.GONE
+                        // Perluas editor ke bawah parent (lepas constraint ke symbol_view_container)
+                        (editorView?.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
+                            ?.let { lp ->
+                                lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
+                                lp.bottomToTop    = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                                editorView.layoutParams = lp
+                            }
+                    }
+                }
+
+                // 3. Tampilkan symbol_view_sheet di flipper (hanya jika collapsed)
                 if (!isBottomDrawerExpanded) flipper.displayedChild = 1
+
             } else {
+                // 1. Tampilkan kembali symbol_view_container dan kembalikan constraint
+                for (i in 0 until editorAdapter.itemCount) {
+                    editorAdapter.getItem(i)?.view?.let { fragView ->
+                        val symContainer = fragView.findViewById<View>(R.id.symbol_view_container)
+                        val editorView   = fragView.findViewById<View>(R.id.editor)
+                        symContainer?.visibility = View.VISIBLE
+                        (editorView?.layoutParams as? androidx.constraintlayout.widget.ConstraintLayout.LayoutParams)
+                            ?.let { lp ->
+                                lp.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                                lp.bottomToTop    = R.id.symbol_view_container
+                                editorView.layoutParams = lp
+                            }
+                    }
+                }
+
+                // 2. Kembali ke header_status jika collapsed
                 if (!isBottomDrawerExpanded) flipper.displayedChild = 0
             }
 
-            // Jika drawer expanded, sesuaikan tingginya dengan area visible yang berubah
-            if (isBottomDrawerExpanded) {
-                expandBottomDrawer(animate = false)
-            }
+            // Jika drawer expanded, recalculate tinggi sesuai area visible baru
+            if (isBottomDrawerExpanded) expandBottomDrawer(animate = false)
         }
     }
 
