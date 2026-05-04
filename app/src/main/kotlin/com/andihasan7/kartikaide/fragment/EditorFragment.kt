@@ -509,7 +509,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         binding.root.getWindowVisibleDisplayFrame(r)
         val appBarBottom  = binding.appBar.bottom
         val visibleBottom = r.bottom
-        val targetHeight  = visibleBottom - appBarBottom
+        val targetHeight  = visibleBottom - appBarBottom - 70 // nilai offset 70 agar bottom drawer tidak menutupi tab layout
         if (targetHeight <= 0) return
 
         // Simpan editor yang sedang fokus sebelum layout berubah
