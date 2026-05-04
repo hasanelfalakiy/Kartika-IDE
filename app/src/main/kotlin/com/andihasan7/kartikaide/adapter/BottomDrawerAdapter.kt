@@ -43,7 +43,9 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
         val content = logContents[position].toString()
         holder.binding.logEditor.setText(content)
         // Scroll ke posisi awal agar teks tidak geser ke tengah/kanan
-        holder.binding.logEditor.scrollTo(0, 0)
+        holder.binding.logEditor.post {
+            holder.binding.logEditor.setSelection(0, 0)
+        }
         holder.binding.tvEmptyLog.visibility = if (content.isEmpty()) View.VISIBLE else View.GONE
 
         if (position == 0) {
@@ -64,12 +66,19 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
         val suffix = if (addNewLine) "\n" else ""
         logContents[position]?.append(text)?.append(suffix)
         viewHolders[position]?.let { holder ->
-            holder.binding.logEditor.appendText(text + suffix)
+            val editor = holder.binding.logEditor
+            editor.appendText(text + suffix)
             holder.binding.tvEmptyLog.visibility = View.GONE
-            // Scroll ke baris terakhir agar output terbaru selalu terlihat
-            val lineCount = holder.binding.logEditor.text.lineCount
+            
+            // Fix masalah 2: Gunakan post untuk scroll agar layout sudah stabil,
+            // dan pastikan tidak ada pergeseran horizontal (column 0).
+            val lineCount = editor.text.lineCount
             if (lineCount > 0) {
-                holder.binding.logEditor.setSelection(lineCount - 1, 0)
+                editor.post {
+                    // Set selection ke kolom 0 baris terakhir untuk scroll vertical ke bawah
+                    // tanpa menggeser viewport secara horizontal jika baris baru kosong.
+                    editor.setSelection(lineCount - 1, 0)
+                }
             }
         }
     }
@@ -78,7 +87,9 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
         logContents[position]?.setLength(0)
         viewHolders[position]?.let { holder ->
             holder.binding.logEditor.setText("")
-            holder.binding.logEditor.scrollTo(0, 0)
+            holder.binding.logEditor.post {
+                holder.binding.logEditor.setSelection(0, 0)
+            }
             holder.binding.tvEmptyLog.visibility = View.VISIBLE
         }
     }
