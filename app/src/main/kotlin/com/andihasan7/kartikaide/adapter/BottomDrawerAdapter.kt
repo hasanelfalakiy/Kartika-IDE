@@ -31,6 +31,8 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
         val binding = LayoutLogViewBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         binding.logEditor.apply {
             isLineNumberEnabled = false
+            isWordwrap = false
+            isEditable = false
             setFont()
         }
         return LogViewHolder(binding)
@@ -40,9 +42,10 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
         viewHolders[position] = holder
         val content = logContents[position].toString()
         holder.binding.logEditor.setText(content)
+        // Scroll ke posisi awal agar teks tidak geser ke tengah/kanan
+        holder.binding.logEditor.scrollTo(0, 0)
         holder.binding.tvEmptyLog.visibility = if (content.isEmpty()) View.VISIBLE else View.GONE
-        
-        // Tab Output (1) dibuat editable agar mendukung input (System.in)
+
         if (position == 0) {
             holder.binding.logEditor.isEditable = false
             holder.binding.logEditor.setEditorLanguage(TextMateLanguage.create("source.build", false))
@@ -58,12 +61,16 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
 
     fun appendLog(position: Int, text: String, addNewLine: Boolean = true) {
         if (!logContents.containsKey(position)) return
-        
         val suffix = if (addNewLine) "\n" else ""
         logContents[position]?.append(text)?.append(suffix)
         viewHolders[position]?.let { holder ->
             holder.binding.logEditor.appendText(text + suffix)
             holder.binding.tvEmptyLog.visibility = View.GONE
+            // Scroll ke baris terakhir agar output terbaru selalu terlihat
+            val lineCount = holder.binding.logEditor.text.lineCount
+            if (lineCount > 0) {
+                holder.binding.logEditor.setSelection(lineCount - 1, 0)
+            }
         }
     }
 
@@ -71,6 +78,7 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
         logContents[position]?.setLength(0)
         viewHolders[position]?.let { holder ->
             holder.binding.logEditor.setText("")
+            holder.binding.logEditor.scrollTo(0, 0)
             holder.binding.tvEmptyLog.visibility = View.VISIBLE
         }
     }

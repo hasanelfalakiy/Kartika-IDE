@@ -102,6 +102,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private val PEEK_HEIGHT_DP = 60
     private val project by lazy { requireArguments().getSerializable("project") as Project }
 
+    // Listener untuk perubahan Prefs (misal DISABLE_SYMBOLS_VIEW berubah dari settings)
+    private val prefsChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == andihasan7.kartikaide.common.PreferenceKeys.DISABLE_SYMBOLS_VIEW ||
+            key == andihasan7.kartikaide.common.PreferenceKeys.EDITOR_CUSTOM_SYMBOLS) {
+            refreshSymbolViewState()
+        }
+    }
+
     private var isExecutionRunning: Boolean = false
     private var executionJob: Job? = null
     private var currentRunningClass: String? = null
@@ -270,17 +278,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         val symSheet = bottomSheet.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
 
         // Setup simbol pada symbol_view_sheet sesuai Prefs.customSymbols
-        // Jika disableSymbolsView aktif, sembunyikan container symbol_view_sheet
-        if (Prefs.disableSymbolsView) {
-            bottomSheet.findViewById<View>(R.id.symbol_view_container_sheet)?.visibility = View.GONE
-        } else {
-            val symbols = Prefs.customSymbols
-                .split(",")
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .toTypedArray()
-            symSheet?.addSymbols(symbols, symbols)
-        }
+        setupSymbolSheet()
 
         bottomDrawerAdapter = BottomDrawerAdapter()
         pager.adapter = bottomDrawerAdapter
@@ -327,35 +325,39 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
         }
 
-        // symbol_view_container_sheet: gunakan GestureDetector untuk bedakan
-        // scroll horizontal (biarkan HorizontalScrollView) vs vertikal (expand/collapse)
+        // symbol_view_container_sheet: GestureDetector membedakan scroll horizontal vs vertikal
         val gestureDetector = android.view.GestureDetector(
             requireContext(),
             object : android.view.GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: android.view.MotionEvent): Boolean = true
+
                 override fun onScroll(
                     e1: android.view.MotionEvent?,
                     e2: android.view.MotionEvent,
                     distanceX: Float,
                     distanceY: Float
                 ): Boolean {
+                    val absX = kotlin.math.abs(distanceX)
+                    val absY = kotlin.math.abs(distanceY)
                     // Hanya intercept jika gerakan vertikal lebih dominan dari horizontal
-                    if (kotlin.math.abs(distanceY) > kotlin.math.abs(distanceX)) {
-                        if (distanceY < -15f) expandBottomDrawer()   // scroll ke atas → expand
-                        else if (distanceY > 15f) collapseBottomDrawer() // scroll ke bawah → collapse
-                        return true
+                    return if (absY > absX && absY > 8f) {
+                        // distanceY > 0 = finger gerak ke atas → expand
+                        // distanceY < 0 = finger gerak ke bawah → collapse
+                        if (distanceY > 0) expandBottomDrawer()
+                        else collapseBottomDrawer()
+                        true
+                    } else {
+                        false // horizontal dominan → biarkan HorizontalScrollView scroll
                     }
-                    return false // horizontal scroll → biarkan HorizontalScrollView
                 }
             }
         )
 
         bottomSheet.findViewById<View>(R.id.symbol_view_container_sheet)
             .setOnTouchListener { v, event ->
-                val consumed = gestureDetector.onTouchEvent(event)
-                if (!consumed) {
-                    v.onTouchEvent(event) // teruskan ke HorizontalScrollView
-                }
-                consumed
+                val handled = gestureDetector.onTouchEvent(event)
+                if (!handled) v.onTouchEvent(event)
+                handled
             }
 
         bottomSheet.findViewById<ImageButton>(R.id.btn_clear_log).setOnClickListener {
@@ -371,24 +373,33 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     // Simpan visibility asli symbol_view_container sebelum kita sembunyikan
     // Key: fragment view hashCode, Value: visibility asli (VISIBLE/GONE/INVISIBLE)
-    private val symbolViewOriginalVisibility = mutableMapOf<Int, Int>()
+    /** Setup simbol pada symbol_view_sheet — clear dulu agar tidak duplikat */
+    private fun setupSymbolSheet() {
+        val bottomSheet = binding.root.findViewById<View>(R.id.bottom_sheet) ?: return
+        val symContainer = bottomSheet.findViewById<View>(R.id.symbol_view_container_sheet)
+        val symSheet = bottomSheet.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
 
-    private fun hideEditorSymbolView(fragView: android.view.View) {
-        val symContainer = fragView.findViewById<View>(R.id.symbol_view_container) ?: return
-        // Simpan visibility asli sebelum disembunyikan
-        symbolViewOriginalVisibility[fragView.hashCode()] = symContainer.visibility
-        // Cukup set GONE — ConstraintLayout secara native akan memperluas editor
-        // ke bawah parent saat symbol_view_container GONE (karena editor punya
-        // layout_constraintBottom_toTopOf="@id/symbol_view_container" di XML)
-        symContainer.visibility = View.GONE
+        if (Prefs.disableSymbolsView) {
+            symContainer?.visibility = View.GONE
+            return
+        }
+        symContainer?.visibility = View.VISIBLE
+        // Clear semua simbol lama agar tidak duplikat
+        symSheet?.removeAllViews()
+        val rawSymbols = Prefs.customSymbols.split(",")
+        val display = rawSymbols.map { it.trim() }.filter { it.isNotEmpty() }.toTypedArray()
+        val insert  = display.map { if (it == "→") "\t" else it }.toTypedArray()
+        symSheet?.addSymbols(display, insert)
+        // Bind ke editor hanya jika editorAdapter sudah diinisialisasi
+        if (this::editorAdapter.isInitialized) {
+            getCurrentFragment()?.editor?.let { symSheet?.bindEditor(it) }
+        }
     }
 
-    private fun showEditorSymbolView(fragView: android.view.View) {
-        val symContainer = fragView.findViewById<View>(R.id.symbol_view_container) ?: return
-        // Kembalikan ke visibility asli (jangan paksa VISIBLE jika Prefs disable)
-        val originalVisibility = symbolViewOriginalVisibility.remove(fragView.hashCode()) ?: View.VISIBLE
-        symContainer.visibility = originalVisibility
-    }
+    // symbol_view_container di editor_fragment.xml sudah permanen GONE di XML.
+    // Fungsi ini no-op karena tidak perlu manipulasi visibility lagi.
+    private fun hideEditorSymbolView(fragView: android.view.View) = Unit
+    private fun showEditorSymbolView(fragView: android.view.View) = Unit
 
     private fun stopExecution() {
         if (isExecutionRunning) {
@@ -482,6 +493,24 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         val rootView = binding.root
         var lastKeyboardHeight = 0
 
+        // Observer untuk mendeteksi fragment editor baru yang di-attach saat keyboard aktif
+        // Ini menangani kasus double symbol_view saat tab baru dibuka
+        binding.pager.registerOnPageChangeCallback(object : androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                if (isKeyboardVisible()) {
+                    // Delay kecil agar fragment view sudah attached
+                    binding.root.post {
+                        getCurrentFragment()?.view?.let { fragView ->
+                            val sym = fragView.findViewById<View>(R.id.symbol_view_container)
+                            if (sym != null && sym.visibility != View.GONE) {
+                                hideEditorSymbolView(fragView)
+                            }
+                        }
+                    }
+                }
+            }
+        })
+
         rootView.viewTreeObserver.addOnGlobalLayoutListener {
             val r = android.graphics.Rect()
             rootView.getWindowVisibleDisplayFrame(r)
@@ -492,37 +521,27 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             if (keyboardHeight == lastKeyboardHeight) return@addOnGlobalLayoutListener
             lastKeyboardHeight = keyboardHeight
 
-            // Gunakan post agar layout sudah selesai di-measure sebelum kita ubah state
             rootView.post {
                 val flipper  = binding.root.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
                 val symSheet = binding.root.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
 
                 if (keyboardVisible) {
-                    // Cek apakah symbol_view memang aktif (tidak di-disable dari Prefs)
                     val symEnabled = !Prefs.disableSymbolsView &&
                         getCurrentFragment()?.view
                             ?.findViewById<View>(R.id.symbol_view_container)
                             ?.visibility == View.VISIBLE
 
-                    // Bind symbol_view_sheet ke editor aktif
                     getCurrentFragment()?.editor?.let { symSheet?.bindEditor(it) }
-
-                    // Sembunyikan symbol_view_container editor aktif + perluas editor
                     getCurrentFragment()?.view?.let { hideEditorSymbolView(it) }
 
-                    // Tampilkan symbol_view di flipper HANYA jika symbol_view aktif
                     if (!isBottomDrawerExpanded) {
                         flipper?.displayedChild = if (symEnabled) 1 else 0
                     }
-
                 } else {
-                    // Kembalikan symbol_view_container editor aktif
                     getCurrentFragment()?.view?.let { showEditorSymbolView(it) }
-
                     if (!isBottomDrawerExpanded) flipper?.displayedChild = 0
                 }
 
-                // Jika drawer expanded, recalculate tinggi sesuai area visible baru
                 if (isBottomDrawerExpanded) expandBottomDrawer(animate = false)
             }
         }
@@ -1092,9 +1111,54 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Daftarkan listener perubahan Prefs
+        PreferenceManager.getDefaultSharedPreferences(requireContext())
+            .registerOnSharedPreferenceChangeListener(prefsChangeListener)
+        // Refresh state saat kembali dari settings
+        refreshSymbolViewState()
+    }
+
     override fun onPause() {
         super.onPause()
         editorAdapter.saveAll()
+        // Hapus listener agar tidak memory leak
+        PreferenceManager.getDefaultSharedPreferences(requireContext())
+            .unregisterOnSharedPreferenceChangeListener(prefsChangeListener)
+    }
+
+    /**
+     * Refresh state symbol_view di bottom drawer dan fragment editor aktif
+     * sesuai Prefs terbaru. Dipanggil saat kembali dari settings atau saat Prefs berubah.
+     */
+    private fun refreshSymbolViewState() {
+        val bottomSheet = binding.root.findViewById<View>(R.id.bottom_sheet) ?: return
+        val flipper = bottomSheet.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
+
+        // Re-setup simbol (clear + add ulang)
+        setupSymbolSheet()
+
+        if (Prefs.disableSymbolsView) {
+            getCurrentFragment()?.view?.let { showEditorSymbolView(it) }
+            if (!isBottomDrawerExpanded && flipper?.displayedChild == 1) {
+                flipper.displayedChild = 0
+            }
+        } else {
+            if (isKeyboardVisible() && !isBottomDrawerExpanded) {
+                getCurrentFragment()?.view?.let { fragView ->
+                    hideEditorSymbolView(fragView)
+                    flipper?.displayedChild = 1
+                }
+            }
+        }
+
+        // Refresh visibility symbol_view_container di fragment aktif saja
+        if (!isKeyboardVisible()) {
+            getCurrentFragment()?.view
+                ?.findViewById<View>(R.id.symbol_view_container)
+                ?.visibility = if (Prefs.disableSymbolsView) View.GONE else View.VISIBLE
+        }
     }
 
     private fun formatCodeAsync() {

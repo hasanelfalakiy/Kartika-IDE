@@ -7,6 +7,12 @@
     android:layout_height="match_parent"
     android:background="?colorSurfaceContainerLow">
 
+    <!--
+        symbol_view_container disembunyikan secara permanen (GONE).
+        Fungsinya digantikan oleh symbol_view_sheet di bottom_drawer.xml
+        yang ditampilkan saat keyboard aktif via ViewFlipper index 1.
+        Editor mengisi seluruh tinggi parent karena symbol_view_container GONE.
+    -->
     <com.andihasan7.kartikaide.editor.IdeEditor
         android:id="@+id/editor"
         android:layout_width="match_parent"
@@ -21,7 +27,7 @@
         android:layout_height="?minTouchTargetSize"
         android:background="?colorSurfaceContainerLow"
         android:scrollbars="none"
-        android:visibility="visible"
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toBottomOf="@id/editor">
 
@@ -30,7 +36,6 @@
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:backgroundTint="?colorSurfaceContainerLow" />
-
     </HorizontalScrollView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -214,7 +214,11 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                     .map { it.trim() }
                     .filter { it.isNotEmpty() }
                 
-                val symbols = rawSymbols.map { if (it == "→") "\t" else it }.toTypedArray()
+                // Mendukung pemetaan panah unicode dan string "->" ke karakter TAB (\t)
+                val symbols = rawSymbols.map { s ->
+                    if (s == "→" || s == "->") "\t" else s
+                }.toTypedArray()
+
                 val displays = rawSymbols.toTypedArray()
                 
                 symbolView.addSymbols(displays, symbols)
