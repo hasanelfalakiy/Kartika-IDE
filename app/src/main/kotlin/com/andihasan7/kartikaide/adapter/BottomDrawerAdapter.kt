@@ -41,21 +41,29 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
     override fun onBindViewHolder(holder: LogViewHolder, position: Int) {
         viewHolders[position] = holder
         val content = logContents[position].toString()
-        holder.binding.logEditor.setText(content)
-        // Scroll ke posisi awal agar teks tidak geser ke tengah/kanan
-        holder.binding.logEditor.post {
-            holder.binding.logEditor.setSelection(0, 0)
-        }
+        val editor = holder.binding.logEditor
+        editor.setText(content)
+        
+        // Sembunyikan pesan kosong jika ada konten
         holder.binding.tvEmptyLog.visibility = if (content.isEmpty()) View.VISIBLE else View.GONE
 
+        // Pastikan kursor berada di akhir saat bind agar output terbaru terlihat
+        editor.post {
+            val lineCount = editor.text.lineCount
+            if (lineCount > 0) {
+                val lastLine = lineCount - 1
+                editor.setSelection(lastLine, editor.text.getColumnCount(lastLine))
+            }
+        }
+
         if (position == 0) {
-            holder.binding.logEditor.isEditable = false
-            holder.binding.logEditor.setEditorLanguage(TextMateLanguage.create("source.build", false))
+            editor.isEditable = false
+            editor.setEditorLanguage(TextMateLanguage.create("source.build", false))
         } else if (position == 1) {
-            holder.binding.logEditor.isEditable = true
-            holder.binding.logEditor.setEditorLanguage(TextMateLanguage.create("source.build", false))
+            editor.isEditable = true
+            editor.setEditorLanguage(TextMateLanguage.create("source.build", false))
         } else {
-            holder.binding.logEditor.isEditable = false
+            editor.isEditable = false
         }
     }
 
@@ -67,17 +75,25 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
         logContents[position]?.append(text)?.append(suffix)
         viewHolders[position]?.let { holder ->
             val editor = holder.binding.logEditor
+            
+            // Cek apakah kursor berada di akhir sebelum append untuk auto-scroll/posisi input
+            val content = editor.text
+            val isAtEnd = editor.cursor.leftLine == content.lineCount - 1 && 
+                          editor.cursor.leftColumn == content.getColumnCount(editor.cursor.leftLine)
+            
             editor.appendText(text + suffix)
             holder.binding.tvEmptyLog.visibility = View.GONE
             
-            // Fix masalah 2: Gunakan post untuk scroll agar layout sudah stabil,
-            // dan pastikan tidak ada pergeseran horizontal (column 0).
-            val lineCount = editor.text.lineCount
-            if (lineCount > 0) {
-                editor.post {
-                    // Set selection ke kolom 0 baris terakhir untuk scroll vertical ke bawah
-                    // tanpa menggeser viewport secara horizontal jika baris baru kosong.
-                    editor.setSelection(lineCount - 1, 0)
+            // Fix masalah kursor (Scanner/readLine) & Auto-scroll:
+            // Pindah ke akhir teks jika sebelumnya di akhir, atau jika ini adalah Build Log (pos 0)
+            if (isAtEnd || position == 0) {
+                val lineCount = editor.text.lineCount
+                if (lineCount > 0) {
+                    editor.post {
+                        val lastLine = lineCount - 1
+                        val lastCol = editor.text.getColumnCount(lastLine)
+                        editor.setSelection(lastLine, lastCol)
+                    }
                 }
             }
         }
