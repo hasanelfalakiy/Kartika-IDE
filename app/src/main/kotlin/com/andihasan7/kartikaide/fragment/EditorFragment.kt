@@ -1425,10 +1425,13 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
         val compiler = Compiler(project, reporter)
 
+        binding.compileProgress.visibility = View.VISIBLE
+
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 compiler.compile()
                 withContext(Dispatchers.Main) {
+                    binding.compileProgress.visibility = View.GONE
                     if (reporter.buildSuccess) {
                         bottomDrawerAdapter.appendLog(0, "Build Successful!")
                         // Switch to Output tab and run
@@ -1440,6 +1443,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
+                    binding.compileProgress.visibility = View.GONE
                     bottomDrawerAdapter.appendLog(0, "Error during compilation: ${e.message}")
                 }
             }

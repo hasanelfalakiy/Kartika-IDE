@@ -37,6 +37,15 @@
                 app:menu="@menu/menu_main"
                 app:navigationIcon="@drawable/ic_menu" />
 
+            <!-- Material 3 Linear Progress Indicator -->
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/compile_progress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:indeterminate="true"
+                android:visibility="gone"
+                app:trackThickness="3dp" />
+
             <com.google.android.material.tabs.TabLayout
                 android:id="@+id/tab_layout"
                 android:layout_width="match_parent"
