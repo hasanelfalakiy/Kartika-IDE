@@ -164,7 +164,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
-            //setupSymbols()
             setText()
             editor.setFont()
             setColorScheme()
@@ -199,32 +198,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                 }
             })
         }
-
-        /*
-        private fun setupSymbols() {
-            binding.apply {
-                if (Prefs.disableSymbolsView) {
-                    symbolViewContainer.visibility = View.GONE
-                    return
-                }
-                symbolViewContainer.visibility = View.VISIBLE
-                symbolView.bindEditor(editor)
-                symbolView.removeSymbols()
-                
-                val rawSymbols = Prefs.customSymbols.split(",")
-                    .map { it.trim() }
-                    .filter { it.isNotEmpty() }
-                
-                // Mendukung pemetaan panah unicode dan string "->" ke karakter TAB (\t)
-                val symbols = rawSymbols.map { s ->
-                    if (s == "→" || s == "->") "\t" else s
-                }.toTypedArray()
-
-                val displays = rawSymbols.toTypedArray()
-                
-                symbolView.addSymbols(displays, symbols)
-            }
-        } */
 
         private fun setEditorLanguage() {
             val project = ProjectHandler.getProject() ?: return
@@ -303,7 +276,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             if (::editor.isInitialized) {
                 editor.updateSettings()
                 setEditorLanguage()
-                //setupSymbols()
                 setupInlayHints()
             }
         }
