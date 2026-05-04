@@ -7,6 +7,10 @@
 
 package andihasan7.kartikaide.completion.java.parser
 
+import andihasan7.kartikaide.completion.java.parser.cache.SymbolCacher
+import andihasan7.kartikaide.completion.java.parser.cache.qualifiedName
+import andihasan7.kartikaide.editor.EditorCompletionItem
+import andihasan7.kartikaide.rewrite.util.FileUtil
 import com.github.javaparser.JavaParser
 import com.github.javaparser.ParserConfiguration
 import com.github.javaparser.ast.ImportDeclaration
@@ -16,23 +20,34 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.CombinedTypeSol
 import com.intellij.core.JavaCoreApplicationEnvironment
 import com.intellij.core.JavaCoreProjectEnvironment
 import com.intellij.lang.java.JavaLanguage
-import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.DefaultLogger
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.extensions.ExtensionPoint
 import com.intellij.openapi.extensions.Extensions
 import com.intellij.openapi.extensions.impl.ExtensionsAreaImpl
 import com.intellij.openapi.vfs.impl.VirtualFileManagerImpl
-import com.intellij.psi.*
+import com.intellij.psi.JavaTokenType
+import com.intellij.psi.PsiComment
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiElementFactory
+import com.intellij.psi.PsiElementFinder
+import com.intellij.psi.PsiField
+import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiFileFactory
+import com.intellij.psi.PsiImportList
+import com.intellij.psi.PsiImportStatement
+import com.intellij.psi.PsiImportStaticReferenceElement
+import com.intellij.psi.PsiImportStaticStatement
+import com.intellij.psi.PsiJavaFile
+import com.intellij.psi.PsiJavaToken
+import com.intellij.psi.PsiReferenceExpression
+import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.augment.PsiAugmentProvider
 import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.psi.impl.source.tree.TreeCopyHandler
-import com.intellij.psi.util.PsiTreeUtil
 import io.github.rosemoe.sora.lang.completion.CompletionItemKind
 import javassist.CtClass
 import javassist.Modifier
-import andihasan7.kartikaide.completion.java.parser.cache.SymbolCacher
-import andihasan7.kartikaide.completion.java.parser.cache.qualifiedName
-import andihasan7.kartikaide.editor.EditorCompletionItem
-import andihasan7.kartikaide.rewrite.util.FileUtil
 import org.jetbrains.kotlin.cli.common.environment.setIdeaIoUseFallback
 import org.jetbrains.kotlin.cli.jvm.compiler.setupIdeaStandaloneExecution
 
@@ -41,6 +56,7 @@ class CompletionProvider {
     companion object {
         private val logger = java.util.logging.Logger.getLogger(CompletionProvider::class.java.name)
 
+        // Gunakan lazy agar inisialisasi lingkungan IntelliJ aman dari konflik thread dengan Kotlin
         val environment by lazy {
             val disposable = com.intellij.openapi.util.Disposer.newDisposable()
             // unitTestMode = false agar tidak membersihkan Extensions.RootArea yang dipakai Kotlin
@@ -69,18 +85,19 @@ class CompletionProvider {
 
         private fun suppressLoggerErrors() {
             try {
-                val loggerClass = com.intellij.openapi.diagnostic.Logger::class.java
+                val loggerClass = Logger::class.java
                 val factoryField = loggerClass.getDeclaredField("ourFactory")
                 factoryField.isAccessible = true
-                val originalFactory = factoryField.get(null) as? com.intellij.openapi.diagnostic.Logger.Factory
+                val originalFactory = factoryField.get(null) as? Logger.Factory
                 
-                if (originalFactory?.javaClass?.name?.contains("andihasan7.kartikaide") == true) return
+                // Hindari pembungkusan ganda jika sudah menggunakan logger khusus dari proyek ini
+                if (originalFactory?.javaClass?.name?.contains("kartikaide") == true) return
 
-                val newFactory = object : com.intellij.openapi.diagnostic.Logger.Factory {
-                    override fun getLoggerInstance(category: String): com.intellij.openapi.diagnostic.Logger {
+                val newFactory = object : Logger.Factory {
+                    override fun getLoggerInstance(category: String): Logger {
                         val baseLogger = originalFactory?.getLoggerInstance(category) 
-                            ?: com.intellij.openapi.diagnostic.DefaultLogger(category)
-                        return object : com.intellij.openapi.diagnostic.DefaultLogger(category) {
+                            ?: DefaultLogger(category)
+                        return object : DefaultLogger(category) {
                             override fun error(message: String?, t: Throwable?, vararg details: String?) {
                                 if (message?.contains("Listeners not allowed") == true || 
                                     message?.contains("Missing extension point") == true ||
@@ -96,6 +113,7 @@ class CompletionProvider {
                 }
                 factoryField.set(null, newFactory)
                 
+                // Bersihkan cache logger agar menggunakan factory baru
                 try {
                     val ourLoggersField = loggerClass.getDeclaredField("ourLoggers")
                     ourLoggersField.isAccessible = true
@@ -168,28 +186,68 @@ class CompletionProvider {
         return psiElement.javaClass.simpleName
     }
 
+    private fun getFullyQualifiedName(referenceExpression: PsiReferenceExpression): String? {
+        val referenceNameElement = referenceExpression.referenceNameElement
+        if (referenceNameElement != null) {
+            val resolvedElement = referenceNameElement.reference!!.resolve()
+            if (resolvedElement is PsiField) {
+                val containingClass = resolvedElement.containingClass
+                if (containingClass != null) {
+                    return containingClass.qualifiedName
+                }
+            }
+        }
+        return null
+    }
+
     fun complete(source: String?, fileName: String?, index: Int): List<EditorCompletionItem> {
         val psiFile = fileFactory.createFileFromText(fileName!!, JavaLanguage.INSTANCE, source!!)
-        val element = findElementAtOffset(psiFile, index) ?: return emptyList()
+
+        // Find the element at the specified position
+        val element = findElementAtOffset(psiFile, index)
+        if (element == null) {
+            return emptyList()
+        }
 
         val completionItems = mutableListOf<EditorCompletionItem>()
         val isImported = isImportedClass(element)
         
         if (isImportStatementContext(element)) {
-            val packageName = getFullyQualifiedPackageName(element)!! + if (element.text.endsWith(".")) "." else ""
+            val packageName =
+                getFullyQualifiedPackageName(element)!! + if (element.text.endsWith(".")) "." else ""
             if (packageName.endsWith('.')) {
                 val mPackage = packageName.substringBeforeLast('.')
                 symbolCacher.getPackages()
-                    .filter { it.key.substringBeforeLast('.') == mPackage }
+                    .filter {
+                        val parentPkgName = it.key.substringBeforeLast('.')
+                        parentPkgName == mPackage
+                    }
                     .map {
                         val toAdd = it.key.substringAfterLast('.')
-                        completionItems.add(EditorCompletionItem(toAdd, it.key.substringBeforeLast('.'), 0, toAdd).kind(CompletionItemKind.Module))
+                        completionItems.add(
+                            EditorCompletionItem(
+                                toAdd,
+                                it.key.substringBeforeLast('.'),
+                                0,
+                                toAdd
+                            ).kind(CompletionItemKind.Module)
+                        )
                     }
             }
             symbolCacher.getClasses()
-                .filter { it.key.startsWith(packageName) && it.key.substringAfter(packageName).contains('.').not() }
-                .map {
-                    completionItems.add(EditorCompletionItem(it.value.qualifiedName(), it.key.substringBeforeLast('.'), 0, it.value.qualifiedName()).kind(CompletionItemKind.Class))
+                .filter {
+                    val bool = it.key.startsWith(packageName) && it.key.substringAfter(packageName)
+                        .contains('.').not()
+                    bool
+                }.map {
+                    completionItems.add(
+                        EditorCompletionItem(
+                            it.value.qualifiedName(),
+                            it.key.substringBeforeLast('.'),
+                            0,
+                            it.value.qualifiedName()
+                        ).kind(CompletionItemKind.Class)
+                    )
                 }
             return completionItems
         }
@@ -199,27 +257,39 @@ class CompletionProvider {
                 if (element.text.count { it == '.' } > 1) {
                     if (element is PsiReferenceExpression) {
                         val className = element.text.substringBefore('.')
-                        val qualified = if (isImported.first) isImported.second else "java.lang.$className"
+                        val qualified =
+                            if (isImported.first) isImported.second else "java.lang.$className"
+
                         val ctClass = symbolCacher.getClass(qualified)
                         if (ctClass != null) {
                             val field = element.text.substringAfter("$className.").substringBefore('.')
                             if (element.text.endsWith(").")) {
-                                val methodName = element.text.substringAfter("$className.").substringBefore('(')
-                                ctClass.methods.find { it.name == methodName }?.let { addAllFieldAndMethods(it.returnType, completionItems) }
+                                val methodName =
+                                    element.text.substringAfter("$className.").substringBefore('(')
+                                ctClass.methods.find { it.name == methodName }?.let {
+                                    addAllFieldAndMethods(it.returnType, completionItems)
+                                }
                             }
-                            ctClass.fields.find { it.name == field }?.let { addAllFieldAndMethods(it.type, completionItems) }
+                            ctClass.fields.find { it.name == field }?.let {
+                                addAllFieldAndMethods(it.type, completionItems)
+                            }
                         }
                     }
                 }
                 val className = element.text.substring(0, element.text.length - 1)
                 val qualified = if (isImported.first) isImported.second else "java.lang.$className"
+
                 val clazz = symbolCacher.getClass(qualified)
-                if (clazz != null) addAllFieldAndMethods(clazz, completionItems, true)
+                if (clazz != null) {
+                    addAllFieldAndMethods(clazz, completionItems, true)
+                }
             } else {
                 val packageName = element.text.substringBeforeLast('.')
                 if (packageName.isNotEmpty()) {
                     val clazz = symbolCacher.getClass(packageName)
-                    if (clazz != null) addAllFieldAndMethods(clazz, completionItems)
+                    if (clazz != null) {
+                        addAllFieldAndMethods(clazz, completionItems)
+                    }
                 }
             }
             return completionItems
@@ -227,29 +297,63 @@ class CompletionProvider {
 
         val items = symbolCacher.filterClassNames(element.text)
         for (clazz in items) {
-            completionItems.add(EditorCompletionItem(clazz.value, clazz.key, element.textLength, clazz.value).kind(CompletionItemKind.Class))
+            val item = EditorCompletionItem(
+                clazz.value,
+                clazz.key,
+                element.textLength,
+                clazz.value
+            ).kind(CompletionItemKind.Class)
+            completionItems.add(item)
         }
 
         for (keyword in javaKeywords) {
             if (keyword.startsWith(element.text)) {
-                completionItems.add(EditorCompletionItem(keyword, "Keyword", element.textLength, keyword).kind(CompletionItemKind.Keyword))
+                completionItems.add(
+                    EditorCompletionItem(
+                        keyword,
+                        "Keyword",
+                        element.textLength,
+                        keyword
+                    ).kind(CompletionItemKind.Keyword)
+                )
             }
         }
         return completionItems
     }
 
-    private fun addAllFieldAndMethods(ctClass: CtClass, completionItems: MutableList<EditorCompletionItem>, isStatic: Boolean = false) {
+    private fun addAllFieldAndMethods(
+        ctClass: CtClass,
+        completionItems: MutableList<EditorCompletionItem>,
+        isStatic: Boolean = false
+    ) {
         ctClass.fields.forEach { field ->
             if (Modifier.isStatic(field.modifiers) || (isStatic.not() && Modifier.isPublic(field.modifiers))) {
-                completionItems.add(EditorCompletionItem(field.name, field.type.name.substringAfterLast('.'), 0, field.name).kind(CompletionItemKind.Field))
+                completionItems.add(
+                    EditorCompletionItem(
+                        field.name,
+                        field.type.name.substringAfterLast('.'),
+                        0,
+                        field.name
+                    ).kind(CompletionItemKind.Field)
+                )
             }
         }
         ctClass.methods.forEach { method ->
             if ((isStatic.not() && Modifier.isPublic(method.modifiers)) || Modifier.isStatic(method.modifiers)) {
-                completionItems.add(EditorCompletionItem(method.name + method.parameterTypes.joinToString(", ", "(", ")") { it.simpleName }, method.returnType.name.substringAfterLast('.'), 0, method.name).kind(CompletionItemKind.Method))
+                completionItems.add(
+                    EditorCompletionItem(
+                        method.name + method.parameterTypes.joinToString(", ", "(", ")") {
+                            it.simpleName
+                        },
+                        method.returnType.name.substringAfterLast('.'),
+                        0,
+                        method.name
+                    ).kind(CompletionItemKind.Method)
+                )
             }
         }
     }
+
 
     private fun isImportedClass(element: PsiElement): Pair<Boolean, String> {
         val psiFile = element.containingFile
@@ -259,7 +363,9 @@ class CompletionProvider {
                 val className = element.text
                 for (importStatement in importList.importStatements) {
                     val importedClassName = importStatement.qualifiedName
-                    if (importedClassName?.substringAfterLast('.') == className.substringBefore('.')) return Pair(true, importedClassName)
+                    if (importedClassName?.substringAfterLast('.') == className.substringBefore('.')) {
+                        return Pair(true, importedClassName)
+                    }
                 }
             }
         }
@@ -268,6 +374,12 @@ class CompletionProvider {
 
     fun isImportStatementContext(element: PsiElement): Boolean {
         return element is PsiImportStatement || element.parent is PsiImportList || element.parent is PsiImportStaticStatement || element.parent is PsiImportStaticReferenceElement
+    }
+
+    fun formatCode(content: String): String {
+        val psiFile = fileFactory.createFileFromText("temp.java", JavaLanguage.INSTANCE, content)
+        CodeStyleManager.getInstance(environment.project).reformat(psiFile)
+        return psiFile.text
     }
 
     private fun findElementAtOffset(file: PsiFile, offset: Int): PsiElement? {
@@ -280,12 +392,6 @@ class CompletionProvider {
     private fun getFullyQualifiedPackageName(element: PsiElement): String? {
         if (element is PsiImportStatement) return element.importReference?.qualifiedName
         return null
-    }
-
-    fun formatCode(content: String): String {
-        val psiFile = fileFactory.createFileFromText("temp.java", JavaLanguage.INSTANCE, content)
-        CodeStyleManager.getInstance(environment.project).reformat(psiFile)
-        return psiFile.text
     }
 
     fun addImport(psiFile: PsiFile, importStatement: String): String {
