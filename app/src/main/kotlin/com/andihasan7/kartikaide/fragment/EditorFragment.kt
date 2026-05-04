@@ -212,7 +212,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 fileViewModel.setCurrentPosition(tab.position)
                 updateUndoRedoStatus()
                 getCurrentFragment()?.editor?.let { editor ->
-                    view.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view)
+                    view.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
                         ?.bindEditor(editor)
                     binding.root.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
                         ?.bindEditor(editor)
@@ -313,9 +313,31 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 }
                 android.view.MotionEvent.ACTION_UP -> {
                     val dy = dragStartY - event.rawY
+                    val threshold = 80 * resources.displayMetrics.density
                     when {
-                        dy > 80  -> expandBottomDrawer()
-                        dy < -80 -> collapseBottomDrawer()
+                        dy > threshold  -> expandBottomDrawer()
+                        dy < threshold -> collapseBottomDrawer()
+                        kotlin.math.abs(dy) < 10 && !isBottomDrawerExpanded -> expandBottomDrawer()
+                    }
+                    true
+                }
+                android.view.MotionEvent.ACTION_CANCEL -> true
+                else -> false
+            }
+        }
+
+        toolbarExpanded.setOnTouchListener { _, event ->
+            when (event.action) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    dragStartY = event.rawY
+                    true
+                }
+                android.view.MotionEvent.ACTION_UP -> {
+                    val dy = dragStartY - event.rawY
+                    val threshold = 80 * resources.displayMetrics.density
+                    when {
+                        dy > threshold  -> expandBottomDrawer()
+                        dy < threshold -> collapseBottomDrawer()
                         kotlin.math.abs(dy) < 10 && !isBottomDrawerExpanded -> expandBottomDrawer()
                     }
                     true
@@ -383,7 +405,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             symContainer?.visibility = View.GONE
             return
         }
-        symContainer?.visibility = View.VISIBLE
+        symContainer?.visibility = View.GONE
         // Clear semua simbol lama agar tidak duplikat
         symSheet?.removeAllViews()
         val rawSymbols = Prefs.customSymbols.split(",")
@@ -501,7 +523,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     // Delay kecil agar fragment view sudah attached
                     binding.root.post {
                         getCurrentFragment()?.view?.let { fragView ->
-                            val sym = fragView.findViewById<View>(R.id.symbol_view_container)
+                            val sym = fragView.findViewById<View>(R.id.symbol_view_container_sheet)
                             if (sym != null && sym.visibility != View.GONE) {
                                 hideEditorSymbolView(fragView)
                             }
@@ -528,7 +550,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 if (keyboardVisible) {
                     val symEnabled = !Prefs.disableSymbolsView &&
                         getCurrentFragment()?.view
-                            ?.findViewById<View>(R.id.symbol_view_container)
+                            ?.findViewById<View>(R.id.symbol_view_container_sheet)
                             ?.visibility == View.VISIBLE
 
                     getCurrentFragment()?.editor?.let { symSheet?.bindEditor(it) }
@@ -1156,7 +1178,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         // Refresh visibility symbol_view_container di fragment aktif saja
         if (!isKeyboardVisible()) {
             getCurrentFragment()?.view
-                ?.findViewById<View>(R.id.symbol_view_container)
+                ?.findViewById<View>(R.id.symbol_view_container_sheet)
                 ?.visibility = if (Prefs.disableSymbolsView) View.GONE else View.VISIBLE
         }
     }
