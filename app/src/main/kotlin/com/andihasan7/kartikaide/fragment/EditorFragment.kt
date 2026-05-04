@@ -137,7 +137,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         initTreeView()
         initBottomDrawer()
         setupKeyboardListener()
-        
+
         binding.included.projectName.text = project.name
         binding.included.drawerHeader.setOnLongClickListener {
             showTreeViewMenu(it, project.root)
@@ -183,7 +183,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             setOnScrollChangeListener { _, _, _, _, _ ->
                 updateDrawerLockState()
             }
-            
+
             var lastX = 0f
             setOnTouchListener { v, event ->
                 when (event.action) {
@@ -297,54 +297,98 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         flipper.displayedChild = 0
         isBottomDrawerExpanded = false
 
-        // Klik header_status → expand
-        headerStatus.setOnClickListener { expandBottomDrawer() }
+        // Klik header_status dan toolbar_expanded ditangani oleh GestureDetector di bawah
+        // (FIX masalah 1 — setOnClickListener dihapus karena setOnTouchListener mengonsumsi event-nya)
 
-        // Klik area kosong toolbar_expanded → collapse
-        toolbarExpanded.setOnClickListener { collapseBottomDrawer() }
+        // FIX masalah 1: gunakan GestureDetector agar tap (onSingleTapUp) dan swipe (onScroll/onFling)
+        // keduanya bisa terdeteksi — sebelumnya setOnTouchListener mengonsumsi semua event
+        // sehingga setOnClickListener tidak pernah terpanggil.
+        val headerGesture = android.view.GestureDetector(
+            requireContext(),
+            object : android.view.GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: android.view.MotionEvent) = true
 
-        // Swipe gesture pada header_status: deteksi vertikal untuk expand/collapse
-        var dragStartY = 0f
-        headerStatus.setOnTouchListener { _, event ->
-            when (event.action) {
-                android.view.MotionEvent.ACTION_DOWN -> {
-                    dragStartY = event.rawY
-                    true
+                override fun onSingleTapUp(e: android.view.MotionEvent): Boolean {
+                    if (!isBottomDrawerExpanded) expandBottomDrawer()
+                    return true
                 }
-                android.view.MotionEvent.ACTION_UP -> {
-                    val dy = dragStartY - event.rawY
-                    val threshold = 80 * resources.displayMetrics.density
-                    when {
-                        dy > threshold  -> expandBottomDrawer()
-                        dy < threshold -> collapseBottomDrawer()
-                        kotlin.math.abs(dy) < 10 && !isBottomDrawerExpanded -> expandBottomDrawer()
-                    }
-                    true
+
+                override fun onFling(
+                    e1: android.view.MotionEvent?,
+                    e2: android.view.MotionEvent,
+                    velocityX: Float,
+                    velocityY: Float
+                ): Boolean {
+                    return if (kotlin.math.abs(velocityY) > kotlin.math.abs(velocityX)) {
+                        if (velocityY < 0) expandBottomDrawer() else collapseBottomDrawer()
+                        true
+                    } else false
                 }
-                android.view.MotionEvent.ACTION_CANCEL -> true
-                else -> false
+
+                override fun onScroll(
+                    e1: android.view.MotionEvent?,
+                    e2: android.view.MotionEvent,
+                    distanceX: Float,
+                    distanceY: Float
+                ): Boolean {
+                    val absX = kotlin.math.abs(distanceX)
+                    val absY = kotlin.math.abs(distanceY)
+                    return if (absY > absX && absY > 8f) {
+                        if (distanceY > 0) expandBottomDrawer() else collapseBottomDrawer()
+                        true
+                    } else false
+                }
             }
+        )
+
+        headerStatus.setOnTouchListener { v, event ->
+            val handled = headerGesture.onTouchEvent(event)
+            if (!handled) v.onTouchEvent(event)
+            handled
         }
 
-        toolbarExpanded.setOnTouchListener { _, event ->
-            when (event.action) {
-                android.view.MotionEvent.ACTION_DOWN -> {
-                    dragStartY = event.rawY
-                    true
+        val toolbarGesture = android.view.GestureDetector(
+            requireContext(),
+            object : android.view.GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: android.view.MotionEvent) = true
+
+                override fun onSingleTapUp(e: android.view.MotionEvent): Boolean {
+                    if (isBottomDrawerExpanded) collapseBottomDrawer()
+                    return true
                 }
-                android.view.MotionEvent.ACTION_UP -> {
-                    val dy = dragStartY - event.rawY
-                    val threshold = 80 * resources.displayMetrics.density
-                    when {
-                        dy > threshold  -> expandBottomDrawer()
-                        dy < threshold -> collapseBottomDrawer()
-                        kotlin.math.abs(dy) < 10 && !isBottomDrawerExpanded -> expandBottomDrawer()
-                    }
-                    true
+
+                override fun onFling(
+                    e1: android.view.MotionEvent?,
+                    e2: android.view.MotionEvent,
+                    velocityX: Float,
+                    velocityY: Float
+                ): Boolean {
+                    return if (kotlin.math.abs(velocityY) > kotlin.math.abs(velocityX)) {
+                        if (velocityY < 0) expandBottomDrawer() else collapseBottomDrawer()
+                        true
+                    } else false
                 }
-                android.view.MotionEvent.ACTION_CANCEL -> true
-                else -> false
+
+                override fun onScroll(
+                    e1: android.view.MotionEvent?,
+                    e2: android.view.MotionEvent,
+                    distanceX: Float,
+                    distanceY: Float
+                ): Boolean {
+                    val absX = kotlin.math.abs(distanceX)
+                    val absY = kotlin.math.abs(distanceY)
+                    return if (absY > absX && absY > 8f) {
+                        if (distanceY > 0) expandBottomDrawer() else collapseBottomDrawer()
+                        true
+                    } else false
+                }
             }
+        )
+
+        toolbarExpanded.setOnTouchListener { v, event ->
+            val handled = toolbarGesture.onTouchEvent(event)
+            if (!handled) v.onTouchEvent(event)
+            handled
         }
 
         // symbol_view_container_sheet: GestureDetector membedakan scroll horizontal vs vertikal
@@ -449,8 +493,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     }
 
     /**
+     * FIX masalah 3: helper untuk mendapatkan editor yang sedang aktif.
+     */
+    private fun getCurrentEditor(): IdeEditor? = getCurrentFragment()?.editor
+
+    /**
      * Expand: perbesar tinggi container bottom sheet dari 60dp menjadi penuh
      * dari bawah AppBar sampai bawah area visible.
+     * FIX masalah 3: simpan fokus editor sebelum relayout, kembalikan setelah animasi selesai.
      */
     private fun expandBottomDrawer(animate: Boolean = true) {
         val container = binding.root.findViewById<View>(R.id.bottom_sheet)
@@ -461,6 +511,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         val visibleBottom = r.bottom
         val targetHeight  = visibleBottom - appBarBottom
         if (targetHeight <= 0) return
+
+        // Simpan editor yang sedang fokus sebelum layout berubah
+        val editorWasFocused = getCurrentEditor()?.takeIf { it.hasFocus() }
 
         flipper.displayedChild = 2
         isBottomDrawerExpanded = true
@@ -473,21 +526,31 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 lp.height = it.animatedValue as Int
                 container.layoutParams = lp
             }
+            anim.addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    editorWasFocused?.requestFocus()
+                }
+            })
             anim.start()
         } else {
             val lp = container.layoutParams
             lp.height = targetHeight
             container.layoutParams = lp
+            editorWasFocused?.requestFocus()
         }
     }
 
     /**
      * Collapse: kembalikan tinggi container ke 60dp (peek bar saja).
+     * FIX masalah 3: simpan fokus editor sebelum relayout, kembalikan setelah animasi selesai.
      */
     private fun collapseBottomDrawer(animate: Boolean = true) {
         val container = binding.root.findViewById<View>(R.id.bottom_sheet)
         val flipper   = binding.root.findViewById<android.widget.ViewFlipper>(R.id.header_flipper)
         val peekPx    = (PEEK_HEIGHT_DP * resources.displayMetrics.density).toInt()
+
+        // Simpan editor yang sedang fokus sebelum layout berubah
+        val editorWasFocused = getCurrentEditor()?.takeIf { it.hasFocus() }
 
         isBottomDrawerExpanded = false
 
@@ -503,11 +566,17 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 lp.height = it.animatedValue as Int
                 container.layoutParams = lp
             }
+            anim.addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    editorWasFocused?.requestFocus()
+                }
+            })
             anim.start()
         } else {
             val lp = container.layoutParams
             lp.height = peekPx
             container.layoutParams = lp
+            editorWasFocused?.requestFocus()
         }
     }
 
@@ -548,10 +617,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 val symSheet = binding.root.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
 
                 if (keyboardVisible) {
-                    val symEnabled = !Prefs.disableSymbolsView &&
-                        getCurrentFragment()?.view
-                            ?.findViewById<View>(R.id.symbol_view_container_sheet)
-                            ?.visibility == View.VISIBLE
+                    // FIX masalah 2: cukup cek Prefs, tidak bergantung visibility container
+                    val symEnabled = !Prefs.disableSymbolsView
 
                     getCurrentFragment()?.editor?.let { symSheet?.bindEditor(it) }
                     getCurrentFragment()?.view?.let { hideEditorSymbolView(it) }
@@ -671,7 +738,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
             updateUndoRedoStatus()
         }
-        
+
         if (fileViewModel.files.value!!.isEmpty()) {
             binding.viewContainer.displayedChild = 1
         }
@@ -706,7 +773,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         val recyclerView = binding.included.recycler
         val currentAdapter = recyclerView.adapter as? TreeViewAdapter
         val expandedPaths = mutableSetOf<String>()
-        
+
         currentAdapter?.getNodes()?.forEach { node ->
             if (node.isExpanded) {
                 expandedPaths.add(node.value.absolutePath)
@@ -728,12 +795,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         val adapter = TreeViewAdapter(requireContext(), nodes, iconProvider)
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         recyclerView.adapter = adapter
-        
+
         adapter.setOnItemClickListener(object : OnTreeItemClickListener {
             override fun onItemClick(view: View, position: Int) {
                 val node = adapter.getNodes()[position]
                 val file = node.value
-                
+
                 if (file.isDirectory) {
                     updateDrawerLockState()
                 } else if (file.exists() && file.isFile) {
@@ -809,7 +876,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     R.id.action_compile -> {
                         editorAdapter.saveAll()
                         getCurrentFragment()?.hideWindows()
-                        
+
                         lifecycleScope.launch(Dispatchers.IO) {
                             val mains = findMainClasses()
                             val tests = findTestClasses()
@@ -1263,7 +1330,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     private fun findTestClasses(): List<String> {
         val tests = mutableListOf<String>()
-        
+
         val searchFolders = listOf(
             project.root.resolve("src/test/java"),
             project.root.resolve("src/test/kotlin"),
@@ -1271,7 +1338,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             project.root.resolve("app/src/test/kotlin"),
             project.root.resolve("lib/src/test/java"),
             project.root.resolve("lib/src/test/kotlin"),
-            project.srcDir 
+            project.srcDir
         )
 
         searchFolders.filter { it.exists() }.forEach { folder ->
@@ -1288,14 +1355,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                             } else {
                                 file.absolutePath.removePrefix(project.srcDir.absolutePath + File.separator)
                             }
-                            
+
                             tests.add(relativePath)
                         }
                     } catch (e: Exception) {}
                 }
             }
         }
-        
+
         return tests.distinct()
     }
 
@@ -1315,11 +1382,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             .setItems(items.toTypedArray()) { _, which ->
                 val selected = items[which]
                 if (selected.startsWith("---")) return@setItems
-                
+
                 if (tests.contains(selected)) {
-                     project.args = listOf("--test")
+                    project.args = listOf("--test")
                 } else {
-                     project.args = emptyList()
+                    project.args = emptyList()
                 }
                 startCompilationAndExecution(selected)
             }
@@ -1345,7 +1412,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         }, 200)
 
         val pager = binding.root.findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.bottom_drawer_pager)
-        pager.currentItem = 0 
+        pager.currentItem = 0
         bottomDrawerAdapter.clearLog(0)
         bottomDrawerAdapter.clearLog(1)
 
@@ -1400,9 +1467,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             val runnableClasses = dexFile.classes.filter { classDef ->
                 classDef.methods.any { method ->
                     val isMain = method.name == "main" && (
-                        method.parameterTypes.isEmpty() || 
-                        (method.parameterTypes.size == 1 && method.parameterTypes[0] == "[Ljava/lang/String;")
-                    )
+                            method.parameterTypes.isEmpty() ||
+                                    (method.parameterTypes.size == 1 && method.parameterTypes[0] == "[Ljava/lang/String;")
+                            )
                     val hasTestAnnotation = method.annotations.any { annot ->
                         annot.type.contains("org/junit/Test") || annot.type.contains("org/junit/jupiter/api/Test")
                     }
@@ -1413,7 +1480,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             withContext(Dispatchers.Main) {
                 var index: String? = null
                 val targetFile = ProjectHandler.clazz
-                
+
                 if (targetFile != null) {
                     val targetName = targetFile.substringBeforeLast('.').replace('\\', '/')
                     index = runnableClasses.find { it == targetName || it == "${targetName}Kt" }
@@ -1428,7 +1495,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     }
                     index = runnableClasses.find { it.endsWith("/Main") || it == "Main" || it.endsWith("/MainKt") || it == "MainKt" }
                         ?: runnableClasses.find { it.endsWith("Test") }
-                        ?: runnableClasses.firstOrNull()
+                                ?: runnableClasses.firstOrNull()
                 }
 
                 if (index != null) {
@@ -1446,7 +1513,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             if (isExecutionRunning) return@launch
             isExecutionRunning = true
             withContext(Dispatchers.Main) { updateOutputStatus(true) }
-            
+
             val projectRootPath = project.root.absolutePath
             val props = System.getProperties()
             val oldUserDir = props.getProperty("user.dir")
@@ -1477,21 +1544,21 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     if (bytes.isEmpty()) return
                     val s = String(bytes, Charsets.UTF_8)
                     bos.reset()
-                    
+
                     // Mark this text as output so the input stream skips it
                     inputStream.expectOutput(s.length)
-                    
+
                     lifecycleScope.launch(Dispatchers.Main) {
                         bottomDrawerAdapter.appendLog(1, s, addNewLine = false)
                     }
                 }
             }, true)
-            
+
             val oldOut = System.out
             val oldErr = System.err
             val oldIn = System.`in`
             val oldContextClassLoader = Thread.currentThread().contextClassLoader
-            
+
             System.setOut(systemOut)
             System.setErr(systemOut)
             System.setIn(inputStream)
@@ -1520,33 +1587,33 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 runCatching {
                     loader.loader.loadClass(className.replace('/', '.'))
                 }.onSuccess { clazz ->
-                    val hasTestAnnotation = clazz.methods.any { m -> 
-                        m.annotations.any { 
+                    val hasTestAnnotation = clazz.methods.any { m ->
+                        m.annotations.any {
                             val name = it.annotationClass.java.name
-                            name.contains("org.junit.Test") || name.contains("org.junit.jupiter.api.Test") 
+                            name.contains("org.junit.Test") || name.contains("org.junit.jupiter.api.Test")
                         }
                     }
                     val isTest = project.args.contains("--test") || hasTestAnnotation
-                    
+
                     if (isTest) {
                         systemOut.println("Running Unit Test: ${clazz.name}\n")
                         try {
                             val junitCoreClass = loader.loader.loadClass("org.junit.runner.JUnitCore")
                             val runClassesMethod = junitCoreClass.getMethod("runClasses", Class.forName("[Ljava.lang.Class;"))
                             val result = runClassesMethod.invoke(null, arrayOf(clazz))
-                            
+
                             val wasSuccessful = result.javaClass.getMethod("wasSuccessful").invoke(result) as Boolean
                             val failureCount = result.javaClass.getMethod("getFailureCount").invoke(result) as Int
                             val runCount = result.javaClass.getMethod("getRunCount").invoke(result) as Int
                             val ignoreCount = result.javaClass.getMethod("getIgnoreCount").invoke(result) as Int
                             val runTime = result.javaClass.getMethod("getRunTime").invoke(result) as Long
-                            
+
                             systemOut.println("\n--- Test Results ---")
                             systemOut.println("Run count: $runCount")
                             systemOut.println("Failure count: $failureCount")
                             systemOut.println("Ignore count: $ignoreCount")
                             systemOut.println("Time: ${runTime}ms")
-                            
+
                             if (!wasSuccessful) {
                                 systemOut.println("\nFailures:")
                                 val failures = result.javaClass.getMethod("getFailures").invoke(result) as List<*>
@@ -1599,12 +1666,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 System.setErr(oldErr)
                 System.setIn(oldIn)
                 Thread.currentThread().contextClassLoader = oldContextClassLoader
-                
+
                 System.setProperty("user.dir", oldUserDir ?: "/")
                 System.setProperty("project.dir", oldProjectDir ?: "")
                 System.setProperty("java.io.tmpdir", oldTmpDir ?: "/tmp")
                 if (oldProjectRoot != null) System.setProperty("PROJECT_ROOT", oldProjectRoot) else System.clearProperty("PROJECT_ROOT")
-                
+
                 isExecutionRunning = false
                 withContext(Dispatchers.Main) {
                     updateOutputStatus(false, "Finished")
@@ -1667,7 +1734,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 popup.menu.findItem(R.id.execute).isVisible = true
             }
         }
-        
+
         if (file == project.root) {
             popup.menu.removeItem(R.id.delete)
             popup.menu.removeItem(R.id.rename)
@@ -1761,14 +1828,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         .setPositiveButton("Rename") { _, _ ->
                             val name = binding.textInputLayout.editText?.text.toString()
                             if (name.isEmpty() || name == file.name) return@setPositiveButton
-                            
+
                             val oldPath = file.absolutePath
                             val oldName = file.nameWithoutExtension
                             val newFile = file.parentFile!!.resolve(name)
                             val newName = newFile.nameWithoutExtension
-                            
+
                             editorAdapter.saveAll()
-                            
+
                             if (file.renameTo(newFile)) {
                                 if (file == project.root) {
                                     project.root = newFile
@@ -1776,9 +1843,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                     this.binding.toolbar.title = ""
                                     projectViewModel.loadProjects()
                                 }
-                                
+
                                 fileViewModel.updatePaths(oldPath, newFile.absolutePath)
-                                
+
                                 lifecycleScope.launch(Dispatchers.IO) {
                                     if (newFile.isDirectory) {
                                         newFile.walkTopDown().forEach { child ->
@@ -1788,7 +1855,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                         updateClassDeclaration(newFile, oldName, newName)
                                         updatePackageDeclaration(newFile)
                                     }
-                                    
+
                                     withContext(Dispatchers.Main) {
                                         editorAdapter.reloadAll()
                                         initTreeView()
@@ -1825,11 +1892,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     private fun updatePackageDeclaration(file: File) {
         if (!file.isFile || (file.extension != "java" && file.extension != "kt")) return
-        
+
         val newPackage = getPackageName(file)
         val content = try { file.readText() } catch (e: Exception) { return }
         val lines = content.lines().toMutableList()
-        
+
         var packageLineIndex = -1
         for (i in lines.indices) {
             val line = lines[i].trim()
@@ -1841,13 +1908,13 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 break
             }
         }
-        
+
         val newPackageLine = if (file.extension == "java") {
             if (newPackage.isEmpty()) "" else "package $newPackage;"
         } else {
             if (newPackage.isEmpty()) "" else "package $newPackage"
         }
-        
+
         if (packageLineIndex != -1) {
             if (newPackageLine.isEmpty()) {
                 lines.removeAt(packageLineIndex)
@@ -1904,11 +1971,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         if (filePath.startsWith(srcPath)) {
             val relativePath = filePath.substring(srcPath.length)
                 .removePrefix(File.separator)
-            
+
             if (relativePath.isEmpty()) return ""
-            
+
             val parentPath = if (file.isDirectory) relativePath else File(relativePath).parent ?: ""
-            
+
             return parentPath.replace(File.separatorChar, '.')
                 .removePrefix(".")
                 .removeSuffix(".")
