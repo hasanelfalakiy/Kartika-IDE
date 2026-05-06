@@ -42,6 +42,7 @@ import andihasan7.kartikaide.common.Prefs
 import com.andihasan7.kartikaide.databinding.DialogGitCloneBinding
 import com.andihasan7.kartikaide.databinding.FragmentProjectBinding
 import com.andihasan7.kartikaide.databinding.TreeviewContextActionDialogItemBinding
+import com.andihasan7.kartikaide.databinding.DialogGitProgressBinding
 import com.andihasan7.kartikaide.model.ProjectViewModel
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
@@ -61,6 +62,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.OutputStream
 import java.io.PrintWriter
+import java.io.Writer
 
 class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     ProjectAdapter.OnProjectEventListener {
@@ -437,41 +439,41 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                     return@setPositiveButton
                 }
 
-                val textView = TextView(requireContext()).apply {
-                    text = getString(R.string.clone)
-                    setPadding(32, 32, 32, 32)
-                    setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
-                }
+                val progressBinding = DialogGitProgressBinding.inflate(layoutInflater)
+                progressBinding.progressTitle.text = "Cloning repository..."
+                
                 val sheet = BottomSheetDialog(requireContext()).apply {
-                    setContentView(textView)
+                    setContentView(progressBinding.root)
                     setCancelable(false)
                     show()
                 }
                 toggleFabMenu(false)
 
                 lifecycleScope.launch(Dispatchers.IO) {
+                    val writer = object : Writer() {
+                        override fun write(cbuf: CharArray, off: Int, len: Int) {
+                            val text = String(cbuf, off, len)
+                            progressBinding.root.post {
+                                progressBinding.outputText.append(text)
+                                progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                            }
+                        }
+                        override fun flush() {}
+                        override fun close() {}
+                    }
+
                     try {
                         folder.cloneRepository(url,
-                            PrintWriter(
-                                object : OutputStream() {
-                                    override fun write(p0: Int) {
-                                        lifecycleScope.launch(Dispatchers.Main) {
-                                            textView.append(p0.toChar().toString())
-                                        }
-                                    }
-
-                                    override fun write(b: ByteArray?) {
-                                        lifecycleScope.launch(Dispatchers.Main) {
-                                            textView.append("\n" + b?.toString(Charsets.UTF_8))
-                                        }
-                                    }
-                                }
-                            ),
+                            writer,
                             Credentials(Prefs.gitUsername, Prefs.gitApiKey))
                         
                         withContext(Dispatchers.Main) {
                             viewModel.loadProjects()
-                            sheet.dismiss()
+                            progressBinding.progressIndicator.isIndeterminate = false
+                            progressBinding.progressIndicator.progress = 100
+                            progressBinding.progressTitle.text = "Clone Finished"
+                            sheet.setCancelable(true)
+                            Snackbar.make(requireView(), "Clone successful", Snackbar.LENGTH_SHORT).show()
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -479,7 +481,11 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                         if (folder.exists()) folder.deleteRecursively()
                         
                         withContext(Dispatchers.Main) {
-                            sheet.dismiss()
+                            progressBinding.progressIndicator.isIndeterminate = false
+                            progressBinding.progressIndicator.progress = 0
+                            progressBinding.progressTitle.text = "Clone Failed"
+                            progressBinding.outputText.append("\nError: ${e.message}")
+                            sheet.setCancelable(true)
                             CommonUtils.showSnackbarError(
                                 requireView(),
                                 "Clone failed: ${e.message ?: "Unknown error"}",
