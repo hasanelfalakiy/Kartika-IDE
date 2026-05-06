@@ -16,6 +16,7 @@ import andihasan7.kartikaide.project.Project
 import andihasan7.kartikaide.rewrite.util.MultipleDexClassLoader
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.os.Bundle
@@ -75,6 +76,7 @@ import com.widget.treeview.TreeUtils.toNodeList
 import com.widget.treeview.TreeViewAdapter
 import dev.pranav.navigation.KtNavigationProvider
 import dev.pranav.navigation.NavigationProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -112,6 +114,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     private var isExecutionRunning: Boolean = false
     private var executionJob: Job? = null
+    private var compilationJob: Job? = null
     private var currentRunningClass: String? = null
 
     override var isBackHandled = true
@@ -300,7 +303,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         // Klik header_status dan toolbar_expanded ditangani oleh GestureDetector di bawah
         // (FIX masalah 1 — setOnClickListener dihapus karena setOnTouchListener mengonsumsi event-nya)
 
-        // FIX masalah 1: gunakan GestureDetector agar tap (onSingleTapUp) dan swipe (onScroll/onFling)
+        // FIX masalah 1: gunakan GestureDetector agar tap (onSingleTapUp) and swipe (onScroll/onFling)
         // keduanya bisa terdeteksi — sebelumnya setOnTouchListener mengonsumsi semua event
         // sehingga setOnClickListener tidak pernah terpanggil.
         val headerGesture = android.view.GestureDetector(
@@ -874,6 +877,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 getCurrentFragment()?.save()
                 when (item.itemId) {
                     R.id.action_compile -> {
+                        if (compilationJob?.isActive == true) {
+                            stopCompilation()
+                            return@setOnMenuItemClickListener true
+                        }
                         editorAdapter.saveAll()
                         getCurrentFragment()?.hideWindows()
 
@@ -1426,12 +1433,14 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         val compiler = Compiler(project, reporter)
 
         binding.compileProgress.visibility = View.VISIBLE
+        updateRunnerIcon(isRunning = true)
 
-        lifecycleScope.launch(Dispatchers.IO) {
+        compilationJob = lifecycleScope.launch(Dispatchers.IO) {
             try {
                 compiler.compile()
                 withContext(Dispatchers.Main) {
                     binding.compileProgress.visibility = View.GONE
+                    updateRunnerIcon(isRunning = false)
                     if (reporter.buildSuccess) {
                         bottomDrawerAdapter.appendLog(0, "Build Successful!")
                         // Switch to Output tab and run
@@ -1440,18 +1449,48 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     } else {
                         bottomDrawerAdapter.appendLog(0, "Build Failed.")
                     }
+                    System.gc() // Trigger GC after heavy compilation
+                }
+            } catch (e: CancellationException) {
+                withContext(Dispatchers.Main) {
+                    binding.compileProgress.visibility = View.GONE
+                    updateRunnerIcon(isRunning = false)
+                    bottomDrawerAdapter.appendLog(0, "Build Cancelled.")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     binding.compileProgress.visibility = View.GONE
+                    updateRunnerIcon(isRunning = false)
                     bottomDrawerAdapter.appendLog(0, "Error during compilation: ${e.message}")
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    System.gc()
                 }
             }
         }
     }
 
+    private fun stopCompilation() {
+        compilationJob?.cancel()
+        compilationJob = null
+        binding.compileProgress.visibility = View.GONE
+        updateRunnerIcon(isRunning = false)
+    }
+
+    private fun updateRunnerIcon(isRunning: Boolean) {
+        val item = binding.toolbar.menu.findItem(R.id.action_compile) ?: return
+        if (isRunning) {
+            item.icon = ContextCompat.getDrawable(requireContext(), R.drawable.outline_stop_circle_24)
+            item.icon?.setTint(Color.RED)
+        } else {
+            item.icon = ContextCompat.getDrawable(requireContext(), R.drawable.round_play_arrow_24)
+            item.icon?.setTintList(null) // Reset tint
+        }
+    }
+
     private fun runAutoDetectedClass() {
-        lifecycleScope.launch(Dispatchers.IO) {
+        executionJob = lifecycleScope.launch(Dispatchers.IO) {
             val dex = project.binDir.resolve("classes.dex")
             if (!dex.exists()) {
                 withContext(Dispatchers.Main) { bottomDrawerAdapter.appendLog(1, "Error: classes.dex not found") }
