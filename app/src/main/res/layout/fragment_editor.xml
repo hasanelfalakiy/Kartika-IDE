@@ -57,6 +57,14 @@
 
         </com.google.android.material.appbar.AppBarLayout>
 
+        <include
+            android:id="@+id/search_layout"
+            layout="@layout/layout_search_replace"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/app_bar"
+            android:visibility="gone" />
+
         <!--
             Bottom drawer: fixed di bawah, tinggi awal = peekHeight (60dp).
             Saat di-expand, tinggi diperbesar dari kode.
@@ -73,7 +81,7 @@
             android:id="@+id/view_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_below="@id/app_bar"
+            android:layout_below="@id/search_layout"
             android:layout_above="@id/bottom_sheet">
 
             <androidx.viewpager2.widget.ViewPager2

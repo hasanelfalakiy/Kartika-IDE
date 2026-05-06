@@ -20,6 +20,8 @@ import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
@@ -76,6 +78,8 @@ import com.widget.treeview.TreeUtils.toNodeList
 import com.widget.treeview.TreeViewAdapter
 import dev.pranav.navigation.KtNavigationProvider
 import dev.pranav.navigation.NavigationProvider
+import io.github.rosemoe.sora.util.regex.RegexBackrefGrammar
+import io.github.rosemoe.sora.widget.EditorSearcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -103,6 +107,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private var isBottomDrawerExpanded = false
     private val PEEK_HEIGHT_DP = 60
     private val project by lazy { requireArguments().getSerializable("project") as Project }
+
+    // Search options
+    private var isIgnoreCase = true
+    private var isRegex = false
+    private var isWholeWord = false
 
     // Listener untuk perubahan Prefs (misal DISABLE_SYMBOLS_VIEW berubah dari settings)
     private val prefsChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -139,6 +148,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         initViewModelListeners()
         initTreeView()
         initBottomDrawer()
+        initSearchReplace()
         setupKeyboardListener()
 
         binding.included.projectName.text = project.name
@@ -219,6 +229,10 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         ?.bindEditor(editor)
                     binding.root.findViewById<io.github.rosemoe.sora.widget.SymbolInputView>(R.id.symbol_view_sheet)
                         ?.bindEditor(editor)
+                    
+                    if (binding.searchLayout.searchReplaceRoot.visibility == View.VISIBLE) {
+                        updateSearch()
+                    }
                 }
                 // Jaga state symbol_view_container sesuai kondisi keyboard saat ini
                 if (isKeyboardVisible()) {
@@ -247,6 +261,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     binding.apply {
                         if (drawer.isOpen) {
                             drawer.close()
+                        } else if (searchLayout.searchReplaceRoot.visibility == View.VISIBLE) {
+                            closeSearchLayout()
                         } else if (isBottomDrawerExpanded) {
                             collapseBottomDrawer()
                         } else {
@@ -269,6 +285,136 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         parentFragmentManager.setFragmentResultListener("settings_changed", viewLifecycleOwner) { _, _ ->
             refreshAllEditors()
         }
+    }
+
+    private fun initSearchReplace() {
+        binding.searchLayout.apply {
+            btnCloseSearch.setOnClickListener {
+                closeSearchLayout()
+            }
+
+            btnExpandReplace.setOnClickListener {
+                if (replaceContainer.visibility == View.GONE) {
+                    replaceContainer.visibility = View.VISIBLE
+                    btnReplace.visibility = View.VISIBLE
+                    btnReplaceAll.visibility = View.VISIBLE
+                    btnExpandReplace.rotation = 180f
+                } else {
+                    replaceContainer.visibility = View.GONE
+                    btnReplace.visibility = View.GONE
+                    btnReplaceAll.visibility = View.GONE
+                    btnExpandReplace.rotation = 0f
+                }
+            }
+
+            etSearch.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    updateSearch()
+                }
+            })
+
+            etSearch.setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                    getCurrentEditor()?.searcher?.gotoNext()
+                    updateSearchCount()
+                    true
+                } else false
+            }
+
+            btnPrev.setOnClickListener {
+                getCurrentEditor()?.searcher?.gotoPrevious()
+                updateSearchCount()
+            }
+
+            btnNext.setOnClickListener {
+                getCurrentEditor()?.searcher?.gotoNext()
+                updateSearchCount()
+            }
+
+            btnReplace.setOnClickListener {
+                val text = etReplace.text.toString()
+                getCurrentEditor()?.searcher?.replaceCurrentMatch(text)
+                updateSearchCount()
+            }
+
+            btnReplaceAll.setOnClickListener {
+                val text = etReplace.text.toString()
+                getCurrentEditor()?.searcher?.replaceAll(text)
+                updateSearchCount()
+            }
+
+            btnSearchOptions.setOnClickListener {
+                val popup = PopupMenu(requireContext(), it)
+                popup.menuInflater.inflate(R.menu.search_options_menu, popup.menu)
+                
+                popup.menu.findItem(R.id.option_ignore_case).isChecked = isIgnoreCase
+                popup.menu.findItem(R.id.option_regex).isChecked = isRegex
+                popup.menu.findItem(R.id.option_whole_word).isChecked = isWholeWord
+
+                popup.setOnMenuItemClickListener { item ->
+                    item.isChecked = !item.isChecked
+                    when (item.itemId) {
+                        R.id.option_ignore_case -> isIgnoreCase = item.isChecked
+                        R.id.option_regex -> isRegex = item.isChecked
+                        R.id.option_whole_word -> isWholeWord = item.isChecked
+                    }
+                    updateSearch()
+                    true
+                }
+                popup.show()
+            }
+        }
+    }
+
+    private fun updateSearch() {
+        val query = binding.searchLayout.etSearch.text.toString()
+        val editor = getCurrentEditor() ?: return
+        if (query.isEmpty()) {
+            editor.searcher.stopSearch()
+            binding.searchLayout.tvSearchCount.text = "0/0"
+            return
+        }
+
+        try {
+            // Fix for sora-editor 0.24.5: Use SearchOptions object
+            val type = if (isWholeWord) {
+                EditorSearcher.SearchOptions.TYPE_WHOLE_WORD
+            } else if (isRegex) {
+                EditorSearcher.SearchOptions.TYPE_REGULAR_EXPRESSION
+            } else {
+                EditorSearcher.SearchOptions.TYPE_NORMAL
+            }
+            val regexBackrefGrammar = RegexBackrefGrammar.DEFAULT
+            val options = EditorSearcher.SearchOptions(type, isIgnoreCase, regexBackrefGrammar)
+            editor.searcher.search(query, options)
+            updateSearchCount()
+        } catch (e: Exception) {
+            binding.searchLayout.tvSearchCount.text = "Error"
+        }
+    }
+
+    private fun updateSearchCount() {
+        val editor = getCurrentEditor() ?: return
+        val count = editor.searcher.matchedPositionCount
+        val index = if (count > 0) editor.searcher.currentMatchedPositionIndex + 1 else 0
+        binding.searchLayout.tvSearchCount.text = "$index/$count"
+    }
+
+    private fun showSearchLayout() {
+        binding.searchLayout.searchReplaceRoot.visibility = View.VISIBLE
+        binding.searchLayout.etSearch.requestFocus()
+        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showSoftInput(binding.searchLayout.etSearch, InputMethodManager.SHOW_IMPLICIT)
+        updateSearch()
+    }
+
+    private fun closeSearchLayout() {
+        binding.searchLayout.searchReplaceRoot.visibility = View.GONE
+        getCurrentEditor()?.searcher?.stopSearch()
+        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(binding.searchLayout.etSearch.windowToken, 0)
     }
 
     private fun initBottomDrawer() {
@@ -876,6 +1022,15 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             setOnMenuItemClickListener { item ->
                 getCurrentFragment()?.save()
                 when (item.itemId) {
+                    R.id.search_in_file -> {
+                        if (binding.searchLayout.searchReplaceRoot.visibility == View.VISIBLE) {
+                            closeSearchLayout()
+                        } else {
+                            showSearchLayout()
+                        }
+                        true
+                    }
+
                     R.id.action_compile -> {
                         if (compilationJob?.isActive == true) {
                             stopCompilation()
