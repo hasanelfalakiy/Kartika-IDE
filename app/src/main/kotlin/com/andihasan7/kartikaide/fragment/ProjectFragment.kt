@@ -450,12 +450,32 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                 toggleFabMenu(false)
 
                 lifecycleScope.launch(Dispatchers.IO) {
+                    val logBuilder = StringBuilder()
                     val writer = object : Writer() {
                         override fun write(cbuf: CharArray, off: Int, len: Int) {
-                            val text = String(cbuf, off, len)
+                            val s = String(cbuf, off, len)
+                            synchronized(logBuilder) {
+                                for (c in s) {
+                                    if (c == '\r') {
+                                        // Cari newline terakhir untuk menghapus baris progres saat ini
+                                        val lastNL = logBuilder.lastIndexOf("\n")
+                                        if (lastNL >= 0) {
+                                            logBuilder.setLength(lastNL + 1)
+                                        } else {
+                                            logBuilder.setLength(0)
+                                        }
+                                    } else {
+                                        logBuilder.append(c)
+                                    }
+                                }
+                            }
+                            
+                            val currentLog = synchronized(logBuilder) { logBuilder.toString() }
                             progressBinding.root.post {
-                                progressBinding.outputText.append(text)
-                                progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                                progressBinding.outputText.text = currentLog
+                                progressBinding.scrollView.post {
+                                    progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                                }
                             }
                         }
                         override fun flush() {}
@@ -468,12 +488,9 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                             Credentials(Prefs.gitUsername, Prefs.gitApiKey))
                         
                         withContext(Dispatchers.Main) {
+                            if (sheet.isShowing) sheet.dismiss()
                             viewModel.loadProjects()
-                            progressBinding.progressIndicator.isIndeterminate = false
-                            progressBinding.progressIndicator.progress = 100
-                            progressBinding.progressTitle.text = "Clone Finished"
-                            sheet.setCancelable(true)
-                            Snackbar.make(requireView(), "Clone successful", Snackbar.LENGTH_SHORT).show()
+                            Toast.makeText(requireContext(), "Clone successful", Toast.LENGTH_SHORT).show()
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -481,16 +498,8 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                         if (folder.exists()) folder.deleteRecursively()
                         
                         withContext(Dispatchers.Main) {
-                            progressBinding.progressIndicator.isIndeterminate = false
-                            progressBinding.progressIndicator.progress = 0
-                            progressBinding.progressTitle.text = "Clone Failed"
-                            progressBinding.outputText.append("\nError: ${e.message}")
-                            sheet.setCancelable(true)
-                            CommonUtils.showSnackbarError(
-                                requireView(),
-                                "Clone failed: ${e.message ?: "Unknown error"}",
-                                e
-                            )
+                            if (sheet.isShowing) sheet.dismiss()
+                            Toast.makeText(requireContext(), "Clone failed: ${e.message}", Toast.LENGTH_LONG).show()
                         }
                     }
                 }
