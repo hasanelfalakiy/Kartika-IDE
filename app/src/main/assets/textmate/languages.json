@@ -1,61 +1,61 @@
 {
   "languages": [
     {
-      "grammar": "textmate/bat/syntaxes/batchfile.tmLanguage",
+      "grammar": "textmate/bat/syntaxes/batchfile.tmLanguage.json",
       "name": "Batch File",
       "scopeName": "source.batchfile",
       "languageConfiguration": "textmate/bat/language-configuration.json"
     },
     {
-      "grammar": "textmate/html/syntaxes/html.tmLanguage",
+      "grammar": "textmate/html/syntaxes/html.tmLanguage.json",
       "name": "HTML",
       "scopeName": "text.html.basic",
       "languageConfiguration": "textmate/html/language-configuration.json"
     },
     {
-      "grammar": "textmate/htmx/syntaxes/htmx.tmLanguage",
+      "grammar": "textmate/htmx/syntaxes/htmx.tmLanguage.json",
       "name": "HTMX",
       "scopeName": "text.html.htmx",
       "languageConfiguration": "textmate/htmx/language-configuration.json"
     },
     {
-      "grammar": "textmate/json/syntaxes/JSON.tmLanguage",
+      "grammar": "textmate/json/syntaxes/JSON.tmLanguage.json",
       "name": "JSON (Javascript Next)",
       "scopeName": "source.json",
       "languageConfiguration": "textmate/json/language-configuration.json"
     },
     {
-      "grammar": "textmate/log/syntaxes/log.tmLanguage",
+      "grammar": "textmate/log/syntaxes/log.tmLanguage.json",
       "name": "Log file",
       "scopeName": "text.log",
       "languageConfiguration": "textmate/log/language-configuration.json"
     },
     {
-      "grammar": "textmate/markdown/syntaxes/markdown.tmLanguage",
+      "grammar": "textmate/markdown/syntaxes/markdown.tmLanguage.json",
       "name": "Markdown",
       "scopeName": "text.html.markdown",
       "languageConfiguration": "textmate/markdown/language-configuration.json"
     },
     {
-      "grammar": "textmate/python/syntaxes/python.tmLanguage",
+      "grammar": "textmate/python/syntaxes/python.tmLanguage.json",
       "name": "MagicPython",
       "scopeName": "source.python",
       "languageConfiguration": "textmate/python/language-configuration.json"
     },
     {
-      "grammar": "textmate/shellscript/syntaxes/shell-unix-bash.tmLanguage",
+      "grammar": "textmate/shellscript/syntaxes/shell-unix-bash.tmLanguage.json",
       "name": "Shell Script",
       "scopeName": "source.shell",
       "languageConfiguration": "textmate/shellscript/language-configuration.json"
     },
     {
-      "grammar": "textmate/toml/toml.tmLanguage",
+      "grammar": "textmate/toml/toml.tmLanguage.json",
       "name": "TOML",
       "scopeName": "source.toml",
       "languageConfiguration": "textmate/toml/language-configuration.json"
     },
     {
-      "grammar": "textmate/xml/syntaxes/xml.tmLanguage",
+      "grammar": "textmate/xml/syntaxes/xml.tmLanguage.json",
       "name": "XML",
       "scopeName": "text.xml",
       "languageConfiguration": "textmate/xml/language-configuration.json"
@@ -67,7 +67,7 @@
       "languageConfiguration": "textmate/kotlin/language-configuration.json"
     },
     {
-      "grammar": "textmate/java/syntaxes/java.tmLanguage",
+      "grammar": "textmate/java/syntaxes/java.tmLanguage.json",
       "name": "java",
       "scopeName": "source.java",
       "languageConfiguration": "textmate/java/language-configuration.json"
