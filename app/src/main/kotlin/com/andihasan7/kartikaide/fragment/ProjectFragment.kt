@@ -42,6 +42,7 @@ import andihasan7.kartikaide.common.Prefs
 import com.andihasan7.kartikaide.databinding.DialogGitCloneBinding
 import com.andihasan7.kartikaide.databinding.FragmentProjectBinding
 import com.andihasan7.kartikaide.databinding.TreeviewContextActionDialogItemBinding
+import com.andihasan7.kartikaide.databinding.DialogGitProgressBinding
 import com.andihasan7.kartikaide.model.ProjectViewModel
 import andihasan7.kartikaide.project.Language
 import andihasan7.kartikaide.project.Project
@@ -61,6 +62,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.OutputStream
 import java.io.PrintWriter
+import java.io.Writer
 
 class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
     ProjectAdapter.OnProjectEventListener {
@@ -437,41 +439,58 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                     return@setPositiveButton
                 }
 
-                val textView = TextView(requireContext()).apply {
-                    text = getString(R.string.clone)
-                    setPadding(32, 32, 32, 32)
-                    setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
-                }
+                val progressBinding = DialogGitProgressBinding.inflate(layoutInflater)
+                progressBinding.progressTitle.text = "Cloning repository..."
+                
                 val sheet = BottomSheetDialog(requireContext()).apply {
-                    setContentView(textView)
+                    setContentView(progressBinding.root)
                     setCancelable(false)
                     show()
                 }
                 toggleFabMenu(false)
 
                 lifecycleScope.launch(Dispatchers.IO) {
-                    try {
-                        folder.cloneRepository(url,
-                            PrintWriter(
-                                object : OutputStream() {
-                                    override fun write(p0: Int) {
-                                        lifecycleScope.launch(Dispatchers.Main) {
-                                            textView.append(p0.toChar().toString())
+                    val logBuilder = StringBuilder()
+                    val writer = object : Writer() {
+                        override fun write(cbuf: CharArray, off: Int, len: Int) {
+                            val s = String(cbuf, off, len)
+                            synchronized(logBuilder) {
+                                for (c in s) {
+                                    if (c == '\r') {
+                                        // Cari newline terakhir untuk menghapus baris progres saat ini
+                                        val lastNL = logBuilder.lastIndexOf("\n")
+                                        if (lastNL >= 0) {
+                                            logBuilder.setLength(lastNL + 1)
+                                        } else {
+                                            logBuilder.setLength(0)
                                         }
-                                    }
-
-                                    override fun write(b: ByteArray?) {
-                                        lifecycleScope.launch(Dispatchers.Main) {
-                                            textView.append("\n" + b?.toString(Charsets.UTF_8))
-                                        }
+                                    } else {
+                                        logBuilder.append(c)
                                     }
                                 }
-                            ),
+                            }
+                            
+                            val currentLog = synchronized(logBuilder) { logBuilder.toString() }
+                            progressBinding.root.post {
+                                progressBinding.outputText.text = currentLog
+                                progressBinding.scrollView.post {
+                                    progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                                }
+                            }
+                        }
+                        override fun flush() {}
+                        override fun close() {}
+                    }
+
+                    try {
+                        folder.cloneRepository(url,
+                            writer,
                             Credentials(Prefs.gitUsername, Prefs.gitApiKey))
                         
                         withContext(Dispatchers.Main) {
+                            if (sheet.isShowing) sheet.dismiss()
                             viewModel.loadProjects()
-                            sheet.dismiss()
+                            Toast.makeText(requireContext(), "Clone successful", Toast.LENGTH_SHORT).show()
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -479,12 +498,8 @@ class ProjectFragment : BaseBindingFragment<FragmentProjectBinding>(),
                         if (folder.exists()) folder.deleteRecursively()
                         
                         withContext(Dispatchers.Main) {
-                            sheet.dismiss()
-                            CommonUtils.showSnackbarError(
-                                requireView(),
-                                "Clone failed: ${e.message ?: "Unknown error"}",
-                                e
-                            )
+                            if (sheet.isShowing) sheet.dismiss()
+                            Toast.makeText(requireContext(), "Clone failed: ${e.message}", Toast.LENGTH_LONG).show()
                         }
                     }
                 }

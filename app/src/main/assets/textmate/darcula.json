@@ -535,6 +535,73 @@
       "settings": {
         "foreground": "#9876AA"
       }
+    },
+    {
+      "name": "Log Error",
+      "scope": "log.error, log.error2",
+      "settings": {
+        "foreground": "#f44747",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Log Warning",
+      "scope": "log.warning",
+      "settings": {
+        "foreground": "#cd9731",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Log Info",
+      "scope": "log.info",
+      "settings": {
+        "foreground": "#6796e6"
+      }
+    },
+    {
+      "name": "Log Debug",
+      "scope": "log.debug",
+      "settings": {
+        "foreground": "#b267e6"
+      }
+    },
+    {
+      "name": "Log Success",
+      "scope": "success",
+      "settings": {
+        "foreground": "#6A8759",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Log Link",
+      "scope": "link",
+      "settings": {
+        "foreground": "#287bde",
+        "fontStyle": "underline"
+      }
+    },
+    {
+      "name": "Log String",
+      "scope": "log.string",
+      "settings": {
+        "foreground": "#6A8759"
+      }
+    },
+    {
+      "name": "Log Number",
+      "scope": "log.number",
+      "settings": {
+        "foreground": "#7A9EC2"
+      }
+    },
+    {
+      "name": "Log Text Strong",
+      "scope": "strong",
+      "settings": {
+        "fontStyle": "bold"
+      }
     }
   ]
 }
