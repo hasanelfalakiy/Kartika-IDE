@@ -1608,12 +1608,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     binding.compileProgress.visibility = View.GONE
                     updateRunnerIcon(isRunning = false)
                     if (reporter.buildSuccess) {
-                        bottomDrawerAdapter.appendLog(0, "BUILD SUCCESSFUL")
+                        bottomDrawerAdapter.appendLog(0, "\nBUILD SUCCESSFUL")
                         // Switch to Output tab and run
                         pager.currentItem = 1
                         runAutoDetectedClass()
                     } else {
-                        bottomDrawerAdapter.appendLog(0, "BUILD FAILED")
+                        bottomDrawerAdapter.appendLog(0, "\nBUILD FAILED")
                     }
                     System.gc() // Trigger GC after heavy compilation
                 }
@@ -1621,7 +1621,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 withContext(Dispatchers.Main) {
                     binding.compileProgress.visibility = View.GONE
                     updateRunnerIcon(isRunning = false)
-                    bottomDrawerAdapter.appendLog(0, "BUILD CANCELLED")
+                    bottomDrawerAdapter.appendLog(0, "\nBUILD CANCELLED")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
