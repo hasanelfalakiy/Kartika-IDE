@@ -31,7 +31,9 @@ import com.andihasan7.kartikaide.util.ProjectHandler
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.SubscriptionReceipt
 import io.github.rosemoe.sora.lang.EmptyLanguage
+import io.github.rosemoe.sora.langs.textmate.IdeLanguage
 import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
+import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.widget.subscribeEvent
 import io.github.rosemoe.sora.text.ContentListener
@@ -201,23 +203,54 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
         private fun setEditorLanguage() {
             val project = ProjectHandler.getProject() ?: return
-            when (file.extension) {
-                "java" -> {
+            val scopeName = when (file.extension) {
+                "java" -> "source.java"
+                "kt", "kts" -> "source.kotlin"
+                "py" -> "source.python"
+                "xml", "axml" -> "text.xml"
+                "json" -> "source.json"
+                "html" -> "text.html.basic"
+                "htmx" -> "text.html.htmx"
+                "sh", "bash" -> "source.shell"
+                "bat", "cmd" -> "source.batchfile"
+                "md" -> "text.html.markdown"
+                "toml" -> "source.toml"
+                "smali" -> "source.smali"
+                else -> null
+            }
+
+            if (scopeName != null) {
+                // Gunakan Tree-Sitter khusus untuk Java & Kotlin jika diinginkan
+                if (file.extension == "java") {
                     editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
                     diagReceiver?.unsubscribe()
                     diagReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
-                }
-                "kt", "kts" -> {
+                } else if (file.extension == "kt" || file.extension == "kts") {
                     editor.setEditorLanguage(KotlinLanguage(editor, project, file))
+                } else {
+                    // Gunakan generic TextMate untuk bahasa lainnya
+                    try {
+                        val registry = GrammarRegistry.getInstance()
+                        editor.setEditorLanguage(
+                            IdeLanguage(
+                                registry.findGrammar(scopeName),
+                                registry.findLanguageConfiguration(scopeName),
+                                registry,
+                                ThemeRegistry.getInstance()
+                            )
+                        )
+                    } catch (e: Exception) {
+                        Log.e("EditorAdapter", "Failed to load language for $scopeName", e)
+                        editor.setEditorLanguage(EmptyLanguage())
+                    }
                 }
-                "class" -> {
-                    editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
-                }
-                else -> {
-                    editor.setEditorLanguage(EmptyLanguage())
-                }
+            } else if (file.extension == "class") {
+                editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
+            } else {
+                editor.setEditorLanguage(EmptyLanguage())
             }
-            // Update hints when language is set (analysis might be needed)
+            
+            // Update hints when language is set
             inlayHintManager?.updateHints()
         }
 
