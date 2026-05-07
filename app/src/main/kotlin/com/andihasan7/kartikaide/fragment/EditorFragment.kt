@@ -290,6 +290,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private fun initSearchReplace() {
         binding.searchLayout.apply {
             btnCloseSearch.setOnClickListener {
+                etSearch.setText("")
                 closeSearchLayout()
             }
 
@@ -324,25 +325,35 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
 
             btnPrev.setOnClickListener {
-                getCurrentEditor()?.searcher?.gotoPrevious()
-                updateSearchCount()
+                val text = etSearch.text.toString()
+                if (text.isNotEmpty()) {
+                    getCurrentEditor()?.searcher?.gotoPrevious()
+                    updateSearchCount()
+                }
             }
 
             btnNext.setOnClickListener {
-                getCurrentEditor()?.searcher?.gotoNext()
-                updateSearchCount()
+                val text = etSearch.text.toString()
+                if (text.isNotEmpty()) {
+                    getCurrentEditor()?.searcher?.gotoNext()
+                    updateSearchCount()
+                }
             }
 
             btnReplace.setOnClickListener {
                 val text = etReplace.text.toString()
-                getCurrentEditor()?.searcher?.replaceCurrentMatch(text)
-                updateSearchCount()
+                if (text.isNotEmpty()) {
+                    getCurrentEditor()?.searcher?.replaceCurrentMatch(text)
+                    updateSearchCount()
+                }
             }
 
             btnReplaceAll.setOnClickListener {
                 val text = etReplace.text.toString()
-                getCurrentEditor()?.searcher?.replaceAll(text)
-                updateSearchCount()
+                if (text.isNotEmpty()) {
+                    getCurrentEditor()?.searcher?.replaceAll(text)
+                    updateSearchCount()
+                }
             }
 
             btnSearchOptions.setOnClickListener {
