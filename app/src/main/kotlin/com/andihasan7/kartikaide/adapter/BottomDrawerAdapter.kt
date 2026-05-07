@@ -7,6 +7,7 @@
 
 package com.andihasan7.kartikaide.adapter
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,7 +15,11 @@ import androidx.recyclerview.widget.RecyclerView
 import com.andihasan7.kartikaide.databinding.LayoutLogViewBinding
 import com.andihasan7.kartikaide.editor.IdeEditor
 import com.andihasan7.kartikaide.extension.setFont
+import io.github.rosemoe.sora.langs.textmate.IdeLanguage
+import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
 import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
+import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
+import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 
 class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHolder>() {
 
@@ -30,10 +35,12 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): LogViewHolder {
         val binding = LayoutLogViewBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         binding.logEditor.apply {
-            isLineNumberEnabled = false
+            isLineNumberEnabled = true // Diaktifkan agar sesuai screenshot
             isWordwrap = false
             isEditable = false
             setFont()
+            // WAJIB: Set ColorScheme agar warna TextMate muncul
+            colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
         }
         return LogViewHolder(binding)
     }
@@ -56,14 +63,32 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
             }
         }
 
-        if (position == 0) {
-            editor.isEditable = false
-            editor.setEditorLanguage(TextMateLanguage.create("source.build", false))
-        } else if (position == 1) {
-            editor.isEditable = true
-            editor.setEditorLanguage(TextMateLanguage.create("source.build", false))
+        // Terapkan grammar source.build untuk Build Log dan Output
+        if (position == 0 || position == 1) {
+            val scopeName = "source.build"
+            try {
+                val registry = GrammarRegistry.getInstance()
+                val grammar = registry.findGrammar(scopeName)
+                if (grammar != null) {
+                    editor.setEditorLanguage(
+                        IdeLanguage(
+                            grammar,
+                            registry.findLanguageConfiguration(scopeName),
+                            registry,
+                            ThemeRegistry.getInstance()
+                        )
+                    )
+                } else {
+                    editor.setEditorLanguage(TextMateLanguage.create(scopeName, false))
+                }
+            } catch (e: Exception) {
+                Log.e("BottomDrawerAdapter", "Failed to set language source.build", e)
+                editor.setEditorLanguage(TextMateLanguage.create(scopeName, false))
+            }
+            editor.isEditable = (position == 1)
         } else {
             editor.isEditable = false
+            editor.setEditorLanguage(null)
         }
     }
 
