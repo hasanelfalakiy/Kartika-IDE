@@ -1608,12 +1608,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     binding.compileProgress.visibility = View.GONE
                     updateRunnerIcon(isRunning = false)
                     if (reporter.buildSuccess) {
-                        bottomDrawerAdapter.appendLog(0, "Build Successful!")
+                        bottomDrawerAdapter.appendLog(0, "BUILD SUCCESSFUL")
                         // Switch to Output tab and run
                         pager.currentItem = 1
                         runAutoDetectedClass()
                     } else {
-                        bottomDrawerAdapter.appendLog(0, "Build Failed.")
+                        bottomDrawerAdapter.appendLog(0, "BUILD FAILED")
                     }
                     System.gc() // Trigger GC after heavy compilation
                 }
@@ -1621,7 +1621,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 withContext(Dispatchers.Main) {
                     binding.compileProgress.visibility = View.GONE
                     updateRunnerIcon(isRunning = false)
-                    bottomDrawerAdapter.appendLog(0, "Build Cancelled.")
+                    bottomDrawerAdapter.appendLog(0, "BUILD CANCELLED")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -1775,8 +1775,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             try {
                 val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
                 if (prefs.getBoolean(PreferenceKeys.CONSOLE_SHOW_ROOT_INFO, true)) {
-                    systemOut.println("Info: Project Root -> $projectRootPath")
-                    systemOut.println("Info: PROJECT_ROOT is initialized for this session.")
+                    systemOut.println("INFO: Project Root -> $projectRootPath")
+                    systemOut.println("INFO: PROJECT_ROOT is initialized for this session.")
                     systemOut.println(" ")
                 }
 
@@ -1832,7 +1832,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                     exception.printStackTrace(systemOut)
                                 }
                             } else {
-                                systemOut.println("\nAll tests passed!")
+                                systemOut.println("\nALL TESTS PASSED!")
                             }
                         } catch (e: Exception) {
                             systemOut.println("JUnit Error: ${e.message}")

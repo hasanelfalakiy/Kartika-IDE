@@ -25,12 +25,6 @@
       "languageConfiguration": "textmate/json/language-configuration.json"
     },
     {
-      "grammar": "textmate/log/syntaxes/log.tmLanguage.json",
-      "name": "Log file",
-      "scopeName": "text.log",
-      "languageConfiguration": "textmate/log/language-configuration.json"
-    },
-    {
       "grammar": "textmate/markdown/syntaxes/markdown.tmLanguage.json",
       "name": "Markdown",
       "scopeName": "text.html.markdown",
