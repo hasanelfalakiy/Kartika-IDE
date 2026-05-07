@@ -1,0 +1,141 @@
+{
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/emilast/vscode-logfile-highlighter/blob/master/syntaxes/log.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/396c8552ff99d0e07142fdd940d75dae212dd28c",
+	"name": "Log file",
+	"scopeName": "text.log",
+	"patterns": [
+        {
+			"match": "\\b(RKB-reporter)\\b",
+			"name": "log.text strong"
+		},
+
+
+
+        
+        {
+			"match": "^\\[WARNING\\]\\s*([\\d\\-\\:\\.\\s]+).*\\[W\\]\\s(.*)",
+			"name": "log.warning"
+		},
+        {
+			"match": "^\\[ERROR\\]\\s*([\\d\\-\\:\\.\\s]+).*\\[E\\]\\s(.*)",
+			"name": "log.error"
+		},
+       
+ 
+        
+        
+        {
+			"match": "^.*(FAILURE|FAILED).*$",
+			"name": "log.error2 strong"
+		},
+        {
+			"match": "^BUILD\\sSUCCESSFUL.*$",
+			"name": "success strong"
+		},
+        {
+			"match": "^\\*\\sWhat\\swent\\swrong\\:$",
+			"name": "log.error2 strong"
+		},
+        {
+			"match": "^\\*\\sTry\\:$",
+			"name": "log.warning strong"
+		},
+        
+        
+        
+	
+		{
+			"match": "\\b(DEBUG|NOTE\\:|D)\\b",
+			"name": "log.debug strong"
+		},
+		{
+			"match": "\\b(INFO|I)\\b",
+			"name": "log.info strong"
+		},
+        {
+			"match": "\\b(WARNING|WARN|warn\\:|W)\\b",
+			"name": "log.warning strong"
+		},
+		{
+			"match": "\\b(ERROR|error\\:|ERR|err\\:|E)\\b",
+			"name": "log.error2 strong"
+		},
+        
+
+        
+        
+        {
+            "match": "(\\d{2}-\\d{2}\\s)?\\d{2}:\\d{2}:\\d{2}\\.\\d{3}(\\s*\\d+)?(\\s*\\d+)?",
+            "name": "log.string"
+        },
+        {
+			"match": "\"[^\"]*\"",
+			"name": "log.string"
+		},
+		{
+			"match": "(?<![\\w])'[^']*'",
+			"name": "log.string"
+		},
+        {
+			"match": "(?<![\\w])`[^`]*`",
+			"name": "log.string"
+		},
+        {
+			"match": "\\b([0-9a-fA-F]{40}|[0-9a-fA-F]{10}|[0-9a-fA-F]{7})\\b",
+			"name": "log.text"
+		},
+        {
+			"match": "\\b([0-9a-fA-F]{40}|[0-9a-fA-F]{10}|[0-9a-fA-F]{7})\\b",
+			"name": "log.text"
+		},
+		{
+			"match": "\\b[0-9a-fA-F]{8}[-]?([0-9a-fA-F]{4}[-]?){3}[0-9a-fA-F]{12}\\b",
+			"name": "log.text"
+		},
+		{
+			"match": "\\b([0-9a-fA-F]{2,}[:-])+[0-9a-fA-F]{2,}+\\b",
+			"name": "log.text"
+		},
+		{
+			"match": "\\b([0-9]+)\\b",
+			"name": "log.number strong"
+		},
+        {
+			"match": "\\b(true|false|null)\\b",
+			"name": "log.error2 strong"
+		},
+		{
+			"match": "\\b(0x[a-fA-F0-9]+)\\b",
+			"name": "log.text strong"
+		},
+        {
+			"match": "\\b([a-zA-Z.]*Exception)\\b",
+			"name": "log.error strong"
+		},
+		{
+			"begin": "^[(?:\\t| {4}|\\•{4}) ]*at[(?:\\t| {4}|\\•{4}) ]",
+			"end": "$",
+			"name": "log.error"
+		},
+        {
+			"match": "^(?:(?:\\t| {4}|\\•{4}).*(?:\\r?\\n|$))+",
+			"name": "log.text2"
+		},
+        {
+			"match": "https?:\\/\\/(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&//=]*)",
+			"name": "link strong"
+		},
+		{
+			"match": "\\b[a-z]+://\\S+\\b/?",
+			"name": "link strong"
+		},
+		{
+			"match": "(?<![\\w/\\\\])([\\w-]+\\.)+([\\w-])+(?![\\w/\\\\])",
+			"name": "log.text"
+		}
+	]
+}

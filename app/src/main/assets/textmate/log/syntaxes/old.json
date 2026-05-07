@@ -1,0 +1,205 @@
+{// Modified to serve the interests of AndroidPE "see the darcula.json file".
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/emilast/vscode-logfile-highlighter/blob/master/syntaxes/log.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/396c8552ff99d0e07142fdd940d75dae212dd28c",
+	"name": "Log file",
+	"scopeName": "text.log",
+	"patterns": [
+        {
+			"begin": "\\b(\\[WARNING\\])\\b\\s*\\b((\\d{2}-\\d{2}\\s)?\\d{2}:\\d{2}:\\d{2}\\.\\d{3}(\\s*\\d+)?(\\s*\\d+)?)\\b\\s\\b(\\[W\\])\\b\\s\\b([A-Za-z0-9\\_\\$]*\\:)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "log.warning strong"
+				},
+				"2": {
+					"name": "log.warning"
+				},
+                "3": {
+					"name": "log.warning strong"
+				},
+                "4": {
+					"name": "log.warning strong"
+				},
+			},
+			"end": "$",
+			"endCaptures": {
+				"1": {
+					"name": "log.warning"
+				}
+			}/*,
+			"name": "meta.import.java",
+			"contentName": "storage.modifier.import.java",
+			"patterns": [
+				{
+					"include": "#comments"
+				},
+				{
+					"match": "(?<=\\.)\\s*\\.|\\.(?=\\s*;)",
+					"name": "invalid.illegal.character_not_allowed_here.java"
+				},
+				{
+					"match": "(?<!\\.)\\s*\\*",
+					"name": "invalid.illegal.character_not_allowed_here.java"
+				},
+				{
+					"match": "(?<!_)_(?=\\s*(\\.|;))|\\b\\d+|-+",
+					"name": "invalid.illegal.character_not_allowed_here.java"
+				},
+				{
+					"match": "(?x)\\b(?<!\\$)\n(abstract|assert|boolean|break|byte|case|catch|char|class|\nconst|continue|default|do|double|else|enum|extends|final|\nfinally|float|for|goto|if|implements|import|instanceof|int|\ninterface|long|native|new|non-sealed|package|permits|private|protected|public|\nreturn|sealed|short|static|strictfp|super|switch|syncronized|this|\nthrow|throws|transient|try|void|volatile|while|yield|\ntrue|false|null)\\b",
+					"name": "invalid.illegal.character_not_allowed_here.java"
+				},
+				{
+					"match": "\\.",
+					"name": "punctuation.separator.java"
+				},
+				{
+					"match": "\\*",
+					"name": "variable.language.wildcard.java"
+				}
+			]*/
+		},
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        {
+			"match": "\\b(RKB-reporter)\\b",
+			"name": "log.text strong"
+		},
+        
+        
+        
+        /*{
+			"match": "^\\[WARNING\\]\\s*([\\d\\-\\:\\.\\s]+).*\\[W\\]\\s(.*)",
+			"name": "log.warning"
+		},*/
+        {
+			"match": "^\\[ERROR\\]\\s*([\\d\\-\\:\\.\\s]+).*\\[E\\]\\s(.*)",
+			"name": "log.error"
+		},
+        
+        
+        
+        {
+			"match": "^.*(FAILURE|FAILED).*$",
+			"name": "log.error2 strong"
+		},
+        {
+			"match": "^BUILD\\sSUCCESSFUL.*$",
+			"name": "success strong"
+		},
+        {
+			"match": "^\\*\\sWhat\\swent\\swrong\\:$",
+			"name": "log.error2 strong"
+		},
+        {
+			"match": "^\\*\\sTry\\:$",
+			"name": "log.warning strong"
+		},
+        
+        
+        
+	
+		{
+			"match": "\\b(DEBUG|D)\\b",
+			"name": "log.debug strong"
+		},
+		{
+			"match": "\\b(INFO|I)\\b",
+			"name": "log.info strong"
+		},
+        {
+			"match": "\\b(WARNING|W)\\b",
+			"name": "log.warning strong"
+		},
+		{
+			"match": "\\b(ERROR|E)\\b",
+			"name": "log.error2 strong"
+		},
+        
+        
+        
+        {
+            "match": "(\\d{2}-\\d{2}\\s)?\\d{2}:\\d{2}:\\d{2}\\.\\d{3}(\\s*\\d+)?(\\s*\\d+)?",
+            "name": "log.string"
+        },
+        {
+			"match": "\"[^\"]*\"",
+			"name": "log.string"
+		},
+		{
+			"match": "(?<![\\w])'[^']*'",
+			"name": "log.string"
+		},
+        {
+			"match": "(?<![\\w])`[^`]*`",
+			"name": "log.string"
+		},
+        {
+			"match": "\\b([0-9a-fA-F]{40}|[0-9a-fA-F]{10}|[0-9a-fA-F]{7})\\b",
+			"name": "log.text"
+		},
+        {
+			"match": "\\b([0-9a-fA-F]{40}|[0-9a-fA-F]{10}|[0-9a-fA-F]{7})\\b",
+			"name": "log.text"
+		},
+		{
+			"match": "\\b[0-9a-fA-F]{8}[-]?([0-9a-fA-F]{4}[-]?){3}[0-9a-fA-F]{12}\\b",
+			"name": "log.text"
+		},
+		{
+			"match": "\\b([0-9a-fA-F]{2,}[:-])+[0-9a-fA-F]{2,}+\\b",
+			"name": "log.text"
+		},
+		{
+			"match": "\\b([0-9]+)\\b",
+			"name": "log.number strong"
+		},
+        {
+			"match": "\\b(true|false|null)\\b",
+			"name": "log.error2 strong"
+		},
+		{
+			"match": "\\b(0x[a-fA-F0-9]+)\\b",
+			"name": "log.text strong"
+		},
+        {
+			"match": "\\b([a-zA-Z.]*Exception)\\b",
+			"name": "log.error strong"
+		},
+		{
+			"begin": "^[(?:\\t| {4}|\\•{4}) ]*at[(?:\\t| {4}|\\•{4}) ]",
+			"end": "$",
+			"name": "log.error"
+		},
+        {
+			"match": "^(?:(?:\\t| {4}|\\•{4}).*(?:\\r?\\n|$))+",
+			"name": "log.text2"
+		},
+        {
+			"match": "https?:\\/\\/(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&//=]*)",
+			"name": "link strong"
+		},
+		{
+			"match": "\\b[a-z]+://\\S+\\b/?",
+			"name": "link strong"
+		},
+		{
+			"match": "(?<![\\w/\\\\])([\\w-]+\\.)+([\\w-])+(?![\\w/\\\\])",
+			"name": "log.text"
+		}
+	]
+}
