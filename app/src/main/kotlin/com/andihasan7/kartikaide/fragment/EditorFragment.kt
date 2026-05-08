@@ -1193,11 +1193,25 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                                             return@launch
                                         }
                                         try {
+                                            // 1. Unduh semua dependensi ke folder libs
                                             artifact.downloadArtifact(project.libDir)
-                                            project.libDir.walk().filter { it.extension != "jar" }.forEach { it.delete() }
+
+                                            // 2. Paksa unduh artifact utama secara spesifik untuk memastikan file-nya ada
+                                            // Kita coba deteksi apakah ini jar atau aar, atau buat saja keduanya jika ragu
+                                            val jarFile = File(project.libDir, "${artifact.artifactId}-${artifact.version}.jar")
+                                            artifact.downloadTo(jarFile)
+
+                                            // Jika masih tidak muncul, kemungkinan besar ini adalah AAR
+                                            if (!jarFile.exists() || jarFile.length() == 0L) {
+                                                val aarFile = File(project.libDir, "${artifact.artifactId}-${artifact.version}.aar")
+                                                artifact.downloadTo(aarFile)
+                                            }
+
                                             withContext(Dispatchers.Main) {
                                                 Toast.makeText(requireContext(), "Dependency downloaded successfully", Toast.LENGTH_SHORT).show()
                                                 sheet.dismiss()
+                                                // Refresh TreeView agar file baru muncul
+                                                initTreeView()
                                             }
                                         } catch (e: Exception) {
                                             withContext(Dispatchers.Main) {
