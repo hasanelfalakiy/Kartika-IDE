@@ -47,6 +47,7 @@ import com.andihasan7.kartikaide.adapter.BottomDrawerAdapter
 import com.andihasan7.kartikaide.adapter.EditorAdapter
 import com.andihasan7.kartikaide.adapter.NavAdapter
 import com.andihasan7.kartikaide.compile.Compiler
+import com.andihasan7.kartikaide.compile.CompilerCache
 import com.andihasan7.kartikaide.databinding.FragmentEditorBinding
 import com.andihasan7.kartikaide.databinding.NavigationElementsBinding
 import com.andihasan7.kartikaide.databinding.NewDependencyBinding
@@ -83,6 +84,7 @@ import io.github.rosemoe.sora.widget.EditorSearcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.cosmic.ide.dependency.resolver.api.Artifact
@@ -1629,6 +1631,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     } else {
                         bottomDrawerAdapter.appendLog(0, "\nBUILD FAILED")
                     }
+                    CompilerCache.clear() // Free up memory after compilation
                     System.gc() // Trigger GC after heavy compilation
                 }
             } catch (e: CancellationException) {
@@ -1758,6 +1761,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
 
             val inputStream = EditorInputStream(outputEditor)
+            
+            // Log throttling variables
+            val outputBuffer = StringBuilder()
+            var lastUpdateTime = 0L
+
             val systemOut = PrintStream(object : OutputStream() {
                 private val bos = ByteArrayOutputStream()
                 override fun write(p0: Int) { bos.write(p0) }
@@ -1771,9 +1779,28 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     // Mark this text as output so the input stream skips it
                     inputStream.expectOutput(s.length)
 
-                    lifecycleScope.launch(Dispatchers.Main) {
-                        bottomDrawerAdapter.appendLog(1, s, addNewLine = false)
+                    outputBuffer.append(s)
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastUpdateTime > 100) { // Throttle UI updates to 100ms
+                        val textToPrint = outputBuffer.toString()
+                        outputBuffer.setLength(0)
+                        lastUpdateTime = currentTime
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            bottomDrawerAdapter.appendLog(1, textToPrint, addNewLine = false)
+                        }
                     }
+                }
+                
+                override fun close() {
+                    // Final flush
+                    if (outputBuffer.isNotEmpty()) {
+                        val textToPrint = outputBuffer.toString()
+                        outputBuffer.setLength(0)
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            bottomDrawerAdapter.appendLog(1, textToPrint, addNewLine = false)
+                        }
+                    }
+                    super.close()
                 }
             }, true)
 
@@ -1884,7 +1911,9 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     e.printStackTrace(systemOut)
                 }
             } finally {
-                systemOut.flush()
+                // Final flush of throttled output
+                systemOut.close()
+                
                 System.setOut(oldOut)
                 System.setErr(oldErr)
                 System.setIn(oldIn)
@@ -1899,6 +1928,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 withContext(Dispatchers.Main) {
                     updateOutputStatus(false, "Finished")
                     bottomDrawerAdapter.appendLog(1, "\n--- Finished ---")
+                    System.gc() // Free up memory after execution
                 }
             }
         }
