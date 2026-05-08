@@ -204,7 +204,7 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
         private fun setEditorLanguage() {
             val project = ProjectHandler.getProject() ?: return
             val scopeName = when (file.extension) {
-                "java" -> "source.java"
+                "java", "jav" -> "source.java"
                 "kt", "kts" -> "source.kotlin"
                 "py" -> "source.python"
                 "xml", "axml" -> "text.xml"
@@ -220,28 +220,48 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             }
 
             if (scopeName != null) {
-                // Gunakan Tree-Sitter khusus untuk Java & Kotlin jika diinginkan
-                if (file.extension == "java") {
-                    editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
-                    diagReceiver?.unsubscribe()
-                    diagReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
-                } else if (file.extension == "kt" || file.extension == "kts") {
-                    editor.setEditorLanguage(KotlinLanguage(editor, project, file))
-                } else {
-                    // Gunakan generic TextMate untuk bahasa lainnya
-                    try {
-                        val registry = GrammarRegistry.getInstance()
-                        editor.setEditorLanguage(
-                            IdeLanguage(
-                                registry.findGrammar(scopeName),
-                                registry.findLanguageConfiguration(scopeName),
-                                registry,
-                                ThemeRegistry.getInstance()
-                            )
+                val registry = GrammarRegistry.getInstance()
+                val grammar = try { registry.findGrammar(scopeName) } catch (e: Exception) { null }
+                
+                if (grammar != null) {
+                    // Gunakan TextMate jika grammar ditemukan agar sesuai dengan tema skema warna
+                    editor.setEditorLanguage(
+                        IdeLanguage(
+                            grammar,
+                            registry.findLanguageConfiguration(scopeName),
+                            registry,
+                            ThemeRegistry.getInstance()
                         )
-                    } catch (e: Exception) {
-                        Log.e("EditorAdapter", "Failed to load language for $scopeName", e)
-                        editor.setEditorLanguage(EmptyLanguage())
+                    )
+                    
+                    // Khusus Java, tetap aktifkan diagnostik (marker error)
+                    if (file.extension == "java" || file.extension == "jav") {
+                        diagReceiver?.unsubscribe()
+                        diagReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
+                    }
+                } else {
+                    // Fallback ke Tree-Sitter khusus untuk Java & Kotlin jika grammar TextMate tidak ada
+                    if (file.extension == "java") {
+                        editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
+                        diagReceiver?.unsubscribe()
+                        diagReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
+                    } else if (file.extension == "kt" || file.extension == "kts") {
+                        editor.setEditorLanguage(KotlinLanguage(editor, project, file))
+                    } else {
+                        // Gunakan generic TextMate (IdeLanguage) sebagai fallback terakhir
+                        try {
+                            editor.setEditorLanguage(
+                                IdeLanguage(
+                                    registry.findGrammar(scopeName),
+                                    registry.findLanguageConfiguration(scopeName),
+                                    registry,
+                                    ThemeRegistry.getInstance()
+                                )
+                            )
+                        } catch (e: Exception) {
+                            Log.e("EditorAdapter", "Failed to load language for $scopeName", e)
+                            editor.setEditorLanguage(EmptyLanguage())
+                        }
                     }
                 }
             } else if (file.extension == "class") {
