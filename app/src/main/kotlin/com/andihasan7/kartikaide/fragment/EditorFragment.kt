@@ -1622,13 +1622,24 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             try {
                 compiler.compile()
                 val duration = System.currentTimeMillis() - startTime
-                val durationStr = if (duration >= 1000) {
-                    val secs = duration / 1000
-                    val ms = duration % 1000
-                    "${secs}s ${ms}ms"
-                } else {
-                    "${duration}ms"
-                }
+                
+                val hours = duration / 3600000
+                val minutes = (duration % 3600000) / 60000
+                val seconds = (duration % 60000) / 1000
+                val ms = duration % 1000
+
+                val durationStr = buildString {
+                    if (hours > 0) append("${hours}h ")
+                    if (minutes > 0) append("${minutes}m ")
+                    if (seconds > 0 || hours > 0 || minutes > 0) {
+                         append("${seconds}s")
+                         if (hours == 0L && minutes == 0L) {
+                             append(" ${ms}ms")
+                         }
+                    } else {
+                        append("${ms}ms")
+                    }
+                }.trim()
                 
                 withContext(Dispatchers.Main) {
                     binding.compileProgress.visibility = View.GONE
@@ -1926,7 +1937,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 
                 System.setOut(oldOut)
                 System.setErr(oldErr)
-                System.setIn(oldIn)
+                System.setIn(inputStream)
                 Thread.currentThread().contextClassLoader = oldContextClassLoader
 
                 System.setProperty("user.dir", oldUserDir ?: "/")
