@@ -1618,13 +1618,23 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         updateRunnerIcon(isRunning = true)
 
         compilationJob = lifecycleScope.launch(Dispatchers.IO) {
+            val startTime = System.currentTimeMillis()
             try {
                 compiler.compile()
+                val duration = System.currentTimeMillis() - startTime
+                val durationStr = if (duration >= 1000) {
+                    val secs = duration / 1000
+                    val ms = duration % 1000
+                    "${secs}s ${ms}ms"
+                } else {
+                    "${duration}ms"
+                }
+                
                 withContext(Dispatchers.Main) {
                     binding.compileProgress.visibility = View.GONE
                     updateRunnerIcon(isRunning = false)
                     if (reporter.buildSuccess) {
-                        bottomDrawerAdapter.appendLog(0, "\nBUILD SUCCESSFUL")
+                        bottomDrawerAdapter.appendLog(0, "\nBUILD SUCCESSFUL in $durationStr")
                         // Switch to Output tab and run
                         pager.currentItem = 1
                         runAutoDetectedClass()
