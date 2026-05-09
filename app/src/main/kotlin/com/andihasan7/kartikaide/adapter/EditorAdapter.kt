@@ -10,7 +10,6 @@ package com.andihasan7.kartikaide.adapter
 import andihasan7.kartikaide.buildtools.Javap
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.editor.analyzers.EditorDiagnosticsMarker
-import com.andihasan7.kartikaide.fragment.EditorFragment
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
@@ -26,12 +25,15 @@ import com.andihasan7.kartikaide.editor.InlayHintManager
 import com.andihasan7.kartikaide.editor.language.KotlinLanguage
 import com.andihasan7.kartikaide.editor.language.TsLanguageJava
 import com.andihasan7.kartikaide.extension.setFont
+import com.andihasan7.kartikaide.fragment.EditorFragment
 import com.andihasan7.kartikaide.model.FileViewModel
 import com.andihasan7.kartikaide.util.ProjectHandler
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.SubscriptionReceipt
 import io.github.rosemoe.sora.lang.EmptyLanguage
+import io.github.rosemoe.sora.langs.textmate.IdeLanguage
 import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
+import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.widget.subscribeEvent
 import io.github.rosemoe.sora.text.ContentListener
@@ -164,7 +166,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
-            setupSymbols()
             setText()
             editor.setFont()
             setColorScheme()
@@ -200,46 +201,76 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             })
         }
 
-        private fun setupSymbols() {
-            binding.apply {
-                if (Prefs.disableSymbolsView) {
-                    symbolViewContainer.visibility = View.GONE
-                    return
-                }
-                symbolViewContainer.visibility = View.VISIBLE
-                symbolView.bindEditor(editor)
-                symbolView.removeSymbols()
-                
-                val rawSymbols = Prefs.customSymbols.split(",")
-                    .map { it.trim() }
-                    .filter { it.isNotEmpty() }
-                
-                val symbols = rawSymbols.map { if (it == "→") "\t" else it }.toTypedArray()
-                val displays = rawSymbols.toTypedArray()
-                
-                symbolView.addSymbols(displays, symbols)
-            }
-        }
-
         private fun setEditorLanguage() {
             val project = ProjectHandler.getProject() ?: return
-            when (file.extension) {
-                "java" -> {
-                    editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
-                    diagReceiver?.unsubscribe()
-                    diagReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
-                }
-                "kt", "kts" -> {
-                    editor.setEditorLanguage(KotlinLanguage(editor, project, file))
-                }
-                "class" -> {
-                    editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
-                }
-                else -> {
-                    editor.setEditorLanguage(EmptyLanguage())
-                }
+            val scopeName = when (file.extension) {
+                "java", "jav" -> "source.java"
+                "kt", "kts" -> "source.kotlin"
+                "py" -> "source.python"
+                "xml", "axml" -> "text.xml"
+                "json" -> "source.json"
+                "html" -> "text.html.basic"
+                "htmx" -> "text.html.htmx"
+                "sh", "bash" -> "source.shell"
+                "bat", "cmd" -> "source.batchfile"
+                "md" -> "text.html.markdown"
+                "toml" -> "source.toml"
+                "smali" -> "source.smali"
+                else -> null
             }
-            // Update hints when language is set (analysis might be needed)
+
+            if (scopeName != null) {
+                val registry = GrammarRegistry.getInstance()
+                val grammar = try { registry.findGrammar(scopeName) } catch (e: Exception) { null }
+                
+                if (grammar != null) {
+                    // Gunakan TextMate jika grammar ditemukan agar sesuai dengan tema skema warna
+                    editor.setEditorLanguage(
+                        IdeLanguage(
+                            grammar,
+                            registry.findLanguageConfiguration(scopeName),
+                            registry,
+                            ThemeRegistry.getInstance()
+                        )
+                    )
+                    
+                    // Khusus Java, tetap aktifkan diagnostik (marker error)
+                    if (file.extension == "java" || file.extension == "jav") {
+                        diagReceiver?.unsubscribe()
+                        diagReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
+                    }
+                } else {
+                    // Fallback ke Tree-Sitter khusus untuk Java & Kotlin jika grammar TextMate tidak ada
+                    if (file.extension == "java") {
+                        editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
+                        diagReceiver?.unsubscribe()
+                        diagReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
+                    } else if (file.extension == "kt" || file.extension == "kts") {
+                        editor.setEditorLanguage(KotlinLanguage(editor, project, file))
+                    } else {
+                        // Gunakan generic TextMate (IdeLanguage) sebagai fallback terakhir
+                        try {
+                            editor.setEditorLanguage(
+                                IdeLanguage(
+                                    registry.findGrammar(scopeName),
+                                    registry.findLanguageConfiguration(scopeName),
+                                    registry,
+                                    ThemeRegistry.getInstance()
+                                )
+                            )
+                        } catch (e: Exception) {
+                            Log.e("EditorAdapter", "Failed to load language for $scopeName", e)
+                            editor.setEditorLanguage(EmptyLanguage())
+                        }
+                    }
+                }
+            } else if (file.extension == "class") {
+                editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
+            } else {
+                editor.setEditorLanguage(EmptyLanguage())
+            }
+            
+            // Update hints when language is set
             inlayHintManager?.updateHints()
         }
 
@@ -298,7 +329,6 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
             if (::editor.isInitialized) {
                 editor.updateSettings()
                 setEditorLanguage()
-                setupSymbols()
                 setupInlayHints()
             }
         }
