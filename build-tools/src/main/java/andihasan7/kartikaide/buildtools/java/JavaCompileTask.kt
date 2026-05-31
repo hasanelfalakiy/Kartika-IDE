@@ -137,10 +137,8 @@ class JavaCompileTask(val project: Project) : Task {
 
     fun getClasspath(project: Project): List<File> {
         val classpath = mutableListOf(File(project.binDir, "classes"))
-        val libDir = project.libDir
-        if (libDir.exists() && libDir.isDirectory) {
-            classpath += libDir.walk().filter { it.extension == "jar" }.toList()
-        }
+        // Menggunakan semua library yang ditemukan di berbagai folder libs
+        classpath.addAll(project.allLibFiles.filter { it.extension == "jar" })
         return classpath
     }
 }

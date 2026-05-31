@@ -88,7 +88,9 @@ class KotlinCompiler(val project: Project) : Task {
     }
 
     fun collectClasspathFiles(): List<File> {
-        return project.libDir.walk().filter(File::isFile).toList()
+        // Mengambil semua library dari berbagai lokasi yang didukung (libs, lib/libs, src/libs)
+        // Saat ini hanya menyertakan .jar karena .aar memerlukan penanganan khusus (ekstraksi classes.jar)
+        return project.allLibFiles.filter { it.extension == "jar" }
     }
 
     fun getKotlinCompilerPlugins(): List<File> {

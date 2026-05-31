@@ -109,9 +109,28 @@ class Project : Serializable {
     val classesDir get() = File(buildDir, "classes")
 
     /**
-     * The library directory of the project.
+     * The primary library directory of the project.
+     * Maintained for backward compatibility.
      */
     val libDir get() = File(root, "libs")
+
+    /**
+     * Get all library files (.jar and .aar) from common locations:
+     * /libs, /lib/libs, and /src/libs.
+     */
+    val allLibFiles: List<File>
+        get() {
+            val libPaths = listOf("libs", "lib/libs", "src/libs")
+            val libFiles = mutableListOf<File>()
+            
+            for (path in libPaths) {
+                val dir = File(root, path)
+                if (dir.exists() && dir.isDirectory) {
+                    libFiles.addAll(dir.walk().filter { it.isFile && (it.extension == "jar" || it.extension == "aar") })
+                }
+            }
+            return libFiles.distinct()
+        }
 
     var args: List<String> = listOf()
         get() {
