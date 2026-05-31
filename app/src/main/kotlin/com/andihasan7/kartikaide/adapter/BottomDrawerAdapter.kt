@@ -52,7 +52,11 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
         editor.setText(content)
         
         // Sembunyikan pesan kosong jika ada konten
-        holder.binding.tvEmptyLog.visibility = if (content.isEmpty()) View.VISIBLE else View.GONE
+        val isEmpty = content.isEmpty()
+        holder.binding.tvEmptyLog.apply {
+            visibility = if (isEmpty) View.VISIBLE else View.GONE
+            text = if (position == 2) "Feature not implemented yet" else "No logs yet."
+        }
 
         // Pastikan kursor berada di akhir saat bind agar output terbaru terlihat
         editor.post {
@@ -131,7 +135,10 @@ class BottomDrawerAdapter : RecyclerView.Adapter<BottomDrawerAdapter.LogViewHold
             holder.binding.logEditor.post {
                 holder.binding.logEditor.setSelection(0, 0)
             }
-            holder.binding.tvEmptyLog.visibility = View.VISIBLE
+            holder.binding.tvEmptyLog.apply {
+                text = if (position == 2) "Feature not implemented yet" else "No logs yet."
+                visibility = View.VISIBLE
+            }
         }
     }
     

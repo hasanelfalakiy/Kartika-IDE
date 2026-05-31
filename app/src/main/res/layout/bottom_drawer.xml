@@ -170,7 +170,7 @@
         <com.google.android.material.tabs.TabItem
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Search Result"
+            android:text="Search in Project"
             android:icon="@drawable/ic_search_results" />
 
     </com.google.android.material.tabs.TabLayout>
