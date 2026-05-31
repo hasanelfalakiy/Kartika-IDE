@@ -243,6 +243,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
 
             override fun onTabUnselected(tab: TabLayout.Tab) {
+                //if (tab.position !in 0 until editorAdapter.itemCount) return
+
                 editorAdapter.getItem(tab.position)?.let {
                     it.save()
                     it.hideWindows()
@@ -451,7 +453,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             when (pos) {
                 0 -> { tab.text = "Build Log";     tab.setIcon(R.drawable.ic_build_log) }
                 1 -> { tab.text = "Output";        tab.setIcon(R.drawable.ic_output) }
-                2 -> { tab.text = "Search Result"; tab.setIcon(R.drawable.ic_search_results) }
+                2 -> { tab.text = "Search in Project"; tab.setIcon(R.drawable.ic_search_results) }
             }
         }.attach()
 
