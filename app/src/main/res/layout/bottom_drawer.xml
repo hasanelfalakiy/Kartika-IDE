@@ -151,7 +151,7 @@
         app:tabIconTint="?colorPrimary"
         app:tabIndicatorFullWidth="true"
         app:tabInlineLabel="true"
-        app:tabMode="fixed"
+        app:tabMode="scrollable"
         app:tabSelectedTextColor="?colorPrimary"
         app:tabTextColor="?colorOnSurfaceVariant">
 
