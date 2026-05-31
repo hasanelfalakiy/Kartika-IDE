@@ -42,32 +42,64 @@ class D8Task(val project: Project) : Task {
          * @param reporter The BuildReporter instance to report any errors to.
          */
         fun compileJar(jarFile: Path, outputDir: Path, reporter: BuildReporter? = null) {
-            val zipFile = ZipFile(jarFile.toFile())
-
-            // If the jar has no files with the .class extension, skip it
-            if (zipFile.use { zip ->
-                    zip.entries().asSequence()
-                        .none { it.name.startsWith("META-INF").not() && it.name.endsWith(".class") }
-                }) {
-                return
-            }
-
             try {
-                D8.run(
-                    D8Command.builder()
-                        .setMinApiLevel(MIN_API_LEVEL)
-                        .setMode(COMPILATION_MODE)
-                        .addClasspathFiles(getSystemClasspath().map { it.toPath() })
-                        .addProgramFiles(jarFile)
-                        .setOutput(outputDir, OutputMode.DexIndexed)
-                        .build()
-                )
-                Files.move(
-                    outputDir.resolve("classes.dex"),
-                    outputDir.resolve(jarFile.nameWithoutExtension + ".dex")
-                )
+                // If it's an AAR, we need to extract classes.jar or handle it specifically.
+                // For now, let's assume it's a JAR or that D8 can handle it if it contains classes.
+                if (jarFile.toString().endsWith(".aar")) {
+                    // Simple extraction of classes.jar from AAR for dexing
+                    val aarZip = ZipFile(jarFile.toFile())
+                    val classesJarEntry = aarZip.getEntry("classes.jar")
+                    if (classesJarEntry != null) {
+                        val tempClassesJar = Files.createTempFile("classes", ".jar")
+                        aarZip.getInputStream(classesJarEntry).use { input ->
+                            Files.copy(input, tempClassesJar, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                        }
+
+                        D8.run(
+                            D8Command.builder()
+                                .setMinApiLevel(MIN_API_LEVEL)
+                                .setMode(COMPILATION_MODE)
+                                .addClasspathFiles(getSystemClasspath().map { it.toPath() })
+                                .addProgramFiles(tempClassesJar)
+                                .setOutput(outputDir, OutputMode.DexIndexed)
+                                .build()
+                        )
+                        Files.deleteIfExists(tempClassesJar)
+                    } else {
+                        return
+                    }
+                } else {
+                    val zipFile = ZipFile(jarFile.toFile())
+                    // If the jar has no files with the .class extension, skip it
+                    if (zipFile.use { zip ->
+                            zip.entries().asSequence()
+                                .none { it.name.startsWith("META-INF").not() && it.name.endsWith(".class") }
+                        }) {
+                        return
+                    }
+
+                    D8.run(
+                        D8Command.builder()
+                            .setMinApiLevel(MIN_API_LEVEL)
+                            .setMode(COMPILATION_MODE)
+                            .addClasspathFiles(getSystemClasspath().map { it.toPath() })
+                            .addProgramFiles(jarFile)
+                            .setOutput(outputDir, OutputMode.DexIndexed)
+                            .build()
+                    )
+                }
+
+                // D8 outputs classes.dex, rename it to be unique to this jar
+                val outputDex = outputDir.resolve("classes.dex")
+                if (Files.exists(outputDex)) {
+                    Files.move(
+                        outputDex,
+                        outputDir.resolve(jarFile.nameWithoutExtension + ".dex"),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                    )
+                }
             } catch (e: Throwable) {
-                reporter?.reportError(e.stackTraceToString())
+                reporter?.reportError("Failed to dex ${jarFile.fileName}: ${e.message}")
             }
         }
     }
@@ -80,28 +112,33 @@ class D8Task(val project: Project) : Task {
     override fun execute(reporter: BuildReporter) {
         val classes = getClassFiles(project.binDir.resolve("classes"))
         if (classes.isEmpty()) {
-            reporter.reportError("No classes found to compile.")
-            return
+            // It's possible there are no classes but only resources, or it's a Kotlin-only project
+            // that hasn't populated bin/classes yet (though KotlinCompiler should have).
+            // But if it's empty, we just skip project dexing.
+            reporter.reportInfo("No project classes found to dex.")
+        } else {
+            D8.run(
+                D8Command.builder()
+                    .setMinApiLevel(MIN_API_LEVEL)
+                    .setMode(COMPILATION_MODE)
+                    .addClasspathFiles(getSystemClasspath().map { it.toPath() })
+                    .addProgramFiles(classes)
+                    .setOutput(project.binDir.toPath(), OutputMode.DexIndexed)
+                    .build()
+            )
         }
-        D8.run(
-            D8Command.builder()
-                .setMinApiLevel(MIN_API_LEVEL)
-                .setMode(COMPILATION_MODE)
-                .addClasspathFiles(getSystemClasspath().map { it.toPath() })
-                .addProgramFiles(classes)
-                .setOutput(project.binDir.toPath(), OutputMode.DexIndexed)
-                .build()
-        )
 
-        // Compile libraries
-        val libDir = project.libDir
-        if (libDir.exists() && libDir.isDirectory) {
+        // Compile all libraries from all detected locations
+        val allLibs = project.allLibFiles
+        if (allLibs.isNotEmpty()) {
             val libDexDir = project.buildDir.resolve("libs").apply { mkdirs() }
-            libDir.listFiles { file -> file.extension == "jar" }?.filter { lib ->
-                libDexDir.resolve(lib.nameWithoutExtension + ".dex").exists().not()
-            }?.forEach { jarFile ->
-                reporter.reportInfo("Compiling library ${jarFile.name}")
-                compileJar(jarFile.toPath(), libDexDir.toPath(), reporter)
+            allLibs.forEach { libFile ->
+                val targetDex = libDexDir.resolve(libFile.nameWithoutExtension + ".dex")
+                // Only compile if dex doesn't exist or is older than the library
+                if (!targetDex.exists() || targetDex.lastModified() < libFile.lastModified()) {
+                    reporter.reportInfo("Dexing library: ${libFile.name}")
+                    compileJar(libFile.toPath(), libDexDir.toPath(), reporter)
+                }
             }
         }
     }
@@ -113,6 +150,7 @@ class D8Task(val project: Project) : Task {
      * @return A list of paths to all class files in the directory.
      */
     fun getClassFiles(root: File): List<Path> {
+        if (!root.exists()) return emptyList()
         return root.walk().filter { it.extension == "class" }.map { it.toPath() }.toList()
     }
 }

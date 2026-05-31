@@ -109,8 +109,7 @@ class Project : Serializable {
     val classesDir get() = File(buildDir, "classes")
 
     /**
-     * The primary library directory of the project.
-     * Maintained for backward compatibility.
+     * The library directory of the project.
      */
     val libDir get() = File(root, "libs")
 
