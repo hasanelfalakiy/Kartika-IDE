@@ -28,32 +28,48 @@ class Project : Serializable {
     val name: String get() = root.name
 
     /**
-     * The source directory of the project, based on the language used.
+     * Get all detected source directories (Java and Kotlin).
      */
-    val srcDir: File
+    val allSrcDirs: List<File>
         get() {
-            // Priority 1: Standard Gradle/Maven structure at root
-            val javaSrc = File(root, "src/main/java")
-            if (javaSrc.exists()) return javaSrc
-            val kotlinSrc = File(root, "src/main/kotlin")
-            if (kotlinSrc.exists()) return kotlinSrc
-
-            // Priority 2: Common modules like 'app' or 'lib'
-            val modules = listOf("app", "lib", "library", "module")
-            for (module in modules) {
-                val moduleJava = File(root, "$module/src/main/java")
-                if (moduleJava.exists()) return moduleJava
-                val moduleKotlin = File(root, "$module/src/main/kotlin")
-                if (moduleKotlin.exists()) return moduleKotlin
+            val dirs = mutableSetOf<File>()
+            
+            // Standard Gradle structure
+            val standardPaths = listOf(
+                "src/main/java", "src/main/kotlin",
+                "src/java", "src/kotlin", // Common non-standard or simplified structures
+                "app/src/main/java", "app/src/main/kotlin",
+                "lib/src/main/java", "lib/src/main/kotlin"
+            )
+            
+            for (path in standardPaths) {
+                val f = File(root, path)
+                if (f.exists() && f.isDirectory) {
+                    dirs.add(f)
+                }
             }
 
-            // Priority 3: Deep search
-            val detected = root.walkTopDown().maxDepth(5)
-                .filter { it.isDirectory && (it.path.endsWith("src${File.separator}main${File.separator}java") || it.path.endsWith("src${File.separator}main${File.separator}kotlin")) }
-                .firstOrNull()
-
-            return detected ?: root
+            // Fallback: If no standard directories found, use root or perform a deeper search
+            if (dirs.isEmpty()) {
+                val detected = root.walkTopDown().maxDepth(5)
+                    .filter { it.isDirectory && (it.name == "java" || it.name == "kotlin") && it.path.contains("src") }
+                    .toList()
+                dirs.addAll(detected)
+            }
+            
+            if (dirs.isEmpty()) {
+                dirs.add(root)
+            }
+            
+            return dirs.toList()
         }
+
+    /**
+     * The primary source directory of the project.
+     * Maintained for backward compatibility.
+     */
+    val srcDir: File
+        get() = allSrcDirs.firstOrNull() ?: root
 
     /**
      * The resources directory of the project.
@@ -126,7 +142,6 @@ class Project : Serializable {
         }
     }
 
-    // Manual implementation of equals/hashCode to mimic data class behavior if needed
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is Project) return false

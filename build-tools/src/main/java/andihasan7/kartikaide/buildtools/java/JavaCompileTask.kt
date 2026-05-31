@@ -39,8 +39,10 @@ class JavaCompileTask(val project: Project) : Task {
             reporter.reportWarning(e.stackTraceToString())
         }
 
-        // Kumpulkan semua folder sumber (utama + test)
-        val allSrcDirs = mutableListOf(project.srcDir)
+        // Ambil semua folder sumber dari project
+        val allSrcDirs = project.allSrcDirs.toMutableList()
+        
+        // Tambahkan folder test jika belum ada
         val testPaths = listOf(
             "src/test/java", "src/test/kotlin",
             "app/src/test/java", "app/src/test/kotlin",
