@@ -52,12 +52,11 @@ class KotlinCompiler(val project: Project) : Task {
         }
 
         val sourceFiles = allSrcDirs.flatMap { it.getSourceFiles("kt") }
-        val javaFiles = allSrcDirs.flatMap { dir -> dir.walkTopDown().filter { it.isJavaFile() }.toList() }
+        val javaFiles = allSrcDirs.flatMap { dir -> dir.walkTopDown().filter { it.isFile && it.extension == "java" }.toList() }
         
+        // Jika tidak ada file Kotlin, lewati tugas ini. 
+        // File Java akan ditangani oleh JavaCompileTask secara terpisah.
         if (sourceFiles.isEmpty()) {
-            if (javaFiles.isEmpty()) {
-                reporter.reportInfo("No source files found. Skipping Kotlin compilation.")
-            }
             return
         }
 
@@ -85,6 +84,7 @@ class KotlinCompiler(val project: Project) : Task {
 
         val collector = createMessageCollector(reporter)
 
+        // Sesuaikan pesan berdasarkan keberadaan file Java
         val message = if (javaFiles.isNotEmpty()) {
             "Compiling Kotlin sources (mixed with Java)..."
         } else {
