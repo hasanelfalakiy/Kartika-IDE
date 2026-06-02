@@ -214,12 +214,31 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             val isRebase = binding.rebase.isChecked
             showProgressDialog("Pulling changes...") { progressBinding, dialog ->
                 updateRemoteConfig(remoteUrl)
+                val logBuilder = StringBuilder()
                 val writer = object : Writer() {
                     override fun write(cbuf: CharArray, off: Int, len: Int) {
-                        val text = String(cbuf, off, len)
+                        val s = String(cbuf, off, len)
+                        synchronized(logBuilder) {
+                            for (c in s) {
+                                if (c == '\r') {
+                                    val lastNL = logBuilder.lastIndexOf("\n")
+                                    if (lastNL >= 0) {
+                                        logBuilder.setLength(lastNL + 1)
+                                    } else {
+                                        logBuilder.setLength(0)
+                                    }
+                                } else {
+                                    logBuilder.append(c)
+                                }
+                            }
+                        }
+                        
+                        val currentLog = synchronized(logBuilder) { logBuilder.toString() }
                         progressBinding.root.post {
-                            progressBinding.outputText.append(text)
-                            progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                            progressBinding.outputText.text = currentLog
+                            progressBinding.scrollView.post {
+                                progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                            }
                         }
                     }
                     override fun flush() {}
@@ -282,12 +301,31 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
             val isRebase = binding.rebase.isChecked
             showProgressDialog("Pushing changes...") { progressBinding, dialog ->
                 updateRemoteConfig(remoteUrl)
+                val logBuilder = StringBuilder()
                 val writer = object : Writer() {
                     override fun write(cbuf: CharArray, off: Int, len: Int) {
-                        val text = String(cbuf, off, len)
+                        val s = String(cbuf, off, len)
+                        synchronized(logBuilder) {
+                            for (c in s) {
+                                if (c == '\r') {
+                                    val lastNL = logBuilder.lastIndexOf("\n")
+                                    if (lastNL >= 0) {
+                                        logBuilder.setLength(lastNL + 1)
+                                    } else {
+                                        logBuilder.setLength(0)
+                                    }
+                                } else {
+                                    logBuilder.append(c)
+                                }
+                            }
+                        }
+                        
+                        val currentLog = synchronized(logBuilder) { logBuilder.toString() }
                         progressBinding.root.post {
-                            progressBinding.outputText.append(text)
-                            progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                            progressBinding.outputText.text = currentLog
+                            progressBinding.scrollView.post {
+                                progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                            }
                         }
                     }
                     override fun flush() {}
