@@ -47,6 +47,7 @@ import com.andihasan7.kartikaide.adapter.BottomDrawerAdapter
 import com.andihasan7.kartikaide.adapter.EditorAdapter
 import com.andihasan7.kartikaide.adapter.NavAdapter
 import com.andihasan7.kartikaide.compile.Compiler
+import com.andihasan7.kartikaide.compile.CompilerCache
 import com.andihasan7.kartikaide.databinding.FragmentEditorBinding
 import com.andihasan7.kartikaide.databinding.NavigationElementsBinding
 import com.andihasan7.kartikaide.databinding.NewDependencyBinding
@@ -83,6 +84,8 @@ import io.github.rosemoe.sora.widget.EditorSearcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.cosmic.ide.dependency.resolver.api.Artifact
@@ -241,6 +244,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
 
             override fun onTabUnselected(tab: TabLayout.Tab) {
+                //if (tab.position !in 0 until editorAdapter.itemCount) return
+
                 editorAdapter.getItem(tab.position)?.let {
                     it.save()
                     it.hideWindows()
@@ -449,7 +454,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             when (pos) {
                 0 -> { tab.text = "Build Log";     tab.setIcon(R.drawable.ic_build_log) }
                 1 -> { tab.text = "Output";        tab.setIcon(R.drawable.ic_output) }
-                2 -> { tab.text = "Search Result"; tab.setIcon(R.drawable.ic_search_results) }
+                2 -> { tab.text = "Search in Project"; tab.setIcon(R.drawable.ic_search_results) }
             }
         }.attach()
 
@@ -631,7 +636,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         if (isExecutionRunning) {
             executionJob?.cancel()
             isExecutionRunning = false
-            bottomDrawerAdapter.appendLog(1, "\n--- Execution Stopped ---\n")
+            bottomDrawerAdapter.appendLog(1, "\nWarning: Execution Stopped\n")
             updateOutputStatus(false)
         }
     }
@@ -639,7 +644,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private fun reloadExecution() {
         if (isExecutionRunning) stopExecution()
         currentRunningClass?.let {
-            bottomDrawerAdapter.appendLog(1, "\n--- Restarting ---\n")
+            bottomDrawerAdapter.appendLog(1, "\nINFO: Restarting\n")
             runClass(it)
         } ?: runAutoDetectedClass()
     }
@@ -1565,7 +1570,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         }
 
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select class to run:")
+            .setTitle("Select file to run:")
             .setItems(items.toTypedArray()) { _, which ->
                 val selected = items[which]
                 if (selected.startsWith("---")) return@setItems
@@ -1616,35 +1621,61 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         updateRunnerIcon(isRunning = true)
 
         compilationJob = lifecycleScope.launch(Dispatchers.IO) {
+            val startTime = System.currentTimeMillis()
             try {
                 compiler.compile()
+                val duration = System.currentTimeMillis() - startTime
+                
+                val hours = duration / 3600000
+                val minutes = (duration % 3600000) / 60000
+                val seconds = (duration % 60000) / 1000
+                val ms = duration % 1000
+
+                val durationStr = buildString {
+                    if (hours > 0) append("${hours}h ")
+                    if (minutes > 0) append("${minutes}m ")
+                    if (seconds > 0 || hours > 0 || minutes > 0) {
+                         append("${seconds}s")
+                         if (hours == 0L && minutes == 0L) {
+                             append(" ${ms}ms")
+                         }
+                    } else {
+                        append("${ms}ms")
+                    }
+                }.trim()
+                
                 withContext(Dispatchers.Main) {
                     binding.compileProgress.visibility = View.GONE
                     updateRunnerIcon(isRunning = false)
                     if (reporter.buildSuccess) {
-                        bottomDrawerAdapter.appendLog(0, "\nBUILD SUCCESSFUL")
+                        bottomDrawerAdapter.appendLog(0, "\nBUILD SUCCESSFUL in $durationStr")
                         // Switch to Output tab and run
                         pager.currentItem = 1
                         runAutoDetectedClass()
                     } else {
-                        bottomDrawerAdapter.appendLog(0, "\nBUILD FAILED")
+                        bottomDrawerAdapter.appendLog(0, "\nBUILD FAILED in $durationStr")
                     }
+                    CompilerCache.clear() // Free up memory after compilation
                     System.gc() // Trigger GC after heavy compilation
                 }
             } catch (e: CancellationException) {
-                withContext(Dispatchers.Main) {
+                withContext(NonCancellable + Dispatchers.Main) {
                     binding.compileProgress.visibility = View.GONE
                     updateRunnerIcon(isRunning = false)
                     bottomDrawerAdapter.appendLog(0, "\nBUILD CANCELLED")
+                    CompilerCache.clear() // Free up memory after compilation
+                    System.gc() // Trigger GC after heavy compilation
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     binding.compileProgress.visibility = View.GONE
                     updateRunnerIcon(isRunning = false)
                     bottomDrawerAdapter.appendLog(0, "Error during compilation: ${e.message}")
+                    CompilerCache.clear() // Free up memory after compilation
+                    System.gc() // Trigger GC after heavy compilation
                 }
             } finally {
-                withContext(Dispatchers.Main) {
+                withContext(NonCancellable + Dispatchers.Main) {
                     System.gc()
                 }
             }
@@ -1758,6 +1789,11 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
             }
 
             val inputStream = EditorInputStream(outputEditor)
+            
+            // Log throttling variables
+            val outputBuffer = StringBuilder()
+            var lastUpdateTime = 0L
+
             val systemOut = PrintStream(object : OutputStream() {
                 private val bos = ByteArrayOutputStream()
                 override fun write(p0: Int) { bos.write(p0) }
@@ -1771,9 +1807,28 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     // Mark this text as output so the input stream skips it
                     inputStream.expectOutput(s.length)
 
-                    lifecycleScope.launch(Dispatchers.Main) {
-                        bottomDrawerAdapter.appendLog(1, s, addNewLine = false)
+                    outputBuffer.append(s)
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastUpdateTime > 100) { // Throttle UI updates to 100ms
+                        val textToPrint = outputBuffer.toString()
+                        outputBuffer.setLength(0)
+                        lastUpdateTime = currentTime
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            bottomDrawerAdapter.appendLog(1, textToPrint, addNewLine = false)
+                        }
                     }
+                }
+                
+                override fun close() {
+                    // Final flush
+                    if (outputBuffer.isNotEmpty()) {
+                        val textToPrint = outputBuffer.toString()
+                        outputBuffer.setLength(0)
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            bottomDrawerAdapter.appendLog(1, textToPrint, addNewLine = false)
+                        }
+                    }
+                    super.close()
                 }
             }, true)
 
@@ -1791,10 +1846,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 if (prefs.getBoolean(PreferenceKeys.CONSOLE_SHOW_ROOT_INFO, true)) {
                     systemOut.println("INFO: Project Root -> $projectRootPath")
                     systemOut.println("INFO: PROJECT_ROOT is initialized for this session.")
-                    systemOut.println(" ")
                 }
 
-                systemOut.println("--- Running $className ---\n")
+                if (prefs.getBoolean(PreferenceKeys.CONSOLE_SHOW_FILE_INFO_RUN, true)) {
+                    systemOut.println("INFO: Running -> $className\n")
+                }
+                systemOut.println("")
                 systemOut.flush()
 
                 val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
@@ -1884,10 +1941,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     e.printStackTrace(systemOut)
                 }
             } finally {
-                systemOut.flush()
+                // Final flush of throttled output
+                systemOut.close()
+                
                 System.setOut(oldOut)
                 System.setErr(oldErr)
-                System.setIn(oldIn)
+                System.setIn(inputStream)
                 Thread.currentThread().contextClassLoader = oldContextClassLoader
 
                 System.setProperty("user.dir", oldUserDir ?: "/")
@@ -1898,7 +1957,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 isExecutionRunning = false
                 withContext(Dispatchers.Main) {
                     updateOutputStatus(false, "Finished")
-                    bottomDrawerAdapter.appendLog(1, "\n--- Finished ---")
+                    bottomDrawerAdapter.appendLog(1, "\nINFO: Finished")
+                    System.gc() // Free up memory after execution
                 }
             }
         }

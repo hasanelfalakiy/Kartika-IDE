@@ -30,6 +30,11 @@ class ConsoleSettings(private val activity: FragmentActivity) : SettingsProvider
                 defaultValue = true
             }
 
+            switch(PreferenceKeys.CONSOLE_SHOW_FILE_INFO_RUN) {
+                title = "File Info Run"
+                summary = "Show file info run in console"
+                defaultValue = true
+            }
 
         }
     }

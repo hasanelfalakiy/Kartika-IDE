@@ -202,30 +202,43 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
 
         binding.remote.setOnFocusChangeListener { _, hasFocus ->
             if (!hasFocus) {
-                val remote = binding.remote.text.toString()
-                if (remote.isNotEmpty()) {
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        try {
-                            repository.git.repository.config.apply {
-                                setString("remote", "origin", "url", remote)
-                                save()
-                            }
-                        } catch (e: Exception) {
-                            Log.e("GitFragment", "Failed to save remote", e)
-                        }
-                    }
+                val remote = binding.remote.text.toString().trim()
+                lifecycleScope.launch {
+                    updateRemoteConfig(remote)
                 }
             }
         }
 
         binding.pull.setOnClickListener {
+            val remoteUrl = binding.remote.text.toString().trim()
+            val isRebase = binding.rebase.isChecked
             showProgressDialog("Pulling changes...") { progressBinding, dialog ->
+                updateRemoteConfig(remoteUrl)
+                val logBuilder = StringBuilder()
                 val writer = object : Writer() {
                     override fun write(cbuf: CharArray, off: Int, len: Int) {
-                        val text = String(cbuf, off, len)
+                        val s = String(cbuf, off, len)
+                        synchronized(logBuilder) {
+                            for (c in s) {
+                                if (c == '\r') {
+                                    val lastNL = logBuilder.lastIndexOf("\n")
+                                    if (lastNL >= 0) {
+                                        logBuilder.setLength(lastNL + 1)
+                                    } else {
+                                        logBuilder.setLength(0)
+                                    }
+                                } else {
+                                    logBuilder.append(c)
+                                }
+                            }
+                        }
+                        
+                        val currentLog = synchronized(logBuilder) { logBuilder.toString() }
                         progressBinding.root.post {
-                            progressBinding.outputText.append(text)
-                            progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                            progressBinding.outputText.text = currentLog
+                            progressBinding.scrollView.post {
+                                progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                            }
                         }
                     }
                     override fun flush() {}
@@ -235,7 +248,7 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
                 try {
                     repository.pull(
                         writer,
-                        binding.rebase.isChecked,
+                        isRebase,
                         Credentials(Prefs.gitUsername, Prefs.gitApiKey)
                     )
                     withContext(Dispatchers.Main) {
@@ -284,13 +297,35 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
         }
 
         binding.push.setOnClickListener {
+            val remoteUrl = binding.remote.text.toString().trim()
+            val isRebase = binding.rebase.isChecked
             showProgressDialog("Pushing changes...") { progressBinding, dialog ->
+                updateRemoteConfig(remoteUrl)
+                val logBuilder = StringBuilder()
                 val writer = object : Writer() {
                     override fun write(cbuf: CharArray, off: Int, len: Int) {
-                        val text = String(cbuf, off, len)
+                        val s = String(cbuf, off, len)
+                        synchronized(logBuilder) {
+                            for (c in s) {
+                                if (c == '\r') {
+                                    val lastNL = logBuilder.lastIndexOf("\n")
+                                    if (lastNL >= 0) {
+                                        logBuilder.setLength(lastNL + 1)
+                                    } else {
+                                        logBuilder.setLength(0)
+                                    }
+                                } else {
+                                    logBuilder.append(c)
+                                }
+                            }
+                        }
+                        
+                        val currentLog = synchronized(logBuilder) { logBuilder.toString() }
                         progressBinding.root.post {
-                            progressBinding.outputText.append(text)
-                            progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                            progressBinding.outputText.text = currentLog
+                            progressBinding.scrollView.post {
+                                progressBinding.scrollView.fullScroll(View.FOCUS_DOWN)
+                            }
                         }
                     }
                     override fun flush() {}
@@ -308,8 +343,8 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
                     Analytics.logEvent(
                         "git_push", mapOf(
                             "project" to ProjectHandler.getProject()!!.name,
-                            "remote" to binding.remote.text.toString(),
-                            "rebase" to binding.rebase.isChecked,
+                            "remote" to remoteUrl,
+                            "rebase" to isRebase,
                             "time" to System.currentTimeMillis().toString()
                         )
                     )
@@ -397,6 +432,25 @@ class GitFragment : BaseBindingFragment<FragmentGitBinding>() {
                     (binding.stagedList.adapter as? StagingAdapter)?.updateFiles(staged)
                     binding.commit.isEnabled = staged.isNotEmpty()
                 }
+            }
+        }
+    }
+
+    private suspend fun updateRemoteConfig(remote: String) {
+        if (!this::repository.isInitialized || remote.isEmpty()) return
+        withContext(Dispatchers.IO) {
+            try {
+                repository.git.repository.config.apply {
+                    if (getString("remote", "origin", "url") != remote) {
+                        setString("remote", "origin", "url", remote)
+                        if (getString("remote", "origin", "fetch") == null) {
+                            setString("remote", "origin", "fetch", "+refs/heads/*:refs/remotes/origin/*")
+                        }
+                        save()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("GitFragment", "Failed to save remote", e)
             }
         }
     }
