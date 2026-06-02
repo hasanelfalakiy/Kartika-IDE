@@ -84,6 +84,7 @@ import io.github.rosemoe.sora.widget.EditorSearcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -1658,19 +1659,23 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                     System.gc() // Trigger GC after heavy compilation
                 }
             } catch (e: CancellationException) {
-                withContext(Dispatchers.Main) {
+                withContext(NonCancellable + Dispatchers.Main) {
                     binding.compileProgress.visibility = View.GONE
                     updateRunnerIcon(isRunning = false)
                     bottomDrawerAdapter.appendLog(0, "\nBUILD CANCELLED")
+                    CompilerCache.clear() // Free up memory after compilation
+                    System.gc() // Trigger GC after heavy compilation
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     binding.compileProgress.visibility = View.GONE
                     updateRunnerIcon(isRunning = false)
                     bottomDrawerAdapter.appendLog(0, "Error during compilation: ${e.message}")
+                    CompilerCache.clear() // Free up memory after compilation
+                    System.gc() // Trigger GC after heavy compilation
                 }
             } finally {
-                withContext(Dispatchers.Main) {
+                withContext(NonCancellable + Dispatchers.Main) {
                     System.gc()
                 }
             }
