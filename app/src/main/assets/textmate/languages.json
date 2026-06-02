@@ -46,7 +46,7 @@
       "grammar": "textmate/toml/toml.tmLanguage.json",
       "name": "TOML",
       "scopeName": "source.toml",
-      "languageConfiguration": "textmate/toml/language-configuration.json"
+      "languageConfiguration": "textmate/toml/toml.language-configuration.json"
     },
     {
       "grammar": "textmate/xml/syntaxes/xml.tmLanguage.json",
