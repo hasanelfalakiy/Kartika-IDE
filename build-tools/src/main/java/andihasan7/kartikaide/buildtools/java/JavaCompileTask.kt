@@ -104,6 +104,7 @@ class JavaCompileTask(val project: Project) : Task {
                     }
 
                     override fun write(cbuf: CharArray?, off: Int, len: Int) {
+                        reporter.checkCancelled()
                         sb.appendRange(cbuf!!, off, off + len)
                     }
                 },

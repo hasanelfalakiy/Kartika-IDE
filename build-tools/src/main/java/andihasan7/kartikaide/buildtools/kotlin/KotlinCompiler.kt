@@ -35,6 +35,8 @@ class KotlinCompiler(val project: Project) : Task {
     }
 
     override fun execute(reporter: BuildReporter) {
+        reporter.checkCancelled()
+        
         // Gunakan semua folder sumber yang terdeteksi di project
         val allSrcDirs = project.allSrcDirs.toMutableList()
         
@@ -121,6 +123,7 @@ class KotlinCompiler(val project: Project) : Task {
                 message: String,
                 location: CompilerMessageSourceLocation?
             ) {
+                reporter.checkCancelled()
                 val diagnostic = CompilationDiagnostic(message, location)
                 when (severity) {
                     CompilerMessageSeverity.ERROR, CompilerMessageSeverity.EXCEPTION -> {

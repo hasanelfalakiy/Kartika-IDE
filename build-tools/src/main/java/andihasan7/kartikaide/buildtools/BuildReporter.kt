@@ -8,6 +8,7 @@
 package andihasan7.kartikaide.buildtools
 
 import andihasan7.kartikaide.common.Analytics
+import java.util.concurrent.CancellationException
 
 /**
  * Enum to represent different kinds of build reports.
@@ -36,6 +37,12 @@ class BuildReporter(
         println("${report.kind}: ${report.message}")
     }
 ) {
+    /**
+     * A lambda to check if the build has been cancelled.
+     * If this returns true, reporting methods will throw a [CancellationException].
+     */
+    var isCancelled: () -> Boolean = { false }
+
     var buildSuccess = false
         private set
     var failure = false
@@ -43,10 +50,20 @@ class BuildReporter(
     private var startTime = System.currentTimeMillis()
 
     /**
+     * Checks if the build has been cancelled and throws a [CancellationException] if it has.
+     */
+    fun checkCancelled() {
+        if (isCancelled()) {
+            throw CancellationException("Build cancelled by user")
+        }
+    }
+
+    /**
      * Generates an informational build report.
      * @param message The message associated with the build report.
      */
     fun reportInfo(message: String) {
+        checkCancelled()
         callback(BuildReport(BuildReportKind.INFO, message))
     }
 
@@ -55,6 +72,7 @@ class BuildReporter(
      * @param message The message associated with the build report.
      */
     fun reportWarning(message: String) {
+        checkCancelled()
         callback(BuildReport(BuildReportKind.WARNING, message))
     }
 
@@ -63,6 +81,7 @@ class BuildReporter(
      * @param message The message associated with the build report.
      */
     fun reportError(message: String) {
+        checkCancelled()
         callback(BuildReport(BuildReportKind.ERROR, message))
         failure = true
     }
@@ -72,6 +91,7 @@ class BuildReporter(
      * @param message The message associated with the build report.
      */
     fun reportLogging(message: String) {
+        checkCancelled()
         callback(BuildReport(BuildReportKind.LOGGING, message))
     }
 
@@ -80,6 +100,7 @@ class BuildReporter(
      * @param message The message associated with the build report.
      */
     fun reportOutput(message: String) {
+        checkCancelled()
         callback(BuildReport(BuildReportKind.OUTPUT, message))
     }
 

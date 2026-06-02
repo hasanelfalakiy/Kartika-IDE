@@ -1621,6 +1621,8 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         updateRunnerIcon(isRunning = true)
 
         compilationJob = lifecycleScope.launch(Dispatchers.IO) {
+            reporter.isCancelled = { !coroutineContext[Job]!!.isActive }
+
             val startTime = System.currentTimeMillis()
             try {
                 compiler.compile()
@@ -1684,7 +1686,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
 
     private fun stopCompilation() {
         compilationJob?.cancel()
-        compilationJob = null
+        //compilationJob = null
         binding.compileProgress.visibility = View.GONE
         updateRunnerIcon(isRunning = false)
     }
