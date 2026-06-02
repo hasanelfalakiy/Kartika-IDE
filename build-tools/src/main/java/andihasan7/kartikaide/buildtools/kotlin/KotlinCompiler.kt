@@ -54,8 +54,10 @@ class KotlinCompiler(val project: Project) : Task {
         val sourceFiles = allSrcDirs.flatMap { it.getSourceFiles("kt") }
         val javaFiles = allSrcDirs.flatMap { dir -> dir.walkTopDown().filter { it.isJavaFile() }.toList() }
         
-        if (sourceFiles.isEmpty() && javaFiles.isEmpty()) {
-            reporter.reportInfo("No source files found. Skipping Kotlin compilation.")
+        if (sourceFiles.isEmpty()) {
+            if (javaFiles.isEmpty()) {
+                reporter.reportInfo("No source files found. Skipping Kotlin compilation.")
+            }
             return
         }
 
@@ -83,7 +85,13 @@ class KotlinCompiler(val project: Project) : Task {
 
         val collector = createMessageCollector(reporter)
 
-        reporter.reportInfo("Compiling Kotlin sources (mixed with Java)...")
+        val message = if (javaFiles.isNotEmpty()) {
+            "Compiling Kotlin sources (mixed with Java)..."
+        } else {
+            "Compiling Kotlin sources..."
+        }
+        reporter.reportInfo(message)
+
         makeJvmIncrementally(kotlinHomeDir, allSrcDirs, args, collector)
     }
 
