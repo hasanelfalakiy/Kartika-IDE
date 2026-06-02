@@ -635,7 +635,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         if (isExecutionRunning) {
             executionJob?.cancel()
             isExecutionRunning = false
-            bottomDrawerAdapter.appendLog(1, "\n--- Execution Stopped ---\n")
+            bottomDrawerAdapter.appendLog(1, "\nWarning: Execution Stopped\n")
             updateOutputStatus(false)
         }
     }
@@ -643,7 +643,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
     private fun reloadExecution() {
         if (isExecutionRunning) stopExecution()
         currentRunningClass?.let {
-            bottomDrawerAdapter.appendLog(1, "\n--- Restarting ---\n")
+            bottomDrawerAdapter.appendLog(1, "\nINFO: Restarting\n")
             runClass(it)
         } ?: runAutoDetectedClass()
     }
@@ -1569,7 +1569,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
         }
 
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select class to run:")
+            .setTitle("Select file to run:")
             .setItems(items.toTypedArray()) { _, which ->
                 val selected = items[which]
                 if (selected.startsWith("---")) return@setItems
@@ -1841,10 +1841,12 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 if (prefs.getBoolean(PreferenceKeys.CONSOLE_SHOW_ROOT_INFO, true)) {
                     systemOut.println("INFO: Project Root -> $projectRootPath")
                     systemOut.println("INFO: PROJECT_ROOT is initialized for this session.")
-                    systemOut.println(" ")
                 }
 
-                systemOut.println("--- Running $className ---\n")
+                if (prefs.getBoolean(PreferenceKeys.CONSOLE_SHOW_FILE_INFO_RUN, true)) {
+                    systemOut.println("INFO: Running -> $className\n")
+                }
+                systemOut.println("")
                 systemOut.flush()
 
                 val loader = MultipleDexClassLoader(classLoader = javaClass.classLoader!!)
@@ -1950,7 +1952,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                 isExecutionRunning = false
                 withContext(Dispatchers.Main) {
                     updateOutputStatus(false, "Finished")
-                    bottomDrawerAdapter.appendLog(1, "\n--- Finished ---")
+                    bottomDrawerAdapter.appendLog(1, "\nINFO: Finished")
                     System.gc() // Free up memory after execution
                 }
             }
