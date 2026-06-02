@@ -1652,7 +1652,7 @@ class EditorFragment : BaseBindingFragment<FragmentEditorBinding>() {
                         pager.currentItem = 1
                         runAutoDetectedClass()
                     } else {
-                        bottomDrawerAdapter.appendLog(0, "\nBUILD FAILED")
+                        bottomDrawerAdapter.appendLog(0, "\nBUILD FAILED in $durationStr")
                     }
                     CompilerCache.clear() // Free up memory after compilation
                     System.gc() // Trigger GC after heavy compilation
