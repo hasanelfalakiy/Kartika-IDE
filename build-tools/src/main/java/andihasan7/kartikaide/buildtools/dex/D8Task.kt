@@ -21,6 +21,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipFile
 import kotlin.io.path.nameWithoutExtension
+import java.util.concurrent.CancellationException
 
 /**
  * Task to compile the class files of a project to a Dalvik Executable (Dex) file using D8.
@@ -43,6 +44,7 @@ class D8Task(val project: Project) : Task {
          */
         fun compileJar(jarFile: Path, outputDir: Path, reporter: BuildReporter? = null) {
             try {
+                reporter?.checkCancelled()
                 // If it's an AAR, we need to extract classes.jar or handle it specifically.
                 // For now, let's assume it's a JAR or that D8 can handle it if it contains classes.
                 if (jarFile.toString().endsWith(".aar")) {
@@ -62,6 +64,7 @@ class D8Task(val project: Project) : Task {
                                 .addClasspathFiles(getSystemClasspath().map { it.toPath() })
                                 .addProgramFiles(tempClassesJar)
                                 .setOutput(outputDir, OutputMode.DexIndexed)
+                                .setCancelCompilationChecker { reporter?.isCancelled() ?: false }
                                 .build()
                         )
                         Files.deleteIfExists(tempClassesJar)
@@ -85,9 +88,12 @@ class D8Task(val project: Project) : Task {
                             .addClasspathFiles(getSystemClasspath().map { it.toPath() })
                             .addProgramFiles(jarFile)
                             .setOutput(outputDir, OutputMode.DexIndexed)
+                            .setCancelCompilationChecker { reporter?.isCancelled() ?: false }
                             .build()
                     )
                 }
+
+                reporter?.checkCancelled()
 
                 // D8 outputs classes.dex, rename it to be unique to this jar
                 val outputDex = outputDir.resolve("classes.dex")
@@ -95,10 +101,13 @@ class D8Task(val project: Project) : Task {
                     Files.move(
                         outputDex,
                         outputDir.resolve(jarFile.nameWithoutExtension + ".dex"),
-                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
-                    )
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING)
                 }
             } catch (e: Throwable) {
+                if (e is CancellationException || e is InterruptedException) throw e
+                if (reporter?.isCancelled() == true || Thread.currentThread().isInterrupted) {
+                    throw CancellationException("Build cancelled")
+                }
                 reporter?.reportError("Failed to dex ${jarFile.fileName}: ${e.message}")
             }
         }
@@ -110,6 +119,7 @@ class D8Task(val project: Project) : Task {
      * @param reporter The BuildReporter instance to report any errors to.
      */
     override fun execute(reporter: BuildReporter) {
+        reporter.checkCancelled()
         val classes = getClassFiles(project.binDir.resolve("classes"))
         if (classes.isEmpty()) {
             // It's possible there are no classes but only resources, or it's a Kotlin-only project
@@ -117,15 +127,26 @@ class D8Task(val project: Project) : Task {
             // But if it's empty, we just skip project dexing.
             reporter.reportInfo("No project classes found to dex.")
         } else {
-            D8.run(
-                D8Command.builder()
-                    .setMinApiLevel(MIN_API_LEVEL)
-                    .setMode(COMPILATION_MODE)
-                    .addClasspathFiles(getSystemClasspath().map { it.toPath() })
-                    .addProgramFiles(classes)
-                    .setOutput(project.binDir.toPath(), OutputMode.DexIndexed)
-                    .build()
-            )
+            reporter.checkCancelled()
+            try {
+                D8.run(
+                    D8Command.builder()
+                        .setMinApiLevel(MIN_API_LEVEL)
+                        .setMode(COMPILATION_MODE)
+                        .addClasspathFiles(getSystemClasspath().map { it.toPath() })
+                        .addProgramFiles(classes)
+                        .setOutput(project.binDir.toPath(), OutputMode.DexIndexed)
+                        .setCancelCompilationChecker { reporter.isCancelled() }
+                        .build()
+                )
+            } catch (e: Throwable) {
+                if (e is CancellationException || e is InterruptedException) throw e
+                if (reporter.isCancelled() || Thread.currentThread().isInterrupted) {
+                    throw CancellationException("Build cancelled")
+                }
+                throw e
+            }
+            reporter.checkCancelled()
         }
 
         // Compile all libraries from all detected locations
@@ -133,6 +154,7 @@ class D8Task(val project: Project) : Task {
         if (allLibs.isNotEmpty()) {
             val libDexDir = project.buildDir.resolve("libs").apply { mkdirs() }
             allLibs.forEach { libFile ->
+                reporter.checkCancelled()
                 val targetDex = libDexDir.resolve(libFile.nameWithoutExtension + ".dex")
                 // Only compile if dex doesn't exist or is older than the library
                 if (!targetDex.exists() || targetDex.lastModified() < libFile.lastModified()) {

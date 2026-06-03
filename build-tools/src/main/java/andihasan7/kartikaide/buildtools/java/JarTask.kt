@@ -20,6 +20,7 @@ import java.util.zip.ZipEntry
 class JarTask(val project: Project) : Task {
 
     override fun execute(reporter: BuildReporter) {
+        reporter.checkCancelled()
         val directory = project.binDir.resolve("classes")
         reporter.reportInfo("Creating JAR file from directory: ${directory.absolutePath}")
 
@@ -31,6 +32,7 @@ class JarTask(val project: Project) : Task {
         JarOutputStream(jarFile.outputStream()).use { jar ->
             directory.walkTopDown().filter { it.isFile && it.extension == "class" }
                 .forEach { classFile ->
+                    reporter.checkCancelled()
                     val entryName = classFile.relativeTo(directory).path.replace("\\", "/")
                     jar.putNextEntry(ZipEntry(entryName))
                     classFile.inputStream().buffered().use { input ->

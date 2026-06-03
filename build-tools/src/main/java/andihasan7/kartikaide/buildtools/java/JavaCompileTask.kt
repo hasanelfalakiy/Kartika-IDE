@@ -14,6 +14,7 @@ import andihasan7.kartikaide.buildtools.util.getSourceFiles
 import andihasan7.kartikaide.buildtools.util.getSystemClasspath
 import andihasan7.kartikaide.common.Prefs
 import andihasan7.kartikaide.project.Project
+import com.sun.source.util.JavacTask
 import java.io.File
 import java.io.Writer
 import java.nio.file.Files
@@ -23,6 +24,8 @@ import javax.tools.DiagnosticCollector
 import javax.tools.JavaFileObject
 import javax.tools.SimpleJavaFileObject
 import javax.tools.StandardLocation
+import com.sun.source.util.TaskListener
+import com.sun.source.util.TaskEvent
 
 class JavaCompileTask(val project: Project) : Task {
     val diagnostics = DiagnosticCollector<JavaFileObject>()
@@ -30,6 +33,7 @@ class JavaCompileTask(val project: Project) : Task {
     val fileManager = tool.getStandardFileManager(diagnostics, null, null)
 
     override fun execute(reporter: BuildReporter) {
+        reporter.checkCancelled()
         val output = project.binDir.resolve("classes")
         val version = Prefs.compilerJavaVersion.toString()
 
@@ -114,6 +118,17 @@ class JavaCompileTask(val project: Project) : Task {
                 null,
                 javaFileObjects
             )
+
+            if (task is JavacTask) {
+                task.setTaskListener(object : TaskListener {
+                    override fun started(e: TaskEvent?) {
+                        reporter.checkCancelled()
+                    }
+                    override fun finished(e: TaskEvent?) {
+                        reporter.checkCancelled()
+                    }
+                })
+            }
 
             task.call()
 

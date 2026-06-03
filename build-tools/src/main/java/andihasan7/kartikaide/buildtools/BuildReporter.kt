@@ -53,8 +53,12 @@ class BuildReporter(
      * Checks if the build has been cancelled and throws a [CancellationException] if it has.
      */
     fun checkCancelled() {
-        if (isCancelled()) {
-            throw CancellationException("Build cancelled by user")
+        if (isCancelled() || Thread.currentThread().isInterrupted) {
+            // Ensure interrupted flag is set for coroutines runInterruptible
+            if (!Thread.currentThread().isInterrupted) {
+                Thread.currentThread().interrupt()
+            }
+            throw CancellationException("Build cancelled")
         }
     }
 

@@ -26,6 +26,7 @@ import org.jetbrains.kotlin.cli.common.environment.setIdeaIoUseFallback
 import org.jetbrains.kotlin.cli.jvm.compiler.setupIdeaStandaloneExecution
 import org.jetbrains.kotlin.load.kotlin.KotlinBinaryClassCache
 import java.util.concurrent.CancellationException
+import kotlinx.coroutines.runInterruptible
 
 /**
  * A class responsible for compiling Java and Kotlin code and converting class files to dex format.
@@ -227,15 +228,25 @@ class Compiler(
     /**
      * Compiles Kotlin and Java code and converts class files to dex format.
      */
-    fun compile(release: Boolean = false) {
+    suspend fun compile(release: Boolean = false) = runInterruptible {
         setupEnvironment() // Pastikan lingkungan siap sebelum kompilasi
         ensureKotlinServicesRegistered()
+        
+        reporter.checkCancelled()
         compileKotlinCode()
+        
+        reporter.checkCancelled()
         compileJavaCode()
+        
+        reporter.checkCancelled()
         convertClassFilesToDexFormat()
+        
         if (release) {
+            reporter.checkCancelled()
             compileJar()
         }
+        
+        reporter.checkCancelled()
         reporter.reportSuccess()
     }
 
@@ -250,12 +261,20 @@ class Compiler(
 
         with(reporter) {
             if (failure) return
+            checkCancelled()
             reportInfo(message)
             compileListener(T::class.java, BuildStatus.STARTED)
             try {
                 taskInstance.execute(this)
             } catch (e: Exception) {
-                if (e is CancellationException) throw e
+                // Check if any cause is CancellationException
+                var current: Throwable? = e
+                while (current != null) {
+                    if (current is CancellationException || current is InterruptedException) {
+                        throw CancellationException("Build cancelled")
+                    }
+                    current = current.cause
+                }
                 
                 val errorStr = e.stackTraceToString()
                 // Tangani error spesifik Kotlin Binary Cache NPE atau kegagalan incremental
@@ -289,13 +308,20 @@ class Compiler(
                     try {
                         newTask.execute(this)
                     } catch (e2: Exception) {
-                        if (e2 is CancellationException) throw e2
+                        var current2: Throwable? = e2
+                        while (current2 != null) {
+                            if (current2 is CancellationException || current2 is InterruptedException) {
+                                throw CancellationException("Build cancelled")
+                            }
+                            current2 = current2.cause
+                        }
                         throw e2
                     }
                 } else {
                     throw e
                 }
             }
+            checkCancelled()
             compileListener(T::class.java, BuildStatus.FINISHED)
 
             if (failure) {
