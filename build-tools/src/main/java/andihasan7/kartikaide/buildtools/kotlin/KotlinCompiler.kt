@@ -35,9 +35,10 @@ class KotlinCompiler(val project: Project) : Task {
     }
 
     override fun execute(reporter: BuildReporter) {
-        val allSrcDirs = mutableListOf(project.srcDir)
+        // Gunakan semua folder sumber yang terdeteksi di project
+        val allSrcDirs = project.allSrcDirs.toMutableList()
         
-        // Tambahkan folder test ke daftar kompilasi
+        // Tambahkan folder test ke daftar kompilasi jika belum ada
         val testPaths = listOf(
             "src/test/java", "src/test/kotlin",
             "app/src/test/java", "app/src/test/kotlin",
@@ -51,8 +52,11 @@ class KotlinCompiler(val project: Project) : Task {
         }
 
         val sourceFiles = allSrcDirs.flatMap { it.getSourceFiles("kt") }
+        val javaFiles = allSrcDirs.flatMap { dir -> dir.walkTopDown().filter { it.isFile && it.extension == "java" }.toList() }
+        
+        // Jika tidak ada file Kotlin, lewati tugas ini. 
+        // File Java akan ditangani oleh JavaCompileTask secara terpisah.
         if (sourceFiles.isEmpty()) {
-            reporter.reportInfo("No Kotlin files are present. Skipping Kotlin compilation.")
             return
         }
 
@@ -67,8 +71,8 @@ class KotlinCompiler(val project: Project) : Task {
                 (getSystemClasspath() + classpathFiles).joinToString(separator = File.pathSeparator) { it.absolutePath }
             kotlinHome = kotlinHomeDir.absolutePath
             destination = classOutput.absolutePath
-            javaSourceRoots =
-                allSrcDirs.flatMap { dir -> dir.walkTopDown().filter { it.isJavaFile() }.map { it.absolutePath }.toList() }.toTypedArray()
+            // Masukkan semua file Java dari semua root sumber agar Kotlin bisa melihatnya (Mixed Project)
+            javaSourceRoots = javaFiles.map { it.absolutePath }.toTypedArray()
             moduleName = project.name
             pluginClasspaths = enabledPlugins
             useFastJarFileSystem = Prefs.useFastJarFs
@@ -80,11 +84,21 @@ class KotlinCompiler(val project: Project) : Task {
 
         val collector = createMessageCollector(reporter)
 
+        // Sesuaikan pesan berdasarkan keberadaan file Java
+        val message = if (javaFiles.isNotEmpty()) {
+            "Compiling Kotlin sources (mixed with Java)..."
+        } else {
+            "Compiling Kotlin sources..."
+        }
+        reporter.reportInfo(message)
+
         makeJvmIncrementally(kotlinHomeDir, allSrcDirs, args, collector)
     }
 
     fun collectClasspathFiles(): List<File> {
-        return project.libDir.walk().filter(File::isFile).toList()
+        // Mengambil semua library dari berbagai lokasi yang didukung (libs, lib/libs, src/libs)
+        // Saat ini hanya menyertakan .jar karena .aar memerlukan penanganan khusus (ekstraksi classes.jar)
+        return project.allLibFiles.filter { it.extension == "jar" }
     }
 
     fun getKotlinCompilerPlugins(): List<File> {

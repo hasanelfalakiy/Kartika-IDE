@@ -203,9 +203,16 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
 
         private fun setEditorLanguage() {
             val project = ProjectHandler.getProject() ?: return
+            
+            // Prioritaskan language terspesialisasi (Kotlin) yang butuh fitur IDE tambahan
+            if (file.extension == "kt" || file.extension == "kts") {
+                editor.setEditorLanguage(KotlinLanguage(editor, project, file))
+                inlayHintManager?.updateHints()
+                return
+            }
+
             val scopeName = when (file.extension) {
                 "java", "jav" -> "source.java"
-                "kt", "kts" -> "source.kotlin"
                 "py" -> "source.python"
                 "xml", "axml" -> "text.xml"
                 "json" -> "source.json"
@@ -240,13 +247,11 @@ class EditorAdapter(val fragment: Fragment, val fileViewModel: FileViewModel) :
                         diagReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
                     }
                 } else {
-                    // Fallback ke Tree-Sitter khusus untuk Java & Kotlin jika grammar TextMate tidak ada
+                    // Fallback ke Tree-Sitter khusus untuk Java jika grammar TextMate tidak ada
                     if (file.extension == "java") {
                         editor.setEditorLanguage(TsLanguageJava.getInstance(editor, project, file))
                         diagReceiver?.unsubscribe()
                         diagReceiver = editor.subscribeEvent(EditorDiagnosticsMarker(editor, file, project))
-                    } else if (file.extension == "kt" || file.extension == "kts") {
-                        editor.setEditorLanguage(KotlinLanguage(editor, project, file))
                     } else {
                         // Gunakan generic TextMate (IdeLanguage) sebagai fallback terakhir
                         try {

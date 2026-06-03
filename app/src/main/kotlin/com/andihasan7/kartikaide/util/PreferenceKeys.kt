@@ -35,6 +35,7 @@ object PreferenceKeys {
 
     // Console
     const val CONSOLE_SHOW_ROOT_INFO = CommonKeys.CONSOLE_SHOW_ROOT_INFO
+    const val CONSOLE_SHOW_FILE_INFO_RUN = CommonKeys.CONSOLE_SHOW_FILE_INFO_RUN
 
     // Editor
     const val EDITOR_FONT_SIZE = CommonKeys.EDITOR_FONT_SIZE

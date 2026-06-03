@@ -27,6 +27,7 @@ object PreferenceKeys {
 
     // Console
     const val CONSOLE_SHOW_ROOT_INFO = "console_show_root_info"
+    const val CONSOLE_SHOW_FILE_INFO_RUN = "console_show_file_info_run"
 
     // Editor
     const val EDITOR_FONT_SIZE = "font_size"
